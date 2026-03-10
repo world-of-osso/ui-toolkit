@@ -1,0 +1,22 @@
+[package]
+name = "ui-toolkit"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+
+[dependencies]
+bevy = { version = "0.18", default-features = false, features = ["default"] }
+image-blp = "1"
+dioxus-core = { path = "/home/osso/Repos/dioxus/packages/core" }
+dioxus = { path = "/home/osso/Repos/dioxus/packages/dioxus", default-features = false, features = ["macro", "signals", "hooks"] }
+dioxus-devtools = { path = "/home/osso/Repos/dioxus/packages/devtools" }
+dioxus-cli-config = { path = "/home/osso/Repos/dioxus/packages/cli-config" }
+ab_glyph = "0.2"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev.package.dioxus-core]
+opt-level = 0
