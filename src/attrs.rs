@@ -184,7 +184,7 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "background_color" => { if let Some(color) = parse_color(value) { frame.background_color = Some(color); } }
         "nine_slice" => { if let Some(ns) = parse_nine_slice(value) { frame.nine_slice = Some(ns); } }
         "border" => { frame.border = parse_border(value); }
-        "onclick" => { frame.onclick = Some(value.to_string()); }
+        "onclick" => { frame.onclick = Some(value.to_string()); frame.mouse_enabled = true; }
         _ => {}
     }
 }
@@ -263,6 +263,13 @@ fn apply_widget_texture_attrs(frame: &mut Frame, name: &str, value: &str, valida
             if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
                 if atlas::get_region(value).is_none() { eprintln!("[UI] texture_atlas not found: {value}"); }
                 td.source = TextureSource::Atlas(value.to_string());
+            }
+        }
+        "vertex_color" => {
+            if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
+                if let Some(color) = parse_color(value) {
+                    td.vertex_color = color;
+                }
             }
         }
         "button_atlas_up" => apply_button_texture(frame, value, |bd, src| bd.normal_texture = Some(src)),

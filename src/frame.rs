@@ -235,7 +235,7 @@ impl Frame {
             effective_alpha: 1.0,
             scale: 1.0,
             effective_scale: 1.0,
-            mouse_enabled: true,
+            mouse_enabled: false,
             ..Self::default()
         }
     }

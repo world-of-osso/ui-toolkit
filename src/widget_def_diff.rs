@@ -124,6 +124,9 @@ impl DiffContext {
         let mut frame = Frame::new(frame_id, None, widget_type);
         frame.widget_data = default_widget_data(widget_type);
         frame.parent_id = parent_id;
+        if matches!(widget_type, WidgetType::Button | WidgetType::CheckButton | WidgetType::EditBox) {
+            frame.mouse_enabled = true;
+        }
         registry.insert_frame(frame);
         if parent_id.is_none() {
             self.created_frames.push(frame_id);
