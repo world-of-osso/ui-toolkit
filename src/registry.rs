@@ -115,7 +115,7 @@ impl FrameRegistry {
         if let Some(pid) = parent_id
             && let Some(parent) = self.frames.get(&pid)
         {
-            frame.visible = parent.visible && frame.shown;
+            frame.visible = parent.visible && !frame.hidden;
             frame.effective_alpha = parent.effective_alpha * frame.alpha;
             frame.effective_scale = parent.effective_scale * frame.scale;
             frame.frame_level = parent.frame_level + 1;
@@ -274,13 +274,13 @@ impl FrameRegistry {
         }
     }
 
-    /// Set a frame's shown state and propagate visibility + alpha down the subtree.
-    pub fn set_shown(&mut self, id: u64, shown: bool) {
+    /// Set a frame's hidden state and propagate visibility + alpha down the subtree.
+    pub fn set_hidden(&mut self, id: u64, hidden: bool) {
         let parent_visible = self.parent_visible(id);
         let parent_effective_alpha = self.parent_effective_alpha(id);
         if let Some(frame) = self.frames.get_mut(&id) {
-            frame.shown = shown;
-            frame.visible = parent_visible && shown;
+            frame.hidden = hidden;
+            frame.visible = parent_visible && !hidden;
             frame.effective_alpha = if frame.visible {
                 parent_effective_alpha * frame.alpha
             } else {
@@ -357,7 +357,7 @@ impl FrameRegistry {
     fn propagate_visibility(&mut self, id: u64) {
         let parent_visible = self.parent_visible(id);
         let children = if let Some(frame) = self.frames.get_mut(&id) {
-            frame.visible = parent_visible && frame.shown;
+            frame.visible = parent_visible && !frame.hidden;
             self.render_dirty.insert(id);
             frame.children.clone()
         } else {
@@ -522,19 +522,19 @@ mod tests {
         let child = reg.create_frame("Child", Some(parent));
 
         // Hide parent
-        reg.set_shown(parent, false);
+        reg.set_hidden(parent, true);
 
         let parent_frame = reg.get(parent).unwrap();
-        assert!(!parent_frame.shown);
+        assert!(parent_frame.hidden);
         assert!(!parent_frame.visible);
 
         let child_frame = reg.get(child).unwrap();
-        // Child's shown stays true, but visible becomes false
-        assert!(child_frame.shown);
+        // Child's hidden stays false, but visible becomes false
+        assert!(!child_frame.hidden);
         assert!(!child_frame.visible);
 
         // Show parent again
-        reg.set_shown(parent, true);
+        reg.set_hidden(parent, false);
         let child_frame = reg.get(child).unwrap();
         assert!(child_frame.visible);
     }
@@ -546,7 +546,7 @@ mod tests {
         let child = reg.create_frame("Child", Some(parent));
 
         reg.set_alpha(child, 0.8);
-        reg.set_shown(parent, false);
+        reg.set_hidden(parent, true);
 
         let child_frame = reg.get(child).unwrap();
         assert!((child_frame.effective_alpha - 0.0).abs() < f32::EPSILON);

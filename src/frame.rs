@@ -18,8 +18,9 @@ pub enum WidgetData {
 }
 
 /// WoW widget types corresponding to frame XML element names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum WidgetType {
+    #[default]
     Frame,
     Button,
     CheckButton,
@@ -95,6 +96,7 @@ impl Default for Backdrop {
 }
 
 /// A UI frame in the WoW frame hierarchy.
+#[derive(Default)]
 pub struct Frame {
     pub id: u64,
     pub name: Option<String>,
@@ -111,7 +113,7 @@ pub struct Frame {
     pub layout_rect: Option<LayoutRect>,
 
     // Visibility
-    pub shown: bool,
+    pub hidden: bool,
     pub visible: bool,
 
     // Alpha
@@ -154,33 +156,13 @@ impl Frame {
             id,
             name,
             widget_type,
-            parent_id: None,
-            children: Vec::new(),
-            width: 0.0,
-            height: 0.0,
-            anchors: Vec::new(),
-            layout_rect: None,
-            shown: true,
             visible: true,
             alpha: 1.0,
             effective_alpha: 1.0,
             scale: 1.0,
             effective_scale: 1.0,
-            strata: FrameStrata::default(),
-            frame_level: 0,
-            raise_order: 0,
-            draw_layer: DrawLayer::default(),
-            draw_sub_layer: 0,
             mouse_enabled: true,
-            keyboard_enabled: false,
-            hit_rect_insets: [0.0; 4],
-            background_color: None,
-            backdrop: None,
-            nine_slice: None,
-            clamped_to_screen: false,
-            movable: false,
-            resizable: false,
-            widget_data: None,
+            ..Self::default()
         }
     }
 

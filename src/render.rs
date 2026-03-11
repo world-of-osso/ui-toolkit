@@ -520,7 +520,7 @@ mod tests {
         assert_eq!(q.iter(app.world()).count(), baseline + 1);
         {
             let mut ui = app.world_mut().resource_mut::<UiState>();
-            ui.registry.set_shown(frame_id, false);
+            ui.registry.set_hidden(frame_id, true);
         }
         app.update();
         let mut q = app.world_mut().query_filtered::<(), With<UiQuad>>();

@@ -174,6 +174,10 @@ fn spawn_missing_parts(
             }
             let (transform, size, color) =
                 part_geometry(frame, nine_slice, p, screen_w, screen_h, z);
+            if p == 4 {
+                let name = frame.name.as_deref().unwrap_or("?");
+                eprintln!("SPAWN_CENTER {name}: pos={:?} size={size:?} color={color:?}", transform.translation);
+            }
             let (image, tex_rect) = resolve_part_texture(
                 nine_slice,
                 p,

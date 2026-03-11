@@ -406,7 +406,7 @@ fn hiding_panel_hides_children() {
     );
     let btn = create_button(&mut reg, "Btn", Some(panel), 120.0, 30.0, "Test");
 
-    reg.set_shown(panel, false);
+    reg.set_hidden(panel, true);
 
     let btn_frame = reg.get(btn).unwrap();
     assert!(
@@ -453,50 +453,42 @@ fn nine_slice_edge_size_determines_corner_dimensions() {
     assert_eq!(size.y, 96.0, "center height should be frame_h - 2*edge");
 }
 
-#[test]
-fn nine_slice_border_color_applied_to_edge_parts() {
-    use crate::render_nine_slice::part_geometry;
-
+fn nine_slice_test_frame() -> crate::frame::Frame {
     let mut frame = crate::frame::Frame::new(1, None, WidgetType::Frame);
     frame.width = 200.0;
     frame.height = 100.0;
     frame.effective_alpha = 0.8;
     frame.layout_rect = Some(crate::layout::LayoutRect {
-        x: 0.0,
-        y: 0.0,
-        width: 200.0,
-        height: 100.0,
+        x: 0.0, y: 0.0, width: 200.0, height: 100.0,
     });
-    let ns = NineSlice {
+    frame
+}
+
+fn nine_slice_test_ns() -> NineSlice {
+    NineSlice {
         edge_size: 8.0,
         border_color: [1.0, 0.92, 0.72, 1.0],
         bg_color: [0.0, 0.0, 0.0, 0.8],
         texture: Some(TextureSource::File("border.blp".into())),
         ..Default::default()
-    };
+    }
+}
+
+#[test]
+fn nine_slice_border_color_applied_to_edge_parts() {
+    use crate::render_nine_slice::part_geometry;
+    let frame = nine_slice_test_frame();
+    let ns = nine_slice_test_ns();
 
     // Part 1 = top edge → should use border_color with alpha
     let (_, _, color) = part_geometry(&frame, &ns, 1, 1920.0, 1080.0, 0.0);
-    let bevy::color::Color::Srgba(srgba) = color else {
-        panic!("expected srgba")
-    };
-    assert!(
-        (srgba.green - 0.92).abs() < 0.01,
-        "edge should use border_color green"
-    );
-    assert!(
-        (srgba.alpha - 0.8).abs() < 0.01,
-        "edge alpha should include effective_alpha"
-    );
+    let bevy::color::Color::Srgba(srgba) = color else { panic!("expected srgba") };
+    assert!((srgba.green - 0.92).abs() < 0.01, "edge should use border_color green");
+    assert!((srgba.alpha - 0.8).abs() < 0.01, "edge alpha should include effective_alpha");
 
     // Part 4 = center → should use bg_color with alpha
     let (_, _, color) = part_geometry(&frame, &ns, 4, 1920.0, 1080.0, 0.0);
-    let bevy::color::Color::Srgba(srgba) = color else {
-        panic!("expected srgba")
-    };
+    let bevy::color::Color::Srgba(srgba) = color else { panic!("expected srgba") };
     assert!(srgba.red < 0.01, "center should use bg_color red=0");
-    assert!(
-        (srgba.alpha - 0.64).abs() < 0.01,
-        "center alpha = bg_alpha * effective_alpha"
-    );
+    assert!((srgba.alpha - 0.64).abs() < 0.01, "center alpha = bg_alpha * effective_alpha");
 }

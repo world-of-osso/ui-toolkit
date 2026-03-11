@@ -49,7 +49,7 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "width" => { if let Ok(v) = value.parse::<f32>() { frame.width = v; } }
         "height" => { if let Ok(v) = value.parse::<f32>() { frame.height = v; } }
         "alpha" => { if let Ok(v) = value.parse::<f32>() { frame.alpha = v; } }
-        "shown" => match value { "true" | "TRUE" | "1" => frame.shown = true, "false" | "FALSE" | "0" => frame.shown = false, _ => {} },
+        "hidden" => match value { "true" | "TRUE" | "1" => frame.hidden = true, "false" | "FALSE" | "0" => frame.hidden = false, _ => {} },
         "mouse_enabled" => match value { "true" | "TRUE" | "1" => frame.mouse_enabled = true, "false" | "FALSE" | "0" => frame.mouse_enabled = false, _ => {} },
         "movable" => match value { "true" | "TRUE" | "1" => frame.movable = true, "false" | "FALSE" | "0" => frame.movable = false, _ => {} },
         "frame_level" => { if let Ok(v) = value.parse::<f32>() { frame.frame_level = v as i32; } }

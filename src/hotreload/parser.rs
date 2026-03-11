@@ -456,10 +456,10 @@ fn build() -> Element { rsx! { frame { name: MY_FRAME } } }
 
     #[test]
     fn parse_bool_and_number() {
-        let source = r#"rsx! { frame { shown: true, mouse_enabled: false, alpha: 0.5, frame_level: 3 } }"#;
+        let source = r#"rsx! { frame { hidden: false, mouse_enabled: false, alpha: 0.5, frame_level: 3 } }"#;
         let templates = parse_rsx_blocks(source, "test.rs");
         let WidgetChild::Widget(ref w) = templates[0].defs[0] else { panic!() };
-        assert_eq!(find_attr(&w.attrs, "shown"), Some("true"));
+        assert_eq!(find_attr(&w.attrs, "hidden"), Some("false"));
         assert_eq!(find_attr(&w.attrs, "mouse_enabled"), Some("false"));
         assert_eq!(find_attr(&w.attrs, "alpha"), Some("0.5"));
         assert_eq!(find_attr(&w.attrs, "frame_level"), Some("3"));
