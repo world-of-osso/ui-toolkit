@@ -174,10 +174,6 @@ fn spawn_missing_parts(
             }
             let (transform, size, color) =
                 part_geometry(frame, nine_slice, p, screen_w, screen_h, z);
-            if p == 4 {
-                let name = frame.name.as_deref().unwrap_or("?");
-                eprintln!("SPAWN_CENTER {name}: pos={:?} size={size:?} color={color:?}", transform.translation);
-            }
             let (image, tex_rect) = resolve_part_texture(
                 nine_slice,
                 p,
@@ -366,7 +362,9 @@ pub(crate) fn part_geometry(
     let color = part_color(ns, is_border, frame.effective_alpha);
     let bx = cx - screen_w * 0.5;
     let by = screen_h * 0.5 - cy;
-    (Transform::from_xyz(bx, by, z), Vec2::new(w, h), color)
+    // Border parts render above center to prevent center fill from overpainting edges
+    let part_z = if is_border { z + 0.0001 } else { z };
+    (Transform::from_xyz(bx, by, part_z), Vec2::new(w, h), color)
 }
 
 #[cfg(test)]

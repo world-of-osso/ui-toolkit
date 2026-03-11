@@ -37,6 +37,7 @@ impl Plugin for UiPlugin {
                 crate::render_button::sync_ui_button_highlights,
                 crate::render_text::sync_ui_text,
                 crate::render_border::sync_ui_borders,
+                crate::render_border::sync_css_borders,
                 crate::render_nine_slice::sync_ui_nine_slices,
                 crate::render_tiled::sync_ui_tiled_textures,
                 crate::render_text_fx::sync_ui_text_shadows,

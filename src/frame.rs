@@ -75,6 +75,13 @@ impl Default for NineSlice {
     }
 }
 
+/// CSS-like border for a frame (4 solid-color edge sprites).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Border {
+    pub width: f32,
+    pub color: [f32; 4],
+}
+
 /// Backdrop decoration for a frame (background fill + border).
 #[derive(Debug, Clone)]
 pub struct Backdrop {
@@ -140,6 +147,7 @@ pub struct Frame {
     pub background_color: Option<[f32; 4]>,
     pub backdrop: Option<Backdrop>,
     pub nine_slice: Option<NineSlice>,
+    pub border: Option<Border>,
 
     // Behavior
     pub clamped_to_screen: bool,

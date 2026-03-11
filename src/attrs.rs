@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::atlas;
-use crate::frame::{Frame, NineSlice, WidgetData, WidgetType};
+use crate::frame::{Border, Frame, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
 use crate::strata::{DrawLayer, FrameStrata};
 use crate::widgets::button::ButtonData;
@@ -57,6 +57,7 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "draw_layer" => { frame.draw_layer = DrawLayer::from_str(value).unwrap_or_default(); }
         "background_color" => { if let Some(color) = parse_color(value) { frame.background_color = Some(color); } }
         "nine_slice" => { if let Some(ns) = parse_nine_slice(value) { frame.nine_slice = Some(ns); } }
+        "border" => { frame.border = parse_border(value); }
         _ => {}
     }
 }
@@ -170,6 +171,29 @@ fn parse_nine_slice(s: &str) -> Option<NineSlice> {
 fn parse_justify_h(s: &str) -> JustifyH { match s { "LEFT" => JustifyH::Left, "RIGHT" => JustifyH::Right, _ => JustifyH::Center } }
 
 
+
+fn parse_border(s: &str) -> Option<Border> {
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    if parts.len() < 3 { return None; }
+    let width_str = parts[0].strip_suffix("px")?;
+    let width: f32 = width_str.parse().ok()?;
+    // parts[1] is "solid" (or any style keyword — we skip it)
+    let color = parse_border_color(parts[2])?;
+    Some(Border { width, color })
+}
+
+fn parse_border_color(s: &str) -> Option<[f32; 4]> {
+    match s {
+        "red" => Some([1.0, 0.0, 0.0, 1.0]),
+        "green" => Some([0.0, 1.0, 0.0, 1.0]),
+        "blue" => Some([0.0, 0.0, 1.0, 1.0]),
+        "white" => Some([1.0, 1.0, 1.0, 1.0]),
+        "black" => Some([0.0, 0.0, 0.0, 1.0]),
+        "gold" => Some([1.0, 0.82, 0.0, 1.0]),
+        "yellow" => Some([1.0, 1.0, 0.0, 1.0]),
+        _ => parse_color(s),
+    }
+}
 
 pub(crate) fn parse_color(s: &str) -> Option<[f32; 4]> {
     let parts: Vec<_> = s.split(',').map(str::trim).collect();
