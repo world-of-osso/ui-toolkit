@@ -9,6 +9,20 @@ use crate::widgets::button::ButtonData;
 use crate::widgets::font_string::{GameFont, JustifyH};
 use crate::widgets::texture::TextureSource;
 
+fn parse_dimension(value: &str) -> Dimension {
+    match value {
+        "fill" | "Fill" => Dimension::Fill,
+        _ => value.parse::<f32>().map(Dimension::Fixed).unwrap_or_default(),
+    }
+}
+
+fn format_dimension(dim: Dimension) -> String {
+    match dim {
+        Dimension::Fill => "fill".to_string(),
+        Dimension::Fixed(v) => format!("{v}"),
+    }
+}
+
 pub(crate) fn tag_to_widget_type(tag: &str) -> Option<WidgetType> {
     match tag {
         "frame" | "r#frame" | "Frame" => Some(WidgetType::Frame),
@@ -31,8 +45,8 @@ pub(crate) fn read_attribute(registry: &FrameRegistry, frame_id: u64, name: &str
 fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
     match name {
         "name" => frame.name.clone(),
-        "width" => Some(format!("{}", frame.width.value())),
-        "height" => Some(format!("{}", frame.height.value())),
+        "width" => Some(format_dimension(frame.width)),
+        "height" => Some(format_dimension(frame.height)),
         "strata" => Some(format!("{:?}", frame.strata)),
         "onclick" => frame.onclick.clone(),
         "hidden" => Some(if frame.visible { "false" } else { "true" }.to_string()),
@@ -160,8 +174,8 @@ fn apply_flex_attr(frame: &mut Frame, name: &str, value: &str) -> bool {
 
 fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
     match name {
-        "width" => { if let Ok(v) = value.parse::<f32>() { frame.width = Dimension::Fixed(v); } }
-        "height" => { if let Ok(v) = value.parse::<f32>() { frame.height = Dimension::Fixed(v); } }
+        "width" => { frame.width = parse_dimension(value); }
+        "height" => { frame.height = parse_dimension(value); }
         "mouse_enabled" => match value { "true" | "TRUE" | "1" => frame.mouse_enabled = true, "false" | "FALSE" | "0" => frame.mouse_enabled = false, _ => {} },
         "movable" => match value { "true" | "TRUE" | "1" => frame.movable = true, "false" | "FALSE" | "0" => frame.movable = false, _ => {} },
         "frame_level" => { if let Ok(v) = value.parse::<f32>() { frame.frame_level = v as i32; } }

@@ -161,7 +161,7 @@ fn effective_size(f: &crate::frame::Frame) -> (f32, f32) {
     f.layout_rect
         .as_ref()
         .map(|r| (r.width, r.height))
-        .unwrap_or((f.width.value(), f.height.value()))
+        .unwrap_or((f.resolved_width(), f.resolved_height()))
 }
 
 fn is_renderable(f: &crate::frame::Frame) -> bool {

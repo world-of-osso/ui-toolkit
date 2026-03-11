@@ -240,6 +240,16 @@ impl Frame {
         }
     }
 
+    /// Resolved width: from layout_rect if available, otherwise from the dimension spec.
+    pub fn resolved_width(&self) -> f32 {
+        self.layout_rect.as_ref().map_or(self.width.value(), |r| r.width)
+    }
+
+    /// Resolved height: from layout_rect if available, otherwise from the dimension spec.
+    pub fn resolved_height(&self) -> f32 {
+        self.layout_rect.as_ref().map_or(self.height.value(), |r| r.height)
+    }
+
     pub fn is_editbox(&self) -> bool {
         matches!(self.widget_data, Some(WidgetData::EditBox(_)))
     }

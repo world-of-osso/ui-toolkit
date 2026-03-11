@@ -204,11 +204,11 @@ pub fn text_transform(
     let insets = text_insets(frame);
     let x = match justify_h {
         JustifyH::Left => fx + insets[0] - screen_w * 0.5,
-        JustifyH::Center => fx + frame.width.value() * 0.5 - screen_w * 0.5,
-        JustifyH::Right => fx + frame.width.value() - insets[1] - screen_w * 0.5,
+        JustifyH::Center => fx + frame.resolved_width() * 0.5 - screen_w * 0.5,
+        JustifyH::Right => fx + frame.resolved_width() - insets[1] - screen_w * 0.5,
     };
     let top = fy + insets[2];
-    let bottom = fy + frame.height.value() - insets[3];
+    let bottom = fy + frame.resolved_height() - insets[3];
     let y = match justify_v {
         JustifyV::Top => screen_h * 0.5 - top,
         JustifyV::Middle => screen_h * 0.5 - (top + bottom) * 0.5,

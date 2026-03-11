@@ -77,7 +77,7 @@ fn build_z_map(state: &UiState) -> HashMap<u64, f32> {
     let mut frames: Vec<_> = state
         .registry
         .frames_iter()
-        .filter(|f| f.visible && f.width.value() > 0.0 && f.height.value() > 0.0)
+        .filter(|f| f.visible && f.resolved_width() > 0.0 && f.resolved_height() > 0.0)
         .map(|f| (f.id, f.strata, f.frame_level, f.raise_order))
         .collect();
     frames.sort_by(|a, b| {
@@ -355,8 +355,8 @@ pub(crate) fn part_geometry(
     let rect = frame.layout_rect.as_ref();
     let fx = rect.map_or(0.0, |r| r.x);
     let fy = rect.map_or(0.0, |r| r.y);
-    let iw = (frame.width.value() - eh * 2.0).max(0.0);
-    let ih = (frame.height.value() - ev * 2.0).max(0.0);
+    let iw = (frame.resolved_width() - eh * 2.0).max(0.0);
+    let ih = (frame.resolved_height() - ev * 2.0).max(0.0);
 
     let (cx, cy, w, h, is_border) = part_layout(part, fx, fy, eh, ev, iw, ih);
     let color = part_color(ns, is_border, frame.effective_alpha);

@@ -134,8 +134,8 @@ pub(crate) fn edge_geometry(
     let rect = frame.layout_rect.as_ref();
     let fx = rect.map_or(0.0, |r| r.x);
     let fy = rect.map_or(0.0, |r| r.y);
-    let fw = frame.width.value();
-    let fh = frame.height.value();
+    let fw = frame.resolved_width();
+    let fh = frame.resolved_height();
 
     let (cx, cy, w, h) = match edge {
         0 => (fx + fw * 0.5, fy - e * 0.5, fw + e * 2.0, e),
@@ -229,8 +229,8 @@ fn css_edge_geometry(
     let rect = frame.layout_rect.as_ref();
     let fx = rect.map_or(0.0, |r| r.x);
     let fy = rect.map_or(0.0, |r| r.y);
-    let fw = frame.layout_rect.as_ref().map_or(frame.width.value(), |r| r.width);
-    let fh = frame.layout_rect.as_ref().map_or(frame.height.value(), |r| r.height);
+    let fw = frame.layout_rect.as_ref().map_or(frame.resolved_width(), |r| r.width);
+    let fh = frame.layout_rect.as_ref().map_or(frame.resolved_height(), |r| r.height);
 
     // side: 0=top, 1=right, 2=bottom, 3=left
     let (cx, cy, w, h) = match side {
