@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::atlas;
-use crate::frame::{Border, Frame, NineSlice, WidgetData, WidgetType};
+use crate::frame::{Border, FlexAlign, FlexDirection, FlexJustify, FlexLayout, Frame, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
 use crate::strata::{DrawLayer, FrameStrata};
 use crate::widgets::button::ButtonData;
@@ -29,6 +29,9 @@ pub(crate) fn apply_attribute(
         return None;
     }
     if name == "stretch" { return apply_stretch_attr(registry, frame_id, value); }
+    if let Some(frame) = registry.get_mut(frame_id) {
+        if apply_flex_attr(frame, name, value) { return None; }
+    }
     if name == "hidden" {
         match value {
             "true" | "TRUE" | "1" => registry.set_hidden(frame_id, true),
@@ -56,6 +59,48 @@ fn apply_stretch_attr(registry: &mut FrameRegistry, frame_id: u64, value: &str) 
         let _ = registry.stretch_to_fill(frame_id, parent_id);
     }
     None
+}
+
+fn apply_flex_attr(frame: &mut Frame, name: &str, value: &str) -> bool {
+    match name {
+        "layout" => {
+            let dir = match value {
+                "flex-row" => FlexDirection::Row,
+                _ => FlexDirection::Column,
+            };
+            frame.flex_layout.get_or_insert_with(FlexLayout::default).direction = dir;
+        }
+        "gap" => {
+            if let Ok(v) = value.parse::<f32>() {
+                frame.flex_layout.get_or_insert_with(FlexLayout::default).gap = v;
+            }
+        }
+        "justify" => {
+            let j = match value {
+                "center" => FlexJustify::Center,
+                "end" => FlexJustify::End,
+                "space-between" => FlexJustify::SpaceBetween,
+                _ => FlexJustify::Start,
+            };
+            frame.flex_layout.get_or_insert_with(FlexLayout::default).justify = j;
+        }
+        "align" => {
+            let a = match value {
+                "start" => FlexAlign::Start,
+                "end" => FlexAlign::End,
+                "stretch" => FlexAlign::Stretch,
+                _ => FlexAlign::Center,
+            };
+            frame.flex_layout.get_or_insert_with(FlexLayout::default).align = a;
+        }
+        "padding" => {
+            if let Ok(v) = value.parse::<f32>() {
+                frame.flex_layout.get_or_insert_with(FlexLayout::default).padding = v;
+            }
+        }
+        _ => return false,
+    }
+    true
 }
 
 fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {

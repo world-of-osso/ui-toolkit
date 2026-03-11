@@ -102,6 +102,44 @@ impl Default for Backdrop {
     }
 }
 
+/// Flex layout direction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FlexDirection {
+    #[default]
+    Column,
+    Row,
+}
+
+/// Alignment along the cross axis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FlexAlign {
+    Start,
+    #[default]
+    Center,
+    End,
+    Stretch,
+}
+
+/// Justification along the main axis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FlexJustify {
+    #[default]
+    Start,
+    Center,
+    End,
+    SpaceBetween,
+}
+
+/// Flex layout mode for a container frame.
+#[derive(Debug, Clone, Default)]
+pub struct FlexLayout {
+    pub direction: FlexDirection,
+    pub gap: f32,
+    pub justify: FlexJustify,
+    pub align: FlexAlign,
+    pub padding: f32,
+}
+
 /// A UI frame in the WoW frame hierarchy.
 #[derive(Default)]
 pub struct Frame {
@@ -156,6 +194,9 @@ pub struct Frame {
 
     // Events
     pub onclick: Option<String>,
+
+    // Layout mode
+    pub flex_layout: Option<FlexLayout>,
 
     // Widget-specific data
     pub widget_data: Option<WidgetData>,

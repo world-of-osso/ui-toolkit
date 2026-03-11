@@ -29,6 +29,8 @@ pub mod widgets;
 pub use ui_toolkit_macros::rsx;
 
 #[cfg(test)]
+mod layout_tests;
+#[cfg(test)]
 mod panel_tests;
 #[cfg(test)]
 mod render_tests;
