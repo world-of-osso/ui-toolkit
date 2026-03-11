@@ -154,6 +154,9 @@ pub struct Frame {
     pub movable: bool,
     pub resizable: bool,
 
+    // Events
+    pub onclick: Option<String>,
+
     // Widget-specific data
     pub widget_data: Option<WidgetData>,
 }

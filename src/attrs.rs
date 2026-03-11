@@ -58,6 +58,7 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "background_color" => { if let Some(color) = parse_color(value) { frame.background_color = Some(color); } }
         "nine_slice" => { if let Some(ns) = parse_nine_slice(value) { frame.nine_slice = Some(ns); } }
         "border" => { frame.border = parse_border(value); }
+        "onclick" => { frame.onclick = Some(value.to_string()); }
         _ => {}
     }
 }
