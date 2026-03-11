@@ -255,6 +255,18 @@ pub fn get_region(name: &str) -> Option<AtlasRegion> {
             tiles_vertically: false,
             nine_slice_edge: None,
         }),
+        "custom-nameplate-bg" => Some(AtlasRegion {
+            path: "data/ui/nameplate-bg.ktx2",
+            left: 0.0,
+            right: 1.0,
+            top: 0.0,
+            bottom: 1.0,
+            width: 300.0,
+            height: 60.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
+        }),
         "glues-characterselect-namebg" => Some(AtlasRegion {
             path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
             left: 0.187500,
