@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::atlas;
-use crate::frame::{Border, FlexAlign, FlexDirection, FlexJustify, FlexLayout, Frame, NineSlice, WidgetData, WidgetType};
+use crate::frame::{Border, Dimension, FlexAlign, FlexDirection, FlexJustify, FlexLayout, Frame, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
 use crate::strata::{DrawLayer, FrameStrata};
 use crate::widgets::button::ButtonData;
@@ -16,6 +16,61 @@ pub(crate) fn tag_to_widget_type(tag: &str) -> Option<WidgetType> {
         "editbox" | "EditBox" => Some(WidgetType::EditBox),
         "fontstring" | "FontString" => Some(WidgetType::FontString),
         "texture" | "Texture" => Some(WidgetType::Texture),
+        _ => None,
+    }
+}
+
+/// Read the current value of a frame attribute as a string, for change detection.
+pub(crate) fn read_attribute(registry: &FrameRegistry, frame_id: u64, name: &str) -> Option<String> {
+    let frame = registry.get(frame_id)?;
+    read_frame_attr(frame, name)
+        .or_else(|| read_widget_text_attr(frame, name))
+        .or_else(|| read_widget_texture_attr(frame, name))
+}
+
+fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "name" => frame.name.clone(),
+        "width" => Some(format!("{}", frame.width.value())),
+        "height" => Some(format!("{}", frame.height.value())),
+        "strata" => Some(format!("{:?}", frame.strata)),
+        "onclick" => frame.onclick.clone(),
+        "hidden" => Some(if frame.visible { "false" } else { "true" }.to_string()),
+        "alpha" => Some(format!("{}", frame.alpha)),
+        _ => None,
+    }
+}
+
+fn read_widget_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "text" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(fs.text.clone()),
+            Some(WidgetData::Button(b)) => Some(b.text.clone()),
+            Some(WidgetData::EditBox(eb)) => Some(eb.text.clone()),
+            _ => None,
+        },
+        "font_size" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(format!("{}", fs.font_size)),
+            Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.font_size)),
+            _ => None,
+        },
+        "password" => match &frame.widget_data {
+            Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.password)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn read_widget_texture_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "texture_file" => match &frame.widget_data {
+            Some(WidgetData::Texture(t)) => match &t.source {
+                TextureSource::File(p) => Some(p.clone()),
+                _ => None,
+            },
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -105,8 +160,8 @@ fn apply_flex_attr(frame: &mut Frame, name: &str, value: &str) -> bool {
 
 fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
     match name {
-        "width" => { if let Ok(v) = value.parse::<f32>() { frame.width = v; } }
-        "height" => { if let Ok(v) = value.parse::<f32>() { frame.height = v; } }
+        "width" => { if let Ok(v) = value.parse::<f32>() { frame.width = Dimension::Fixed(v); } }
+        "height" => { if let Ok(v) = value.parse::<f32>() { frame.height = Dimension::Fixed(v); } }
         "mouse_enabled" => match value { "true" | "TRUE" | "1" => frame.mouse_enabled = true, "false" | "FALSE" | "0" => frame.mouse_enabled = false, _ => {} },
         "movable" => match value { "true" | "TRUE" | "1" => frame.movable = true, "false" | "FALSE" | "0" => frame.movable = false, _ => {} },
         "frame_level" => { if let Ok(v) = value.parse::<f32>() { frame.frame_level = v as i32; } }

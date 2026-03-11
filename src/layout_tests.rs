@@ -1,5 +1,5 @@
 use crate::anchor::{Anchor, AnchorPoint};
-use crate::frame::{FlexAlign, FlexDirection, FlexJustify, FlexLayout};
+use crate::frame::{Dimension, FlexAlign, FlexDirection, FlexJustify, FlexLayout};
 use crate::layout::{LayoutRect, recompute_layouts, resolve_anchors, resolve_frame_layout};
 use crate::registry::FrameRegistry;
 
@@ -78,8 +78,8 @@ fn resolve_frame_layout_uses_relative_frame_rect() {
     });
 
     let frame = registry.get_mut(child).unwrap();
-    frame.width = 50.0;
-    frame.height = 30.0;
+    frame.width = Dimension::Fixed(50.0);
+    frame.height = Dimension::Fixed(30.0);
     frame.anchors.push(Anchor {
         point: AnchorPoint::TopLeft,
         relative_to: Some(target),
@@ -97,8 +97,8 @@ fn resolve_frame_layout_falls_back_to_screen_for_root_frame() {
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let child = registry.create_frame("Child", None);
     let frame = registry.get_mut(child).unwrap();
-    frame.width = 100.0;
-    frame.height = 40.0;
+    frame.width = Dimension::Fixed(100.0);
+    frame.height = Dimension::Fixed(40.0);
     frame.anchors.push(Anchor {
         point: AnchorPoint::Center,
         relative_to: None,
@@ -119,14 +119,14 @@ fn recompute_layouts_updates_anchored_children() {
 
     {
         let frame = registry.get_mut(p).unwrap();
-        frame.width = 300.0;
-        frame.height = 200.0;
+        frame.width = Dimension::Fixed(300.0);
+        frame.height = Dimension::Fixed(200.0);
         frame.layout_rect = Some(LayoutRect { x: 40.0, y: 50.0, width: 300.0, height: 200.0 });
     }
     {
         let frame = registry.get_mut(child).unwrap();
-        frame.width = 100.0;
-        frame.height = 40.0;
+        frame.width = Dimension::Fixed(100.0);
+        frame.height = Dimension::Fixed(40.0);
         frame.anchors.push(Anchor {
             point: AnchorPoint::TopLeft,
             relative_to: Some(p),
@@ -150,8 +150,8 @@ fn setup_flex_container(
 ) -> u64 {
     let id = registry.create_frame("Container", None);
     let frame = registry.get_mut(id).unwrap();
-    frame.width = w;
-    frame.height = h;
+    frame.width = Dimension::Fixed(w);
+    frame.height = Dimension::Fixed(h);
     frame.layout_rect = Some(LayoutRect { x: 0.0, y: 0.0, width: w, height: h });
     frame.flex_layout = Some(flex);
     id
@@ -160,8 +160,8 @@ fn setup_flex_container(
 fn add_flex_child(registry: &mut FrameRegistry, parent: u64, w: f32, h: f32) -> u64 {
     let id = registry.create_frame("", Some(parent));
     let frame = registry.get_mut(id).unwrap();
-    frame.width = w;
-    frame.height = h;
+    frame.width = Dimension::Fixed(w);
+    frame.height = Dimension::Fixed(h);
     id
 }
 

@@ -204,11 +204,11 @@ pub fn text_transform(
     let insets = text_insets(frame);
     let x = match justify_h {
         JustifyH::Left => fx + insets[0] - screen_w * 0.5,
-        JustifyH::Center => fx + frame.width * 0.5 - screen_w * 0.5,
-        JustifyH::Right => fx + frame.width - insets[1] - screen_w * 0.5,
+        JustifyH::Center => fx + frame.width.value() * 0.5 - screen_w * 0.5,
+        JustifyH::Right => fx + frame.width.value() - insets[1] - screen_w * 0.5,
     };
     let top = fy + insets[2];
-    let bottom = fy + frame.height - insets[3];
+    let bottom = fy + frame.height.value() - insets[3];
     let y = match justify_v {
         JustifyV::Top => screen_h * 0.5 - top,
         JustifyV::Middle => screen_h * 0.5 - (top + bottom) * 0.5,
@@ -245,14 +245,14 @@ fn text_insets(frame: &crate::frame::Frame) -> [f32; 4] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frame::{Frame, WidgetData, WidgetType};
+    use crate::frame::{Dimension, Frame, WidgetData, WidgetType};
     use crate::layout::LayoutRect;
     use crate::widgets::edit_box::EditBoxData;
 
     fn make_edit_box(width: f32, height: f32, insets: [f32; 4]) -> Frame {
         let mut frame = Frame::new(1, Some("EditBox".into()), WidgetType::EditBox);
-        frame.width = width;
-        frame.height = height;
+        frame.width = Dimension::Fixed(width);
+        frame.height = Dimension::Fixed(height);
         frame.layout_rect = Some(LayoutRect {
             x: 0.0,
             y: 0.0,

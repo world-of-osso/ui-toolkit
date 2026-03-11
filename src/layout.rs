@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::anchor::{Anchor, AnchorPoint, anchor_position, frame_position_from_anchor};
-use crate::frame::{FlexAlign, FlexDirection, FlexJustify, FlexLayout};
+use crate::frame::{Dimension, FlexAlign, FlexDirection, FlexJustify, FlexLayout};
 use crate::registry::FrameRegistry;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -60,13 +60,22 @@ fn fallback_target(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
         .unwrap_or_else(|| registry.screen_rect())
 }
 
+fn resolve_dimension(dim: Dimension, parent_size: f32) -> f32 {
+    match dim {
+        Dimension::Fixed(v) => v,
+        Dimension::Fill => parent_size,
+    }
+}
+
 fn resolve_no_anchors(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
     let frame = registry.get(frame_id).unwrap();
     if let Some(existing) = frame.layout_rect.clone() {
         return existing;
     }
     let target = fallback_target(registry, frame_id);
-    LayoutRect { x: target.x, y: target.y, width: frame.width, height: frame.height }
+    let w = resolve_dimension(frame.width, target.width);
+    let h = resolve_dimension(frame.height, target.height);
+    LayoutRect { x: target.x, y: target.y, width: w, height: h }
 }
 
 fn resolve_one_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
@@ -74,23 +83,27 @@ fn resolve_one_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
     let anchor = &frame.anchors[0];
     let fallback = fallback_target(registry, frame_id);
     let target_rect = anchor_target_rect(registry, anchor, &fallback);
+    let w = resolve_dimension(frame.width, fallback.width);
+    let h = resolve_dimension(frame.height, fallback.height);
     let (tx, ty) = resolve_target_in_rect(anchor, target_rect);
-    let (fx, fy) = frame_position_from_anchor(anchor.point, tx, ty, frame.width, frame.height);
-    LayoutRect { x: fx, y: fy, width: frame.width, height: frame.height }
+    let (fx, fy) = frame_position_from_anchor(anchor.point, tx, ty, w, h);
+    LayoutRect { x: fx, y: fy, width: w, height: h }
 }
 
 fn resolve_multi_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
     let frame = registry.get(frame_id).unwrap();
     let (a, b) = (&frame.anchors[0], &frame.anchors[1]);
     let fallback = fallback_target(registry, frame_id);
+    let w = resolve_dimension(frame.width, fallback.width);
+    let h = resolve_dimension(frame.height, fallback.height);
     let a_rect = anchor_target_rect(registry, a, &fallback);
     let b_rect = anchor_target_rect(registry, b, &fallback);
     let (t1x, t1y) = resolve_target_in_rect(a, a_rect);
     let (t2x, t2y) = resolve_target_in_rect(b, b_rect);
     let (frac1x, frac1y) = point_to_edge_offsets(a.point);
     let (frac2x, frac2y) = point_to_edge_offsets(b.point);
-    let (final_x, final_w) = stretch_or_fixed(t1x, frac1x, t2x, frac2x, frame.width);
-    let (final_y, final_h) = stretch_or_fixed(t1y, frac1y, t2y, frac2y, frame.height);
+    let (final_x, final_w) = stretch_or_fixed(t1x, frac1x, t2x, frac2x, w);
+    let (final_y, final_h) = stretch_or_fixed(t1y, frac1y, t2y, frac2y, h);
     LayoutRect { x: final_x, y: final_y, width: final_w, height: final_h }
 }
 
@@ -220,7 +233,10 @@ fn compute_flex_rects(
     let sizes: Vec<(f32, f32)> = children
         .iter()
         .filter_map(|&id| registry.get(id))
-        .map(|f| (f.width, f.height))
+        .map(|f| (
+            resolve_dimension(f.width, parent.width),
+            resolve_dimension(f.height, parent.height),
+        ))
         .collect();
     let total_main: f32 = sizes.iter().map(|s| main_sz(flex.direction, *s)).sum();
     let gap_total = flex.gap * sizes.len().saturating_sub(1) as f32;

@@ -17,6 +17,8 @@ pub struct DiffContext {
     pub validated_paths: HashSet<String>,
     /// Missing paths already warned about.
     pub missing_paths: HashSet<String>,
+    /// Log attribute changes (enabled during hot-reload).
+    pub log_changes: bool,
 }
 
 impl DiffContext {
@@ -26,6 +28,7 @@ impl DiffContext {
             pending_anchors: Vec::new(),
             validated_paths: HashSet::new(),
             missing_paths: HashSet::new(),
+            log_changes: false,
         }
     }
 
@@ -88,15 +91,14 @@ impl DiffContext {
         }
         // Apply attrs
         for attr in &def.attrs {
-            let name = attr.effective_name();
+            let attr_name = attr.effective_name();
             let value = attr.value_str();
+            if self.log_changes {
+                log::info!("hot-reload: set {}.{} = {}", frame_label(frame_id, registry), attr_name, value);
+            }
             crate::attrs::apply_attribute(
-                registry,
-                frame_id,
-                name,
-                value,
-                &mut self.validated_paths,
-                &mut self.missing_paths,
+                registry, frame_id, attr_name, value,
+                &mut self.validated_paths, &mut self.missing_paths,
             );
         }
         // Apply anchors
@@ -126,11 +128,18 @@ impl DiffContext {
         if parent_id.is_none() {
             self.created_frames.push(frame_id);
         }
+        if self.log_changes {
+            let name = def.name.as_deref().unwrap_or(tag);
+            log::info!("hot-reload: add <{}> \"{}\" (id={})", tag, name, frame_id);
+        }
         self.apply_def(def, frame_id, registry);
         frame_id
     }
 
     fn remove_subtree(&mut self, frame_id: u64, registry: &mut FrameRegistry) {
+        if self.log_changes {
+            log::info!("hot-reload: remove {} (id={})", frame_label(frame_id, registry), frame_id);
+        }
         let children = registry.children_of(frame_id);
         for child in children {
             self.remove_subtree(child, registry);
@@ -138,12 +147,55 @@ impl DiffContext {
         registry.remove_frame(frame_id);
         self.created_frames.retain(|&fid| fid != frame_id);
     }
+
+    /// Patch existing frames by name — find each named widget in the registry
+    /// and update its attributes in-place. No frames are created or removed.
+    pub fn patch_by_name(&mut self, defs: &[WidgetChild], registry: &mut FrameRegistry) {
+        for def in flatten(defs) {
+            self.patch_widget(def, registry);
+        }
+    }
+
+    fn patch_widget(&mut self, def: &WidgetDef, registry: &mut FrameRegistry) {
+        let Some(name) = &def.name else { return };
+        let Some(frame_id) = registry.get_by_name(name) else { return };
+        for attr in &def.attrs {
+            let attr_name = attr.effective_name();
+            let value = attr.value_str();
+            let old = if self.log_changes {
+                crate::attrs::read_attribute(registry, frame_id, attr_name)
+            } else {
+                None
+            };
+            crate::attrs::apply_attribute(
+                registry, frame_id, attr_name, value,
+                &mut self.validated_paths, &mut self.missing_paths,
+            );
+            if self.log_changes {
+                if let Some(old) = &old {
+                    if !values_equal(old, value) {
+                        log::info!("hot-reload: {}.{}: {} → {}", name, attr_name, old, value);
+                    }
+                }
+            }
+        }
+        for child_def in flatten(&def.children) {
+            self.patch_widget(child_def, registry);
+        }
+    }
 }
 
 impl Default for DiffContext {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn frame_label(frame_id: u64, registry: &FrameRegistry) -> String {
+    registry.get(frame_id)
+        .and_then(|f| f.name.as_deref())
+        .map(|n| format!("\"{}\"", n))
+        .unwrap_or_else(|| format!("(id={})", frame_id))
 }
 
 fn flatten<'a>(children: &'a [WidgetChild]) -> Vec<&'a WidgetDef> {
@@ -189,6 +241,15 @@ fn consume_match(
     None
 }
 
+/// Compare attribute values, treating numeric equivalents as equal (e.g. "320" == "320.0").
+fn values_equal(old: &str, new: &str) -> bool {
+    if old == new { return true; }
+    if let (Ok(a), Ok(b)) = (old.parse::<f32>(), new.parse::<f32>()) {
+        return (a - b).abs() < f32::EPSILON;
+    }
+    false
+}
+
 fn default_widget_data(widget_type: WidgetType) -> Option<WidgetData> {
     match widget_type {
         WidgetType::Button => Some(WidgetData::Button(ButtonData::default())),
@@ -202,6 +263,7 @@ fn default_widget_data(widget_type: WidgetType) -> Option<WidgetData> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frame::Dimension;
     use crate::widget_def::*;
 
     fn make_registry() -> FrameRegistry {
@@ -233,7 +295,7 @@ mod tests {
         let fid = ctx.created_frames[0];
         let frame = reg.get(fid).unwrap();
         assert_eq!(frame.name.as_deref(), Some("TestFrame"));
-        assert_eq!(frame.width, 100.0);
+        assert_eq!(frame.width, Dimension::Fixed(100.0));
     }
 
     #[test]
@@ -251,7 +313,7 @@ mod tests {
         })];
         ctx.diff_roots(&children, None, &mut reg);
         let fid = ctx.created_frames[0];
-        assert_eq!(reg.get(fid).unwrap().width, 100.0);
+        assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(100.0));
 
         // Second diff: update width
         let children2 = vec![WidgetChild::Widget(WidgetDef {
@@ -264,7 +326,7 @@ mod tests {
         })];
         ctx.diff_roots(&children2, None, &mut reg);
         // Same frame ID, updated width
-        assert_eq!(reg.get(fid).unwrap().width, 200.0);
+        assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(200.0));
         assert_eq!(ctx.created_frames.len(), 1); // no new frames
     }
 

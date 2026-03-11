@@ -77,7 +77,7 @@ fn build_z_map(state: &UiState) -> HashMap<u64, f32> {
     let mut frames: Vec<_> = state
         .registry
         .frames_iter()
-        .filter(|f| f.visible && f.width > 0.0 && f.height > 0.0)
+        .filter(|f| f.visible && f.width.value() > 0.0 && f.height.value() > 0.0)
         .map(|f| (f.id, f.strata, f.frame_level, f.raise_order))
         .collect();
     frames.sort_by(|a, b| {
@@ -355,8 +355,8 @@ pub(crate) fn part_geometry(
     let rect = frame.layout_rect.as_ref();
     let fx = rect.map_or(0.0, |r| r.x);
     let fy = rect.map_or(0.0, |r| r.y);
-    let iw = (frame.width - eh * 2.0).max(0.0);
-    let ih = (frame.height - ev * 2.0).max(0.0);
+    let iw = (frame.width.value() - eh * 2.0).max(0.0);
+    let ih = (frame.height.value() - ev * 2.0).max(0.0);
 
     let (cx, cy, w, h, is_border) = part_layout(part, fx, fy, eh, ev, iw, ih);
     let color = part_color(ns, is_border, frame.effective_alpha);
@@ -370,6 +370,7 @@ pub(crate) fn part_geometry(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frame::Dimension;
     use crate::plugin::UiPlugin;
 
     fn test_app() -> App {
@@ -389,8 +390,8 @@ mod tests {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             let id = ui.registry.create_frame("NineSliceFrame", None);
             let frame = ui.registry.get_mut(id).unwrap();
-            frame.width = 200.0;
-            frame.height = 100.0;
+            frame.width = Dimension::Fixed(200.0);
+            frame.height = Dimension::Fixed(100.0);
             frame.nine_slice = Some(NineSlice::default());
         }
         app.update();
@@ -408,8 +409,8 @@ mod tests {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             let id = ui.registry.create_frame("PlainFrame", None);
             let frame = ui.registry.get_mut(id).unwrap();
-            frame.width = 200.0;
-            frame.height = 100.0;
+            frame.width = Dimension::Fixed(200.0);
+            frame.height = Dimension::Fixed(100.0);
         }
         app.update();
         let mut q = app

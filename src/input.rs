@@ -42,6 +42,7 @@ pub fn find_frame_at(registry: &FrameRegistry, x: f32, y: f32) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frame::Dimension;
     use crate::layout::LayoutRect;
     use crate::registry::FrameRegistry;
 
@@ -88,8 +89,8 @@ mod tests {
         let id1 = reg.create_frame("bg", None);
         {
             let f = reg.get_mut(id1).unwrap();
-            f.width = 800.0;
-            f.height = 600.0;
+            f.width = Dimension::Fixed(800.0);
+            f.height = Dimension::Fixed(600.0);
             f.mouse_enabled = true;
             f.layout_rect = Some(LayoutRect {
                 x: 0.0,
@@ -101,8 +102,8 @@ mod tests {
         let id2 = reg.create_frame("button", None);
         {
             let f = reg.get_mut(id2).unwrap();
-            f.width = 100.0;
-            f.height = 50.0;
+            f.width = Dimension::Fixed(100.0);
+            f.height = Dimension::Fixed(50.0);
             f.mouse_enabled = true;
             f.frame_level = 1; // higher level = on top
             f.layout_rect = Some(LayoutRect {

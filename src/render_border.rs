@@ -134,8 +134,8 @@ pub(crate) fn edge_geometry(
     let rect = frame.layout_rect.as_ref();
     let fx = rect.map_or(0.0, |r| r.x);
     let fy = rect.map_or(0.0, |r| r.y);
-    let fw = frame.width;
-    let fh = frame.height;
+    let fw = frame.width.value();
+    let fh = frame.height.value();
 
     let (cx, cy, w, h) = match edge {
         0 => (fx + fw * 0.5, fy - e * 0.5, fw + e * 2.0, e),
@@ -229,8 +229,8 @@ fn css_edge_geometry(
     let rect = frame.layout_rect.as_ref();
     let fx = rect.map_or(0.0, |r| r.x);
     let fy = rect.map_or(0.0, |r| r.y);
-    let fw = frame.layout_rect.as_ref().map_or(frame.width, |r| r.width);
-    let fh = frame.layout_rect.as_ref().map_or(frame.height, |r| r.height);
+    let fw = frame.layout_rect.as_ref().map_or(frame.width.value(), |r| r.width);
+    let fh = frame.layout_rect.as_ref().map_or(frame.height.value(), |r| r.height);
 
     // side: 0=top, 1=right, 2=bottom, 3=left
     let (cx, cy, w, h) = match side {
@@ -249,6 +249,7 @@ fn css_edge_geometry(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frame::Dimension;
     use crate::plugin::UiPlugin;
 
     fn test_app() -> App {
@@ -268,8 +269,8 @@ mod tests {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             let id = ui.registry.create_frame("BorderFrame", None);
             let frame = ui.registry.get_mut(id).unwrap();
-            frame.width = 100.0;
-            frame.height = 50.0;
+            frame.width = Dimension::Fixed(100.0);
+            frame.height = Dimension::Fixed(50.0);
             frame.backdrop = Some(Backdrop {
                 border_color: Some([1.0, 0.0, 0.0, 1.0]),
                 ..Default::default()
@@ -288,8 +289,8 @@ mod tests {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             let id = ui.registry.create_frame("NoBorderFrame", None);
             let frame = ui.registry.get_mut(id).unwrap();
-            frame.width = 100.0;
-            frame.height = 50.0;
+            frame.width = Dimension::Fixed(100.0);
+            frame.height = Dimension::Fixed(50.0);
             frame.backdrop = Some(Backdrop {
                 bg_color: Some([0.1, 0.1, 0.1, 1.0]),
                 border_color: None,

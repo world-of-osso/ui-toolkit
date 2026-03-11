@@ -74,7 +74,7 @@ pub fn sync_button_nine_slices(mut state: ResMut<UiState>) {
         let Some(frame) = state.registry.get_mut(id) else {
             continue;
         };
-        let (eh, ev, uv_e) = button_nine_slice_edges(&tex, frame.width, frame.height);
+        let (eh, ev, uv_e) = button_nine_slice_edges(&tex, frame.width.value(), frame.height.value());
         frame.nine_slice = Some(NineSlice {
             edge_size: eh,
             edge_size_v: Some(ev),
@@ -179,12 +179,13 @@ fn upsert_highlight_sprite(
 ) {
     let alpha = frame.effective_alpha * 0.5;
     let color = Color::srgba(1.0, 1.0, 1.0, alpha);
-    let size = Vec2::new(frame.width, frame.height);
+    let size = Vec2::new(frame.width.value(), frame.height.value());
     let bx = frame
         .width
+        .value()
         .mul_add(0.5, frame.layout_rect.as_ref().map_or(0.0, |r| r.x))
         - sw * 0.5;
-    let by = sh * 0.5 - frame.layout_rect.as_ref().map_or(0.0, |r| r.y) - frame.height * 0.5;
+    let by = sh * 0.5 - frame.layout_rect.as_ref().map_or(0.0, |r| r.y) - frame.height.value() * 0.5;
     let transform = Transform::from_xyz(bx, by, 500.0);
     let sprite = Sprite {
         color,

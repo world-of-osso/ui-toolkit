@@ -276,7 +276,7 @@ fn outline_offsets(outline: Outline) -> &'static [(f32, f32)] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frame::WidgetData;
+    use crate::frame::{Dimension, WidgetData};
     use crate::plugin::UiPlugin;
     use crate::widgets::font_string::{FontStringData, Outline as FsOutline};
 
@@ -293,8 +293,8 @@ mod tests {
         let mut ui = app.world_mut().resource_mut::<UiState>();
         let id = ui.registry.create_frame(name, None);
         let frame = ui.registry.get_mut(id).unwrap();
-        frame.width = 100.0;
-        frame.height = 20.0;
+        frame.width = Dimension::Fixed(100.0);
+        frame.height = Dimension::Fixed(20.0);
         frame.widget_data = Some(WidgetData::FontString(fs));
     }
 

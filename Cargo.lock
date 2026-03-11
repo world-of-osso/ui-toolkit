@@ -5028,6 +5028,7 @@ dependencies = [
  "bevy",
  "image 0.25.10",
  "image-blp",
+ "log",
  "notify",
  "serde",
  "ui-toolkit-macros",

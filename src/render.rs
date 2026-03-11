@@ -161,7 +161,7 @@ fn effective_size(f: &crate::frame::Frame) -> (f32, f32) {
     f.layout_rect
         .as_ref()
         .map(|r| (r.width, r.height))
-        .unwrap_or((f.width, f.height))
+        .unwrap_or((f.width.value(), f.height.value()))
 }
 
 fn is_renderable(f: &crate::frame::Frame) -> bool {
@@ -442,6 +442,7 @@ pub fn texture_tint(frame: &crate::frame::Frame) -> Color {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::frame::Dimension;
     use crate::plugin::UiPlugin;
 
     fn test_app() -> App {
@@ -469,8 +470,8 @@ mod tests {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             let id = ui.registry.create_frame("Test", None);
             let frame = ui.registry.get_mut(id).unwrap();
-            frame.width = 100.0;
-            frame.height = 50.0;
+            frame.width = Dimension::Fixed(100.0);
+            frame.height = Dimension::Fixed(50.0);
             frame.background_color = Some([1.0, 0.0, 0.0, 1.0]);
         }
         app.update();
@@ -490,8 +491,8 @@ mod tests {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             let id = ui.registry.create_frame("NoColor", None);
             let frame = ui.registry.get_mut(id).unwrap();
-            frame.width = 100.0;
-            frame.height = 50.0;
+            frame.width = Dimension::Fixed(100.0);
+            frame.height = Dimension::Fixed(50.0);
         }
         app.update();
         let mut q = app.world_mut().query_filtered::<(), With<UiQuad>>();
@@ -511,8 +512,8 @@ mod tests {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             frame_id = ui.registry.create_frame("HideMe", None);
             let frame = ui.registry.get_mut(frame_id).unwrap();
-            frame.width = 100.0;
-            frame.height = 50.0;
+            frame.width = Dimension::Fixed(100.0);
+            frame.height = Dimension::Fixed(50.0);
             frame.background_color = Some([0.0, 1.0, 0.0, 1.0]);
         }
         app.update();
@@ -539,8 +540,8 @@ mod tests {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             let id = ui.registry.create_frame("Bd", None);
             let frame = ui.registry.get_mut(id).unwrap();
-            frame.width = 100.0;
-            frame.height = 50.0;
+            frame.width = Dimension::Fixed(100.0);
+            frame.height = Dimension::Fixed(50.0);
             frame.backdrop = Some(crate::frame::Backdrop {
                 bg_color: Some([0.1, 0.1, 0.1, 1.0]),
                 ..Default::default()
@@ -555,8 +556,8 @@ mod tests {
     fn statusbar_sprite_params_proportional_to_fill() {
         let mut frame =
             crate::frame::Frame::new(1, None, crate::frame::WidgetType::StatusBar);
-        frame.width = 200.0;
-        frame.height = 20.0;
+        frame.width = Dimension::Fixed(200.0);
+        frame.height = Dimension::Fixed(20.0);
         frame.widget_data = Some(WidgetData::StatusBar(
             crate::widgets::slider::StatusBarData {
                 value: 0.5,
@@ -584,8 +585,8 @@ mod tests {
     fn statusbar_sprite_params_full_fill() {
         let mut frame =
             crate::frame::Frame::new(1, None, crate::frame::WidgetType::StatusBar);
-        frame.width = 200.0;
-        frame.height = 20.0;
+        frame.width = Dimension::Fixed(200.0);
+        frame.height = Dimension::Fixed(20.0);
         frame.widget_data = Some(WidgetData::StatusBar(
             crate::widgets::slider::StatusBarData {
                 value: 1.0,

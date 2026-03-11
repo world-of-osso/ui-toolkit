@@ -5,7 +5,7 @@
 //! document the expected nine-slice behavior that needs to be ported from
 //! wow-ui-sim.
 
-use crate::frame::{NineSlice, WidgetData, WidgetType};
+use crate::frame::{Dimension, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
 use crate::widgets::button::ButtonData;
 use crate::widgets::edit_box::EditBoxData;
@@ -27,8 +27,8 @@ fn create_frame(
     let id = reg.next_id();
     let mut frame = crate::frame::Frame::new(id, Some(name.to_string()), wt);
     frame.parent_id = parent;
-    frame.width = w;
-    frame.height = h;
+    frame.width = Dimension::Fixed(w);
+    frame.height = Dimension::Fixed(h);
     frame.mouse_enabled = true;
     reg.insert_frame(frame);
     id
@@ -429,8 +429,8 @@ fn nine_slice_edge_size_determines_corner_dimensions() {
     use crate::render_nine_slice::part_geometry;
 
     let mut frame = crate::frame::Frame::new(1, None, WidgetType::Frame);
-    frame.width = 300.0;
-    frame.height = 120.0;
+    frame.width = Dimension::Fixed(300.0);
+    frame.height = Dimension::Fixed(120.0);
     frame.layout_rect = Some(crate::layout::LayoutRect {
         x: 100.0,
         y: 200.0,
@@ -455,8 +455,8 @@ fn nine_slice_edge_size_determines_corner_dimensions() {
 
 fn nine_slice_test_frame() -> crate::frame::Frame {
     let mut frame = crate::frame::Frame::new(1, None, WidgetType::Frame);
-    frame.width = 200.0;
-    frame.height = 100.0;
+    frame.width = Dimension::Fixed(200.0);
+    frame.height = Dimension::Fixed(100.0);
     frame.effective_alpha = 0.8;
     frame.layout_rect = Some(crate::layout::LayoutRect {
         x: 0.0, y: 0.0, width: 200.0, height: 100.0,

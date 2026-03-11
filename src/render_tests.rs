@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::frame::{WidgetData, WidgetType};
+use crate::frame::{Dimension, WidgetData, WidgetType};
 use crate::plugin::{UiPlugin, UiState};
 use crate::render::{frame_sprite_params, texture_tint};
 use crate::render_nine_slice::UiNineSlicePart;
@@ -25,8 +25,8 @@ fn create_button(app: &mut App, name: &str, btn: ButtonData) -> u64 {
     let mut ui = app.world_mut().resource_mut::<UiState>();
     let id = ui.registry.create_frame(name, None);
     let frame = ui.registry.get_mut(id).unwrap();
-    frame.width = 120.0;
-    frame.height = 40.0;
+    frame.width = Dimension::Fixed(120.0);
+    frame.height = Dimension::Fixed(40.0);
     frame.widget_type = WidgetType::Button;
     frame.widget_data = Some(WidgetData::Button(btn));
     id
@@ -145,8 +145,8 @@ fn edit_box_preserves_dimensions() {
         let mut ui = app.world_mut().resource_mut::<UiState>();
         let id = ui.registry.create_frame("EditBox1", None);
         let frame = ui.registry.get_mut(id).unwrap();
-        frame.width = 250.0;
-        frame.height = 32.0;
+        frame.width = Dimension::Fixed(250.0);
+        frame.height = Dimension::Fixed(32.0);
         frame.widget_type = WidgetType::EditBox;
         frame.widget_data = Some(WidgetData::EditBox(EditBoxData::default()));
         id
@@ -154,15 +154,15 @@ fn edit_box_preserves_dimensions() {
     app.update();
     let ui = app.world().resource::<UiState>();
     let frame = ui.registry.get(id).unwrap();
-    assert_eq!(frame.width, 250.0);
-    assert_eq!(frame.height, 32.0);
+    assert_eq!(frame.width, Dimension::Fixed(250.0));
+    assert_eq!(frame.height, Dimension::Fixed(32.0));
 }
 
 #[test]
 fn edit_box_font_flows_to_text_props() {
     let mut frame = crate::frame::Frame::new(1, None, WidgetType::EditBox);
-    frame.width = 200.0;
-    frame.height = 30.0;
+    frame.width = Dimension::Fixed(200.0);
+    frame.height = Dimension::Fixed(30.0);
     frame.effective_alpha = 1.0;
     frame.widget_data = Some(WidgetData::EditBox(EditBoxData {
         text: "hello".into(),
@@ -283,8 +283,8 @@ fn texture_tint_applies_effective_alpha() {
 #[test]
 fn frame_sprite_params_uses_full_dimensions() {
     let mut frame = crate::frame::Frame::new(1, None, WidgetType::Frame);
-    frame.width = 200.0;
-    frame.height = 100.0;
+    frame.width = Dimension::Fixed(200.0);
+    frame.height = Dimension::Fixed(100.0);
     let (size, offset) = frame_sprite_params(&frame);
     assert_eq!(size, Vec2::new(200.0, 100.0));
     assert_eq!(offset, Vec2::ZERO);
@@ -294,8 +294,8 @@ fn create_colored_frame(app: &mut App, name: &str, strata: crate::strata::FrameS
     let mut ui = app.world_mut().resource_mut::<UiState>();
     let id = ui.registry.create_frame(name, None);
     let frame = ui.registry.get_mut(id).unwrap();
-    frame.width = 200.0;
-    frame.height = 40.0;
+    frame.width = Dimension::Fixed(200.0);
+    frame.height = Dimension::Fixed(40.0);
     frame.background_color = Some([1.0, 1.0, 1.0, 1.0]);
     frame.strata = strata;
     id

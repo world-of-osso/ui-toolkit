@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 
 use crate::anchor_resolve::apply_anchor_resolved;
-use crate::frame::WidgetData;
+use crate::frame::{Dimension, WidgetData};
 use crate::hotreload::HotReloadTemplate;
 use crate::registry::FrameRegistry;
 use crate::text_measure::measure_text;
@@ -86,9 +86,11 @@ impl Screen {
     pub fn sync(&mut self, registry: &mut FrameRegistry) {
         // 1. Drain hot-reload
         if let Some(rx) = &self.hot_reload_rx {
+            self.diff.log_changes = true;
             while let Ok(template) = rx.try_recv() {
-                self.diff.diff_roots(&template.defs, None, registry);
+                self.diff.patch_by_name(&template.defs, registry);
             }
+            self.diff.log_changes = false;
         }
 
         // 2. Build and diff if needed
@@ -137,22 +139,87 @@ fn auto_size_fontstrings(diff: &DiffContext, registry: &mut FrameRegistry) {
     for &fid in &diff.created_frames {
         let Some(frame) = registry.get(fid) else { continue };
         let Some(WidgetData::FontString(fs)) = &frame.widget_data else { continue };
-        if frame.width > 0.0 || fs.text.is_empty() { continue }
+        if frame.width.value() > 0.0 || fs.text.is_empty() { continue }
         let text = fs.text.clone();
         let font = fs.font;
         let font_size = fs.font_size;
         if let Some((w, h)) = measure_text(&text, font, font_size) {
             let frame = registry.get_mut(fid).unwrap();
-            frame.width = w;
-            frame.height = h;
+            frame.width = Dimension::Fixed(w);
+            frame.height = Dimension::Fixed(h);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frame::{Frame, WidgetType};
+    use crate::hotreload::parser::parse_rsx_blocks;
+    use crate::widget_def::WidgetChild;
+
+    fn screen_with_frame(reg: &mut FrameRegistry, name: &str, width: f32) -> u64 {
+        let id = reg.next_id();
+        let mut frame = Frame::new(id, Some(name.to_string()), WidgetType::Frame);
+        frame.width = Dimension::Fixed(width);
+        reg.insert_frame(frame);
+        id
+    }
+
+    fn empty_screen() -> Screen {
+        Screen::new(|_ctx| -> Vec<WidgetChild> { vec![] })
+    }
+
+    #[test]
+    fn hot_reload_patches_existing_frame() {
+        let mut screen = empty_screen();
+        let mut reg = FrameRegistry::new(1920.0, 1080.0);
+        screen.sync(&mut reg);
+
+        let fid = screen_with_frame(&mut reg, "TestFrame", 200.0);
+        assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(200.0));
+
+        let (tx, rx) = mpsc::channel();
+        screen.set_hot_reload_rx(rx);
+
+        let t = parse_rsx_blocks(
+            r#"fn f() { rsx! { frame { name: "TestFrame", width: 400.0 } } }"#,
+            "test.rs",
+        );
+        tx.send(t.into_iter().next().unwrap()).unwrap();
+        screen.sync(&mut reg);
+
+        assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(400.0));
+    }
+
+    #[test]
+    fn hot_reload_ignores_unknown_frames() {
+        let mut screen = empty_screen();
+        let mut reg = FrameRegistry::new(1920.0, 1080.0);
+        screen.sync(&mut reg);
+
+        screen_with_frame(&mut reg, "Known", 100.0);
+        let frame_count_before = reg.frames_iter().count();
+
+        let (tx, rx) = mpsc::channel();
+        screen.set_hot_reload_rx(rx);
+
+        let t = parse_rsx_blocks(
+            r#"fn f() { rsx! { frame { name: "Unknown", width: 999.0 } } }"#,
+            "test.rs",
+        );
+        tx.send(t.into_iter().next().unwrap()).unwrap();
+        screen.sync(&mut reg);
+
+        assert!(reg.get_by_name("Unknown").is_none());
+        assert_eq!(reg.frames_iter().count(), frame_count_before);
     }
 }
 
 fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
     for &fid in &diff.created_frames {
         let Some(frame) = registry.get(fid) else { continue };
-        if frame.height > 0.0 { continue }
+        if frame.height.value() > 0.0 { continue }
         let Some(WidgetData::EditBox(eb)) = &frame.widget_data else { continue };
         let font_size = eb.font_size;
         let v_inset = if eb.text_insets != [0.0; 4] {
@@ -161,6 +228,6 @@ fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
             0.0
         };
         let frame = registry.get_mut(fid).unwrap();
-        frame.height = font_size + font_size * 0.5 + v_inset;
+        frame.height = Dimension::Fixed(font_size + font_size * 0.5 + v_inset);
     }
 }
