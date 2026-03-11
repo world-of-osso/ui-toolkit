@@ -133,44 +133,32 @@ fn load_materialized_atlas_region(
 }
 
 fn crop_image_region(image: &Image, left: f32, right: f32, top: f32, bottom: f32) -> Option<Image> {
-    if image.texture_descriptor.format != TextureFormat::Rgba8UnormSrgb
-        && image.texture_descriptor.format != TextureFormat::Rgba8Unorm
-    {
-        return None;
-    }
+    let is_rgba8 = matches!(image.texture_descriptor.format,
+        TextureFormat::Rgba8UnormSrgb | TextureFormat::Rgba8Unorm);
+    if !is_rgba8 { return None; }
     let data = image.data.as_ref()?;
-    let width = image.width() as usize;
-    let height = image.height() as usize;
-    let x0 = (left * width as f32).round().clamp(0.0, width as f32) as usize;
-    let x1 = (right * width as f32).round().clamp(0.0, width as f32) as usize;
-    let y0 = (top * height as f32).round().clamp(0.0, height as f32) as usize;
-    let y1 = (bottom * height as f32).round().clamp(0.0, height as f32) as usize;
-    if x1 <= x0 || y1 <= y0 {
-        return None;
-    }
-
-    let crop_w = x1 - x0;
-    let crop_h = y1 - y0;
-    let mut out = vec![0u8; crop_w * crop_h * 4];
-    for row in 0..crop_h {
-        let src_start = ((y0 + row) * width + x0) * 4;
-        let src_end = src_start + crop_w * 4;
-        let dst_start = row * crop_w * 4;
-        let dst_end = dst_start + crop_w * 4;
-        out[dst_start..dst_end].copy_from_slice(&data[src_start..src_end]);
-    }
-
+    let (w, h) = (image.width() as usize, image.height() as usize);
+    let x0 = (left * w as f32).round().clamp(0.0, w as f32) as usize;
+    let x1 = (right * w as f32).round().clamp(0.0, w as f32) as usize;
+    let y0 = (top * h as f32).round().clamp(0.0, h as f32) as usize;
+    let y1 = (bottom * h as f32).round().clamp(0.0, h as f32) as usize;
+    if x1 <= x0 || y1 <= y0 { return None; }
+    let pixels = crop_rgba_pixels(data, w, x0, x1, y0, y1);
     Some(Image::new(
-        Extent3d {
-            width: crop_w as u32,
-            height: crop_h as u32,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        out,
-        image.texture_descriptor.format,
-        RenderAssetUsages::default(),
+        Extent3d { width: (x1 - x0) as u32, height: (y1 - y0) as u32, depth_or_array_layers: 1 },
+        TextureDimension::D2, pixels, image.texture_descriptor.format, RenderAssetUsages::default(),
     ))
+}
+
+fn crop_rgba_pixels(data: &[u8], stride: usize, x0: usize, x1: usize, y0: usize, y1: usize) -> Vec<u8> {
+    let crop_w = x1 - x0;
+    let mut out = vec![0u8; crop_w * (y1 - y0) * 4];
+    for row in 0..(y1 - y0) {
+        let src = ((y0 + row) * stride + x0) * 4;
+        let dst = row * crop_w * 4;
+        out[dst..dst + crop_w * 4].copy_from_slice(&data[src..src + crop_w * 4]);
+    }
+    out
 }
 
 pub fn load_file_texture(
@@ -230,8 +218,7 @@ fn load_ui_file_texture(path: &str, blp_loader: Option<&BlpLoaderRes>) -> Result
 }
 
 fn should_cpu_decode_ui_texture(path: &str) -> bool {
-    path.ends_with("Glues-BlizzardLogo.blp")
-        || path.contains("/Interface/GLUES/CharacterSelect/")
+    path.contains("/Interface/GLUES/CharacterSelect/")
         || path.contains("/Interface/CharacterSelection/")
 }
 
