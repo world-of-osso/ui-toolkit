@@ -1,7 +1,6 @@
-use dioxus_core::TemplateNode;
-
 use crate::anchor::{Anchor, AnchorPoint};
 use crate::registry::FrameRegistry;
+use crate::widget_def::AnchorDef;
 
 /// Accumulated anchor attribute state for anchors with dynamic attrs.
 /// Static attrs are filled during template instantiation, dynamic attrs arrive via set_attribute.
@@ -82,37 +81,18 @@ pub(crate) fn apply_anchor_resolved(registry: &mut FrameRegistry, frame_id: u64,
     }
 }
 
-/// Apply an all-static `anchor {}` child element to its parent frame.
-/// Returns a pending spec if the relative frame isn't registered yet.
-pub(crate) fn apply_anchor_element(
-    node: &TemplateNode,
+pub(crate) fn apply_anchor_from_def(
+    def: &AnchorDef,
     parent_frame_id: u64,
     registry: &mut FrameRegistry,
 ) -> Option<(u64, String)> {
-    let TemplateNode::Element { attrs, .. } = node else {
-        return None;
-    };
     let mut state = AnchorState::new(0);
-    for attr in *attrs {
-        if let dioxus_core::TemplateAttribute::Static { name, value, .. } = attr {
-            state.set(name, value);
-        }
-    }
+    state.set("point", &def.point);
+    state.set("relative_to", &def.relative_to);
+    state.set("relative_point", &def.relative_point);
+    state.set("x", &def.x);
+    state.set("y", &def.y);
     apply_anchor_state(&state, parent_frame_id, registry)
-}
-
-/// Collect static attrs from an anchor template node, leaving defaults for dynamic attrs.
-pub(crate) fn collect_anchor_statics(node: &TemplateNode, dynamic_count: usize) -> AnchorState {
-    let TemplateNode::Element { attrs, .. } = node else {
-        return AnchorState::new(dynamic_count);
-    };
-    let mut state = AnchorState::new(dynamic_count);
-    for attr in *attrs {
-        if let dioxus_core::TemplateAttribute::Static { name, value, .. } = attr {
-            state.set(name, value);
-        }
-    }
-    state
 }
 
 /// Apply an anchor from accumulated state. Returns pending if relative frame not found.

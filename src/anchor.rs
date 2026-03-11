@@ -9,9 +9,10 @@ impl FrameName {
     }
 }
 
-impl dioxus_core::IntoAttributeValue for FrameName {
-    fn into_value(self) -> dioxus_core::AttributeValue {
-        dioxus_core::AttributeValue::Text(self.0.to_string())
+
+impl std::fmt::Display for FrameName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
     }
 }
 
@@ -61,9 +62,10 @@ impl AnchorPoint {
     }
 }
 
-impl dioxus_core::IntoAttributeValue for AnchorPoint {
-    fn into_value(self) -> dioxus_core::AttributeValue {
-        dioxus_core::AttributeValue::Text(self.as_str().to_string())
+
+impl std::fmt::Display for AnchorPoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 

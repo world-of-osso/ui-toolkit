@@ -22,11 +22,12 @@ impl GameFont {
     }
 }
 
-impl dioxus_core::IntoAttributeValue for GameFont {
-    fn into_value(self) -> dioxus_core::AttributeValue {
-        dioxus_core::AttributeValue::Text(match self {
-            Self::FrizQuadrata => "FrizQuadrata".to_string(),
-            Self::ArialNarrow => "ArialNarrow".to_string(),
+
+impl std::fmt::Display for GameFont {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::FrizQuadrata => "FrizQuadrata",
+            Self::ArialNarrow => "ArialNarrow",
         })
     }
 }
@@ -48,9 +49,10 @@ impl JustifyH {
     }
 }
 
-impl dioxus_core::IntoAttributeValue for JustifyH {
-    fn into_value(self) -> dioxus_core::AttributeValue {
-        dioxus_core::AttributeValue::Text(self.as_str().to_string())
+
+impl std::fmt::Display for JustifyH {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -68,10 +70,11 @@ impl FontColor {
     }
 }
 
-impl dioxus_core::IntoAttributeValue for FontColor {
-    fn into_value(self) -> dioxus_core::AttributeValue {
+
+impl std::fmt::Display for FontColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let [r, g, b, a] = self.0;
-        dioxus_core::AttributeValue::Text(format!("{r},{g},{b},{a}"))
+        write!(f, "{r},{g},{b},{a}")
     }
 }
 

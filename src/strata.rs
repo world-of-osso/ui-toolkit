@@ -45,9 +45,10 @@ impl FrameStrata {
     }
 }
 
-impl dioxus_core::IntoAttributeValue for FrameStrata {
-    fn into_value(self) -> dioxus_core::AttributeValue {
-        dioxus_core::AttributeValue::Text(self.as_str().to_string())
+
+impl std::fmt::Display for FrameStrata {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -92,11 +93,6 @@ impl DrawLayer {
     }
 }
 
-impl dioxus_core::IntoAttributeValue for DrawLayer {
-    fn into_value(self) -> dioxus_core::AttributeValue {
-        dioxus_core::AttributeValue::Text(self.as_str().to_string())
-    }
-}
 
 impl Default for DrawLayer {
     fn default() -> Self {
