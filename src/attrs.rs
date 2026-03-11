@@ -29,6 +29,20 @@ pub(crate) fn apply_attribute(
         return None;
     }
     if name == "stretch" { return apply_stretch_attr(registry, frame_id, value); }
+    if name == "hidden" {
+        match value {
+            "true" | "TRUE" | "1" => registry.set_hidden(frame_id, true),
+            "false" | "FALSE" | "0" => registry.set_hidden(frame_id, false),
+            _ => {}
+        }
+        return None;
+    }
+    if name == "alpha" {
+        if let Ok(v) = value.parse::<f32>() {
+            registry.set_alpha(frame_id, v);
+        }
+        return None;
+    }
     let Some(frame) = registry.get_mut(frame_id) else { return None };
     apply_frame_attr(frame, name, value);
     apply_widget_text_attrs(frame, name, value, validated_paths, missing_paths);
@@ -48,8 +62,6 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
     match name {
         "width" => { if let Ok(v) = value.parse::<f32>() { frame.width = v; } }
         "height" => { if let Ok(v) = value.parse::<f32>() { frame.height = v; } }
-        "alpha" => { if let Ok(v) = value.parse::<f32>() { frame.alpha = v; } }
-        "hidden" => match value { "true" | "TRUE" | "1" => frame.hidden = true, "false" | "FALSE" | "0" => frame.hidden = false, _ => {} },
         "mouse_enabled" => match value { "true" | "TRUE" | "1" => frame.mouse_enabled = true, "false" | "FALSE" | "0" => frame.mouse_enabled = false, _ => {} },
         "movable" => match value { "true" | "TRUE" | "1" => frame.movable = true, "false" | "FALSE" | "0" => frame.movable = false, _ => {} },
         "frame_level" => { if let Ok(v) = value.parse::<f32>() { frame.frame_level = v as i32; } }

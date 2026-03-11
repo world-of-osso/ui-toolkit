@@ -269,6 +269,49 @@ mod tests {
     }
 
     #[test]
+    fn diff_applies_hidden_via_registry_visibility() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        let children = vec![WidgetChild::Widget(WidgetDef {
+            tag: "Button",
+            tag_owned: None,
+            name: Some("HiddenButton".to_string()),
+            attrs: vec![Attr::new_static("hidden", "true".to_string())],
+            anchors: vec![],
+            children: vec![],
+        })];
+
+        ctx.diff_roots(&children, None, &mut reg);
+
+        let fid = ctx.created_frames[0];
+        let frame = reg.get(fid).unwrap();
+        assert!(frame.hidden);
+        assert!(!frame.visible);
+        assert!((frame.effective_alpha - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn diff_applies_alpha_via_registry_effective_alpha() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        let children = vec![WidgetChild::Widget(WidgetDef {
+            tag: "Frame",
+            tag_owned: None,
+            name: Some("FadedFrame".to_string()),
+            attrs: vec![Attr::new_static("alpha", "0.25".to_string())],
+            anchors: vec![],
+            children: vec![],
+        })];
+
+        ctx.diff_roots(&children, None, &mut reg);
+
+        let fid = ctx.created_frames[0];
+        let frame = reg.get(fid).unwrap();
+        assert!((frame.alpha - 0.25).abs() < f32::EPSILON);
+        assert!((frame.effective_alpha - 0.25).abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn diff_removes_unmatched() {
         let mut reg = make_registry();
         let mut ctx = DiffContext::new();
