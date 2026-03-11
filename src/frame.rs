@@ -102,6 +102,28 @@ impl Default for Backdrop {
     }
 }
 
+/// Sizing mode for a frame dimension.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Dimension {
+    Fixed(f32),
+    Fill,
+}
+
+impl Default for Dimension {
+    fn default() -> Self { Self::Fixed(0.0) }
+}
+
+impl Dimension {
+    /// Returns the explicit size, or 0.0 for Fill (resolved later by layout).
+    pub fn value(self) -> f32 {
+        match self { Self::Fixed(v) => v, Self::Fill => 0.0 }
+    }
+
+    pub fn is_fill(self) -> bool {
+        matches!(self, Self::Fill)
+    }
+}
+
 /// Flex layout direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FlexDirection {
@@ -152,8 +174,8 @@ pub struct Frame {
     pub children: Vec<u64>,
 
     // Layout
-    pub width: f32,
-    pub height: f32,
+    pub width: Dimension,
+    pub height: Dimension,
     pub anchors: Vec<Anchor>,
     pub layout_rect: Option<LayoutRect>,
 
@@ -216,6 +238,10 @@ impl Frame {
             mouse_enabled: true,
             ..Self::default()
         }
+    }
+
+    pub fn is_editbox(&self) -> bool {
+        matches!(self.widget_data, Some(WidgetData::EditBox(_)))
     }
 
     #[cfg(test)]

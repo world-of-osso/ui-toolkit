@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::frame::{Frame, WidgetType};
+use crate::frame::{Frame, WidgetData, WidgetType};
 use crate::layout::LayoutRect;
 
 /// Central registry owning all UI frames, keyed by ID.
@@ -13,6 +13,7 @@ pub struct FrameRegistry {
     pub render_dirty: HashSet<u64>,
     pub rect_dirty: HashSet<u64>,
     pub anchor_dependents: HashMap<u64, HashSet<u64>>,
+    pub focused_frame: Option<u64>,
 }
 
 impl FrameRegistry {
@@ -26,6 +27,7 @@ impl FrameRegistry {
             render_dirty: HashSet::new(),
             rect_dirty: HashSet::new(),
             anchor_dependents: HashMap::new(),
+            focused_frame: None,
         }
     }
 
@@ -35,6 +37,25 @@ impl FrameRegistry {
             y: 0.0,
             width: self.screen_width,
             height: self.screen_height,
+        }
+    }
+
+    /// Focus a frame by click. Editboxes get focused and select-all; returns the onclick action otherwise.
+    pub fn click_frame(&mut self, id: u64) -> Option<String> {
+        let frame = self.frames.get(&id)?;
+        if frame.is_editbox() {
+            self.focused_frame = Some(id);
+            self.select_all_editbox(id);
+            None
+        } else {
+            frame.onclick.clone()
+        }
+    }
+
+    pub fn select_all_editbox(&mut self, id: u64) {
+        if let Some(WidgetData::EditBox(eb)) = self.get_mut(id).and_then(|f| f.widget_data.as_mut())
+        {
+            eb.cursor_position = eb.text.len();
         }
     }
 
