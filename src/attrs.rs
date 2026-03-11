@@ -169,10 +169,7 @@ fn parse_nine_slice(s: &str) -> Option<NineSlice> {
 
 fn parse_justify_h(s: &str) -> JustifyH { match s { "LEFT" => JustifyH::Left, "RIGHT" => JustifyH::Right, _ => JustifyH::Center } }
 
-pub(crate) fn apply_static_attribute(registry: &mut FrameRegistry, frame_id: u64, name: &str, namespace: Option<&str>, value: &str, pending: &mut Vec<(u64, String)>, validated_paths: &mut HashSet<String>, missing_paths: &mut HashSet<String>) {
-    let _ = namespace;
-    if let Some(p) = apply_attribute(registry, frame_id, name, value, validated_paths, missing_paths) { pending.push(p); }
-}
+
 
 pub(crate) fn parse_color(s: &str) -> Option<[f32; 4]> {
     let parts: Vec<_> = s.split(',').map(str::trim).collect();

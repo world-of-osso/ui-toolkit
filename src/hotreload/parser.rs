@@ -233,7 +233,7 @@ fn collect_attrs(block: &str, consts: &[(String, String)]) -> Vec<Attr> {
         let (new_pos, name) = read_ident(block, pos);
         if new_pos == pos { pos += 1; continue; }
         pos = skip_whitespace(block, new_pos);
-        if pos < block.len() && bytes[pos] == b'{' { pos = new_pos; break; }
+        if pos < block.len() && bytes[pos] == b'{' { break; }
         if pos >= block.len() || bytes[pos] != b':' {
             pos = skip_attr_value_line(block, pos); continue;
         }

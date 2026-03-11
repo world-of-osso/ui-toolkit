@@ -12,6 +12,7 @@ pub(crate) struct AnchorState {
     x: String,
     y: String,
     /// Number of dynamic attrs still expected before we can apply.
+    #[allow(dead_code)]
     pub(crate) remaining_dynamic: usize,
 }
 

@@ -117,48 +117,57 @@ pub(crate) struct TextProps {
     pub justify_v: JustifyV,
 }
 
-pub(crate) fn extract_text_props_pub(frame: &crate::frame::Frame) -> TextProps {
-    extract_text_props(frame)
-}
-
-fn extract_text_props(frame: &crate::frame::Frame) -> TextProps {
-    match &frame.widget_data {
-        Some(WidgetData::FontString(fs)) => {
-            let [r, g, b, a] = fs.color;
-            TextProps {
-                content: fs.text.clone(),
-                font: fs.font,
-                font_size: fs.font_size,
-                color: Color::srgba(r, g, b, a * frame.effective_alpha),
-                justify_h: fs.justify_h,
-                justify_v: fs.justify_v,
-            }
-        }
-        Some(WidgetData::EditBox(eb)) => {
-            let display = if eb.password {
-                "*".repeat(eb.text.len())
-            } else {
-                eb.text.clone()
-            };
-            let [r, g, b, a] = eb.text_color;
-            TextProps {
-                content: display,
-                font: eb.font,
-                font_size: eb.font_size,
-                color: Color::srgba(r, g, b, a * frame.effective_alpha),
-                justify_h: JustifyH::Left,
-                justify_v: JustifyV::Middle,
-            }
-        }
-        Some(WidgetData::Button(btn)) => extract_button_text(btn, frame.effective_alpha),
-        _ => TextProps {
+impl Default for TextProps {
+    fn default() -> Self {
+        Self {
             content: String::new(),
             font: GameFont::default(),
             font_size: 12.0,
             color: Color::WHITE,
             justify_h: JustifyH::Center,
             justify_v: JustifyV::Middle,
-        },
+        }
+    }
+}
+
+
+
+#[cfg(test)]
+pub(crate) fn extract_text_props_pub(frame: &crate::frame::Frame) -> TextProps {
+    extract_text_props(frame)
+}
+
+fn extract_text_props(frame: &crate::frame::Frame) -> TextProps {
+    match &frame.widget_data {
+        Some(WidgetData::FontString(fs)) => extract_fontstring_text(fs, frame.effective_alpha),
+        Some(WidgetData::EditBox(eb)) => extract_editbox_text(eb, frame.effective_alpha),
+        Some(WidgetData::Button(btn)) => extract_button_text(btn, frame.effective_alpha),
+        _ => TextProps::default(),
+    }
+}
+
+fn extract_fontstring_text(fs: &crate::widgets::font_string::FontStringData, alpha: f32) -> TextProps {
+    let [r, g, b, a] = fs.color;
+    TextProps {
+        content: fs.text.clone(),
+        font: fs.font,
+        font_size: fs.font_size,
+        color: Color::srgba(r, g, b, a * alpha),
+        justify_h: fs.justify_h,
+        justify_v: fs.justify_v,
+    }
+}
+
+fn extract_editbox_text(eb: &crate::widgets::edit_box::EditBoxData, alpha: f32) -> TextProps {
+    let display = if eb.password { "*".repeat(eb.text.len()) } else { eb.text.clone() };
+    let [r, g, b, a] = eb.text_color;
+    TextProps {
+        content: display,
+        font: eb.font,
+        font_size: eb.font_size,
+        color: Color::srgba(r, g, b, a * alpha),
+        justify_h: JustifyH::Left,
+        justify_v: JustifyV::Middle,
     }
 }
 
