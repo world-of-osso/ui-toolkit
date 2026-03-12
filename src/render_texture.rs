@@ -177,7 +177,8 @@ pub fn load_file_texture(
     let assets = images.as_mut().map(|images| &mut **images)?;
     let image = match load_ui_file_texture(path, blp_loader) {
         Ok(image) => image,
-        Err(_) => {
+        Err(err) => {
+            eprintln!("[UI] Failed to load texture {path}: {err}");
             missing_file_textures.insert(path.to_string());
             return None;
         }

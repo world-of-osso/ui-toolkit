@@ -1,5 +1,6 @@
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
 
 use crate::anchor_resolve::apply_anchor_resolved;
@@ -10,56 +11,98 @@ use crate::text_measure::measure_text;
 use crate::widget_def::WidgetChild;
 use crate::widget_def_diff::DiffContext;
 
-/// Typed context map for injecting state into build functions.
-/// Replaces Dioxus's provide_root_context/use_context.
-pub struct ScreenContext {
+/// Shared reactive context with generation-based dependency tracking.
+/// Replaces per-Screen ScreenContext. One instance holds all state;
+/// each value has a generation counter that advances on insert.
+pub struct SharedContext {
     values: HashMap<TypeId, Box<dyn Any>>,
+    generations: HashMap<TypeId, u64>,
+    read_tracker: RefCell<HashSet<TypeId>>,
 }
 
-impl ScreenContext {
+impl SharedContext {
     pub fn new() -> Self {
-        Self { values: HashMap::new() }
+        Self {
+            values: HashMap::new(),
+            generations: HashMap::new(),
+            read_tracker: RefCell::new(HashSet::new()),
+        }
     }
 
+    /// Store a value, incrementing its generation counter.
     pub fn insert<T: 'static>(&mut self, val: T) {
-        self.values.insert(TypeId::of::<T>(), Box::new(val));
+        let tid = TypeId::of::<T>();
+        let g = self.generations.entry(tid).or_insert(0);
+        *g += 1;
+        self.values.insert(tid, Box::new(val));
     }
 
+    /// Read a value, recording it as a dependency for the current build.
     pub fn get<T: 'static>(&self) -> Option<&T> {
-        self.values.get(&TypeId::of::<T>())?.downcast_ref()
+        let tid = TypeId::of::<T>();
+        self.read_tracker.borrow_mut().insert(tid);
+        self.values.get(&tid)?.downcast_ref()
     }
 
-    pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        self.values.get_mut(&TypeId::of::<T>())?.downcast_mut()
+    /// Current generation for a type (0 if never inserted).
+    pub fn generation<T: 'static>(&self) -> u64 {
+        self.generations.get(&TypeId::of::<T>()).copied().unwrap_or(0)
+    }
+
+    fn generation_of(&self, tid: &TypeId) -> u64 {
+        self.generations.get(tid).copied().unwrap_or(0)
+    }
+
+    fn start_tracking(&self) {
+        self.read_tracker.borrow_mut().clear();
+    }
+
+    fn take_reads(&self) -> HashMap<TypeId, u64> {
+        let reads = self.read_tracker.borrow();
+        reads.iter().map(|&tid| (tid, self.generation_of(&tid))).collect()
     }
 }
 
-impl Default for ScreenContext {
+impl Default for SharedContext {
     fn default() -> Self {
         Self::new()
     }
 }
 
 /// Screen: manages a UI component's lifecycle against FrameRegistry.
-/// Replaces DioxusScreen.
 pub struct Screen {
-    build_fn: Box<dyn Fn(&ScreenContext) -> Vec<WidgetChild>>,
-    ctx: ScreenContext,
+    build_fn: Box<dyn Fn(&SharedContext) -> Vec<WidgetChild>>,
+    deps: HashMap<TypeId, u64>,
     diff: DiffContext,
     hot_reload_rx: Option<mpsc::Receiver<HotReloadTemplate>>,
     initialized: bool,
-    dirty: bool,
+    parent_frame_name: Option<String>,
 }
 
 impl Screen {
-    pub fn new<F: Fn(&ScreenContext) -> Vec<WidgetChild> + 'static>(f: F) -> Self {
+    pub fn new<F: Fn(&SharedContext) -> Vec<WidgetChild> + 'static>(f: F) -> Self {
         Self {
             build_fn: Box::new(f),
-            ctx: ScreenContext::new(),
+            deps: HashMap::new(),
             diff: DiffContext::new(),
             hot_reload_rx: None,
             initialized: false,
-            dirty: true,
+            parent_frame_name: None,
+        }
+    }
+
+    /// Create a Screen that renders into a named parent frame (created by another Screen).
+    pub fn with_parent<F: Fn(&SharedContext) -> Vec<WidgetChild> + 'static>(
+        f: F,
+        parent_frame_name: &str,
+    ) -> Self {
+        Self {
+            build_fn: Box::new(f),
+            deps: HashMap::new(),
+            diff: DiffContext::new(),
+            hot_reload_rx: None,
+            initialized: false,
+            parent_frame_name: Some(parent_frame_name.to_string()),
         }
     }
 
@@ -68,22 +111,9 @@ impl Screen {
         self.hot_reload_rx = Some(rx);
     }
 
-    /// Access the context to insert values before sync.
-    pub fn context_mut(&mut self) -> &mut ScreenContext {
-        &mut self.ctx
-    }
-
-    /// Mark the screen dirty to force rebuild on next sync.
-    pub fn mark_dirty(&mut self) {
-        self.dirty = true;
-    }
-
-    /// Sync the widget tree against the registry.
-    /// 1. Drain hot-reload channel (apply static-only template updates)
-    /// 2. If dirty or first init: call build_fn, diff against registry
-    /// 3. Resolve pending anchors
-    /// 4. Auto-size fontstrings and editboxes
-    pub fn sync(&mut self, registry: &mut FrameRegistry) {
+    /// Sync the widget tree against the registry using shared context.
+    /// Only rebuilds if a dependency's generation has advanced since last render.
+    pub fn sync(&mut self, ctx: &SharedContext, registry: &mut FrameRegistry) {
         // 1. Drain hot-reload
         if let Some(rx) = &self.hot_reload_rx {
             self.diff.log_changes = true;
@@ -93,12 +123,15 @@ impl Screen {
             self.diff.log_changes = false;
         }
 
-        // 2. Build and diff if needed
-        if !self.initialized || self.dirty {
-            let tree = (self.build_fn)(&self.ctx);
-            self.diff.diff_roots(&tree, None, registry);
+        // 2. Check if rebuild needed
+        let needs_rebuild = !self.initialized || self.deps_changed(ctx);
+        if needs_rebuild {
+            ctx.start_tracking();
+            let tree = (self.build_fn)(ctx);
+            self.deps = ctx.take_reads();
+            let parent_id = self.resolve_parent(registry);
+            self.diff.diff_roots(&tree, parent_id, registry);
             self.initialized = true;
-            self.dirty = false;
         }
 
         // 3. Resolve pending anchors
@@ -107,6 +140,14 @@ impl Screen {
         // 4. Auto-size
         auto_size_fontstrings(&self.diff, registry);
         auto_size_editboxes(&self.diff, registry);
+    }
+
+    fn deps_changed(&self, ctx: &SharedContext) -> bool {
+        self.deps.iter().any(|(tid, &last_gen)| ctx.generation_of(tid) > last_gen)
+    }
+
+    fn resolve_parent(&self, registry: &FrameRegistry) -> Option<u64> {
+        self.parent_frame_name.as_ref().and_then(|name| registry.get_by_name(name))
     }
 
     fn resolve_pending_anchors(&mut self, registry: &mut FrameRegistry) {
@@ -127,6 +168,7 @@ impl Screen {
         }
         self.diff = DiffContext::new();
         self.initialized = false;
+        self.deps.clear();
     }
 
     /// Get all frame IDs owned by this screen.
@@ -148,6 +190,22 @@ fn auto_size_fontstrings(diff: &DiffContext, registry: &mut FrameRegistry) {
             frame.width = Dimension::Fixed(w);
             frame.height = Dimension::Fixed(h);
         }
+    }
+}
+
+fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
+    for &fid in &diff.created_frames {
+        let Some(frame) = registry.get(fid) else { continue };
+        if frame.height.value() > 0.0 { continue }
+        let Some(WidgetData::EditBox(eb)) = &frame.widget_data else { continue };
+        let font_size = eb.font_size;
+        let v_inset = if eb.text_insets != [0.0; 4] {
+            eb.text_insets[2] + eb.text_insets[3]
+        } else {
+            0.0
+        };
+        let frame = registry.get_mut(fid).unwrap();
+        frame.height = Dimension::Fixed(font_size + font_size * 0.5 + v_inset);
     }
 }
 
@@ -174,7 +232,8 @@ mod tests {
     fn hot_reload_patches_existing_frame() {
         let mut screen = empty_screen();
         let mut reg = FrameRegistry::new(1920.0, 1080.0);
-        screen.sync(&mut reg);
+        let ctx = SharedContext::new();
+        screen.sync(&ctx, &mut reg);
 
         let fid = screen_with_frame(&mut reg, "TestFrame", 200.0);
         assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(200.0));
@@ -187,7 +246,7 @@ mod tests {
             "test.rs",
         );
         tx.send(t.into_iter().next().unwrap()).unwrap();
-        screen.sync(&mut reg);
+        screen.sync(&ctx, &mut reg);
 
         assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(400.0));
     }
@@ -196,7 +255,8 @@ mod tests {
     fn hot_reload_ignores_unknown_frames() {
         let mut screen = empty_screen();
         let mut reg = FrameRegistry::new(1920.0, 1080.0);
-        screen.sync(&mut reg);
+        let ctx = SharedContext::new();
+        screen.sync(&ctx, &mut reg);
 
         screen_with_frame(&mut reg, "Known", 100.0);
         let frame_count_before = reg.frames_iter().count();
@@ -209,25 +269,113 @@ mod tests {
             "test.rs",
         );
         tx.send(t.into_iter().next().unwrap()).unwrap();
-        screen.sync(&mut reg);
+        screen.sync(&ctx, &mut reg);
 
         assert!(reg.get_by_name("Unknown").is_none());
         assert_eq!(reg.frames_iter().count(), frame_count_before);
     }
-}
 
-fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
-    for &fid in &diff.created_frames {
-        let Some(frame) = registry.get(fid) else { continue };
-        if frame.height.value() > 0.0 { continue }
-        let Some(WidgetData::EditBox(eb)) = &frame.widget_data else { continue };
-        let font_size = eb.font_size;
-        let v_inset = if eb.text_insets != [0.0; 4] {
-            eb.text_insets[2] + eb.text_insets[3]
-        } else {
-            0.0
-        };
-        let frame = registry.get_mut(fid).unwrap();
-        frame.height = Dimension::Fixed(font_size + font_size * 0.5 + v_inset);
+    #[test]
+    fn screen_with_no_deps_never_rebuilds_after_init() {
+        let counter = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let counter_clone = counter.clone();
+        let mut screen = Screen::new(move |_ctx| -> Vec<WidgetChild> {
+            counter_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            vec![]
+        });
+        let mut reg = FrameRegistry::new(1920.0, 1080.0);
+        let ctx = SharedContext::new();
+
+        screen.sync(&ctx, &mut reg);
+        assert_eq!(counter.load(std::sync::atomic::Ordering::Relaxed), 1);
+
+        screen.sync(&ctx, &mut reg);
+        screen.sync(&ctx, &mut reg);
+        assert_eq!(counter.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn screen_rebuilds_only_when_read_type_generation_advances() {
+        let counter = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let counter_clone = counter.clone();
+        let mut screen = Screen::new(move |ctx| -> Vec<WidgetChild> {
+            counter_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            ctx.get::<String>(); // record dependency on String
+            vec![]
+        });
+        let mut reg = FrameRegistry::new(1920.0, 1080.0);
+        let mut ctx = SharedContext::new();
+        ctx.insert("hello".to_string());
+
+        // First sync: builds
+        screen.sync(&ctx, &mut reg);
+        assert_eq!(counter.load(std::sync::atomic::Ordering::Relaxed), 1);
+
+        // No change: no rebuild
+        screen.sync(&ctx, &mut reg);
+        assert_eq!(counter.load(std::sync::atomic::Ordering::Relaxed), 1);
+
+        // Insert new value (generation advances): rebuilds
+        ctx.insert("world".to_string());
+        screen.sync(&ctx, &mut reg);
+        assert_eq!(counter.load(std::sync::atomic::Ordering::Relaxed), 2);
+
+        // Insert unrelated type: no rebuild (screen didn't read u32)
+        ctx.insert(42u32);
+        screen.sync(&ctx, &mut reg);
+        assert_eq!(counter.load(std::sync::atomic::Ordering::Relaxed), 2);
+    }
+
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    fn counting_screen<T: 'static>(counter: &Arc<AtomicU32>) -> Screen {
+        let c = counter.clone();
+        Screen::new(move |ctx| {
+            c.fetch_add(1, Ordering::Relaxed);
+            ctx.get::<T>();
+            vec![]
+        })
+    }
+
+    fn assert_builds(counter: &AtomicU32, expected: u32) {
+        assert_eq!(counter.load(Ordering::Relaxed), expected);
+    }
+
+    #[test]
+    fn two_screens_sharing_context_only_affected_one_rebuilds() {
+        let counter_a = Arc::new(AtomicU32::new(0));
+        let counter_b = Arc::new(AtomicU32::new(0));
+        let mut screen_a = counting_screen::<String>(&counter_a);
+        let mut screen_b = counting_screen::<u32>(&counter_b);
+        let mut reg = FrameRegistry::new(1920.0, 1080.0);
+        let mut ctx = SharedContext::new();
+        ctx.insert("init".to_string());
+        ctx.insert(0u32);
+
+        screen_a.sync(&ctx, &mut reg);
+        screen_b.sync(&ctx, &mut reg);
+        assert_builds(&counter_a, 1);
+        assert_builds(&counter_b, 1);
+
+        // Change only String: screen_a rebuilds, screen_b does not
+        ctx.insert("changed".to_string());
+        screen_a.sync(&ctx, &mut reg);
+        screen_b.sync(&ctx, &mut reg);
+        assert_builds(&counter_a, 2);
+        assert_builds(&counter_b, 1);
+
+        // Change only u32: screen_b rebuilds, screen_a does not
+        ctx.insert(42u32);
+        screen_a.sync(&ctx, &mut reg);
+        screen_b.sync(&ctx, &mut reg);
+        assert_builds(&counter_a, 2);
+        assert_builds(&counter_b, 2);
+
+        // No changes: neither rebuilds
+        screen_a.sync(&ctx, &mut reg);
+        screen_b.sync(&ctx, &mut reg);
+        assert_builds(&counter_a, 2);
+        assert_builds(&counter_b, 2);
     }
 }

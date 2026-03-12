@@ -5,7 +5,7 @@ use crate::atlas;
 use crate::frame::{Border, Dimension, FlexAlign, FlexDirection, FlexJustify, FlexLayout, Frame, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
 use crate::strata::{DrawLayer, FrameStrata};
-use crate::widgets::button::ButtonData;
+use crate::widgets::button::{ButtonData, ButtonState};
 use crate::widgets::font_string::{GameFont, JustifyH};
 use crate::widgets::texture::TextureSource;
 
@@ -50,6 +50,10 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
         "strata" => Some(format!("{:?}", frame.strata)),
         "onclick" => frame.onclick.clone(),
         "hidden" => Some(if frame.visible { "false" } else { "true" }.to_string()),
+        "disabled" => match &frame.widget_data {
+            Some(WidgetData::Button(b)) => Some(if b.state == ButtonState::Disabled { "true" } else { "false" }.to_string()),
+            _ => None,
+        },
         "alpha" => Some(format!("{}", frame.alpha)),
         _ => None,
     }
@@ -100,6 +104,19 @@ pub(crate) fn apply_attribute(
     if name == "stretch" { return apply_stretch_attr(registry, frame_id, value); }
     if let Some(frame) = registry.get_mut(frame_id) {
         if apply_flex_attr(frame, name, value) { return None; }
+    }
+    if name == "disabled" {
+        let disabled = matches!(value, "true" | "TRUE" | "1");
+        if let Some(frame) = registry.get_mut(frame_id) {
+            if let Some(WidgetData::Button(bd)) = &mut frame.widget_data {
+                if disabled {
+                    bd.state = ButtonState::Disabled;
+                } else if bd.state == ButtonState::Disabled {
+                    bd.state = ButtonState::Normal;
+                }
+            }
+        }
+        return None;
     }
     if name == "hidden" {
         match value {
