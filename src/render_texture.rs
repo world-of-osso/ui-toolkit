@@ -56,13 +56,25 @@ pub fn load_texture_source(
             load_fdid_texture(*fdid, images, texture_cache, missing_textures, blp_loader)
                 .map(|handle| LoadedTexture { handle, rect: None })
         }
-        TextureSource::File(path) => {
-            load_file_texture(path, images, file_texture_cache, missing_file_textures, blp_loader)
-                .map(|handle| LoadedTexture { handle, rect: None })
-        }
-        TextureSource::Atlas(name) => {
-            load_atlas_texture(name, images, file_texture_cache, missing_file_textures, blp_loader)
-        }
+        TextureSource::File(path) => load_file_texture(
+            path,
+            images,
+            file_texture_cache,
+            missing_file_textures,
+            blp_loader,
+        )
+        .map(|handle| LoadedTexture { handle, rect: None }),
+        TextureSource::Atlas(name) => load_atlas_texture(
+            name,
+            images,
+            file_texture_cache,
+            missing_file_textures,
+            blp_loader,
+        ),
+        TextureSource::Dynamic(handle) => Some(LoadedTexture {
+            handle: handle.clone(),
+            rect: None,
+        }),
         _ => None,
     }
 }
@@ -123,7 +135,13 @@ fn load_materialized_atlas_region(
         });
     }
 
-    let base_handle = load_file_texture(path, images, file_texture_cache, missing_file_textures, blp_loader)?;
+    let base_handle = load_file_texture(
+        path,
+        images,
+        file_texture_cache,
+        missing_file_textures,
+        blp_loader,
+    )?;
     let assets = images.as_mut().map(|images| &mut **images)?;
     let base = assets.get(&base_handle)?;
     let cropped = crop_image_region(base, left, right, top, bottom)?;
@@ -133,24 +151,44 @@ fn load_materialized_atlas_region(
 }
 
 fn crop_image_region(image: &Image, left: f32, right: f32, top: f32, bottom: f32) -> Option<Image> {
-    let is_rgba8 = matches!(image.texture_descriptor.format,
-        TextureFormat::Rgba8UnormSrgb | TextureFormat::Rgba8Unorm);
-    if !is_rgba8 { return None; }
+    let is_rgba8 = matches!(
+        image.texture_descriptor.format,
+        TextureFormat::Rgba8UnormSrgb | TextureFormat::Rgba8Unorm
+    );
+    if !is_rgba8 {
+        return None;
+    }
     let data = image.data.as_ref()?;
     let (w, h) = (image.width() as usize, image.height() as usize);
     let x0 = (left * w as f32).round().clamp(0.0, w as f32) as usize;
     let x1 = (right * w as f32).round().clamp(0.0, w as f32) as usize;
     let y0 = (top * h as f32).round().clamp(0.0, h as f32) as usize;
     let y1 = (bottom * h as f32).round().clamp(0.0, h as f32) as usize;
-    if x1 <= x0 || y1 <= y0 { return None; }
+    if x1 <= x0 || y1 <= y0 {
+        return None;
+    }
     let pixels = crop_rgba_pixels(data, w, x0, x1, y0, y1);
     Some(Image::new(
-        Extent3d { width: (x1 - x0) as u32, height: (y1 - y0) as u32, depth_or_array_layers: 1 },
-        TextureDimension::D2, pixels, image.texture_descriptor.format, RenderAssetUsages::default(),
+        Extent3d {
+            width: (x1 - x0) as u32,
+            height: (y1 - y0) as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        pixels,
+        image.texture_descriptor.format,
+        RenderAssetUsages::default(),
     ))
 }
 
-fn crop_rgba_pixels(data: &[u8], stride: usize, x0: usize, x1: usize, y0: usize, y1: usize) -> Vec<u8> {
+fn crop_rgba_pixels(
+    data: &[u8],
+    stride: usize,
+    x0: usize,
+    x1: usize,
+    y0: usize,
+    y1: usize,
+) -> Vec<u8> {
     let crop_w = x1 - x0;
     let mut out = vec![0u8; crop_w * (y1 - y0) * 4];
     for row in 0..(y1 - y0) {

@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::frame::WidgetData;
 use crate::plugin::UiState;
-use crate::render_texture::{load_texture_source, BlpLoaderRes};
+use crate::render_texture::{BlpLoaderRes, load_texture_source};
 use crate::widgets::button::ButtonState;
 use crate::widgets::texture::TextureSource;
 
@@ -210,7 +210,13 @@ fn frame_transform(f: &crate::frame::Frame, sort_idx: usize, sw: f32, sh: f32) -
     let (w, h) = effective_size(f);
     let bx = w.mul_add(0.5, f.layout_rect.as_ref().map_or(0.0, |r| r.x)) - sw * 0.5;
     let by = sh * 0.5 - f.layout_rect.as_ref().map_or(0.0, |r| r.y) - h * 0.5;
-    Transform::from_xyz(bx, by, sort_idx as f32 * 0.001)
+    let mut tf = Transform::from_xyz(bx, by, sort_idx as f32 * 0.001);
+    if let Some(WidgetData::Texture(tex)) = &f.widget_data {
+        if tex.rotation != 0.0 {
+            tf.rotation = Quat::from_rotation_z(tex.rotation);
+        }
+    }
+    tf
 }
 
 fn frame_color(f: &crate::frame::Frame) -> Color {

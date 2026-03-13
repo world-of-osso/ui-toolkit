@@ -1,3 +1,5 @@
+use bevy::prelude::*;
+
 #[derive(Debug, Clone)]
 pub enum TextureSource {
     None,
@@ -5,6 +7,8 @@ pub enum TextureSource {
     File(String),
     FileDataId(u32),
     Atlas(String),
+    /// Runtime-managed image handle (e.g. minimap composite).
+    Dynamic(Handle<Image>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
