@@ -4,14 +4,14 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use bevy::text::Font;
 use bevy::text::TextFont;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::font_registry::FontRegistry;
 use crate::frame::WidgetData;
 use crate::plugin::UiState;
 use crate::widgets::font_string::{GameFont, JustifyH, JustifyV, Outline};
 
-use super::render::{UI_RENDER_LAYER, UiText};
+use super::render::{build_sorted_visible_frame_ids, UiText, UI_RENDER_LAYER};
 
 /// Marker for shadow text entities.
 #[derive(Component)]
@@ -38,6 +38,11 @@ pub fn sync_ui_text_shadows(
 ) {
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
+    let sort_map: std::collections::HashMap<u64, usize> = build_sorted_visible_frame_ids(&state)
+        .into_iter()
+        .enumerate()
+        .map(|(i, id)| (id, i))
+        .collect();
     let mut existing: HashSet<u64> = HashSet::new();
 
     for (entity, shadow, mut text, mut font, mut color, mut transform) in shadows.iter_mut() {
@@ -54,11 +59,16 @@ pub fn sync_ui_text_shadows(
             &mut font_assets,
             &mut font_registry,
         );
-        let _ = (&mut transform, screen_w, screen_h); // transform set at spawn
+        if let Some(frame) = state.registry.get(shadow.0) {
+            if let Some(&sort_idx) = sort_map.get(&shadow.0) {
+                *transform = shadow_transform(frame, &props, screen_w, screen_h, sort_idx);
+            }
+        }
     }
 
     spawn_missing_shadows(
         &state,
+        &sort_map,
         &existing,
         screen_w,
         screen_h,
@@ -70,6 +80,7 @@ pub fn sync_ui_text_shadows(
 
 fn spawn_missing_shadows(
     state: &UiState,
+    sort_map: &HashMap<u64, usize>,
     existing: &HashSet<u64>,
     screen_w: f32,
     screen_h: f32,
@@ -84,7 +95,10 @@ fn spawn_missing_shadows(
         let Some(props) = extract_shadow(Some(frame)) else {
             continue;
         };
-        let transform = shadow_transform(frame, &props, screen_w, screen_h);
+        let Some(&sort_idx) = sort_map.get(&frame.id) else {
+            continue;
+        };
+        let transform = shadow_transform(frame, &props, screen_w, screen_h, sort_idx);
         let [r, g, b, a] = props.shadow_color;
         let font = font_registry.get(props.font, font_assets);
         commands.spawn((
@@ -156,6 +170,7 @@ fn shadow_transform(
     props: &ShadowProps,
     screen_w: f32,
     screen_h: f32,
+    sort_idx: usize,
 ) -> Transform {
     let mut t = super::render_text::text_transform(
         frame,
@@ -163,10 +178,11 @@ fn shadow_transform(
         screen_h,
         props.justify_h,
         props.justify_v,
+        sort_idx,
     );
     t.translation.x += props.shadow_offset[0];
     t.translation.y -= props.shadow_offset[1];
-    t.translation.z = 9.9;
+    t.translation.z = sort_idx as f32 * 0.001 + 0.0006;
     t
 }
 
@@ -180,6 +196,11 @@ pub fn sync_ui_text_outlines(
 ) {
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
+    let sort_map: HashMap<u64, usize> = build_sorted_visible_frame_ids(&state)
+        .into_iter()
+        .enumerate()
+        .map(|(i, id)| (id, i))
+        .collect();
 
     let mut existing: HashSet<u64> = HashSet::new();
     for (entity, outline) in &outlines {
@@ -196,6 +217,7 @@ pub fn sync_ui_text_outlines(
         }
         spawn_outlines(
             frame,
+            sort_map[&frame.id],
             screen_w,
             screen_h,
             &mut commands,
@@ -221,6 +243,7 @@ fn has_outline(frame: &crate::frame::Frame) -> bool {
 
 fn spawn_outlines(
     frame: &crate::frame::Frame,
+    sort_idx: usize,
     screen_w: f32,
     screen_h: f32,
     commands: &mut Commands,
@@ -230,8 +253,14 @@ fn spawn_outlines(
     let Some(WidgetData::FontString(fs)) = &frame.widget_data else {
         return;
     };
-    let base =
-        super::render_text::text_transform(frame, screen_w, screen_h, fs.justify_h, fs.justify_v);
+    let base = super::render_text::text_transform(
+        frame,
+        screen_w,
+        screen_h,
+        fs.justify_h,
+        fs.justify_v,
+        sort_idx,
+    );
     let alpha = frame.effective_alpha;
     let font = font_registry.get(fs.font, font_assets);
 
@@ -239,7 +268,7 @@ fn spawn_outlines(
         let mut transform = base;
         transform.translation.x += dx;
         transform.translation.y += dy;
-        transform.translation.z = 9.8;
+        transform.translation.z = sort_idx as f32 * 0.001 + 0.0005;
         commands.spawn((
             Text2d::new(&fs.text),
             TextFont {

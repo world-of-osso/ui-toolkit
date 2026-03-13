@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::anchor::{Anchor, AnchorPoint, anchor_position, frame_position_from_anchor};
+use crate::anchor::{anchor_position, frame_position_from_anchor, Anchor, AnchorPoint};
 use crate::frame::{Dimension, FlexAlign, FlexDirection, FlexJustify, FlexLayout};
 use crate::registry::FrameRegistry;
 
@@ -28,24 +28,40 @@ fn point_to_edge_offsets(point: AnchorPoint) -> (f32, f32) {
 
 fn resolve_target(anchor: &Anchor, parent: &LayoutRect) -> (f32, f32) {
     let (ax, ay) = anchor_position(
-        anchor.relative_point, parent.x, parent.y, parent.width, parent.height,
+        anchor.relative_point,
+        parent.x,
+        parent.y,
+        parent.width,
+        parent.height,
     );
     (ax + anchor.x_offset, ay - anchor.y_offset)
 }
 
 fn resolve_target_in_rect(anchor: &Anchor, target_rect: &LayoutRect) -> (f32, f32) {
     let (ax, ay) = anchor_position(
-        anchor.relative_point, target_rect.x, target_rect.y, target_rect.width, target_rect.height,
+        anchor.relative_point,
+        target_rect.x,
+        target_rect.y,
+        target_rect.width,
+        target_rect.height,
     );
     (ax + anchor.x_offset, ay - anchor.y_offset)
 }
 
 /// Resolve a frame's layout rectangle from its anchors, explicit size, and parent rect.
 pub fn resolve_anchors(
-    anchors: &[Anchor], width: f32, height: f32, parent_rect: &LayoutRect,
+    anchors: &[Anchor],
+    width: f32,
+    height: f32,
+    parent_rect: &LayoutRect,
 ) -> LayoutRect {
     match anchors.len() {
-        0 => LayoutRect { x: parent_rect.x, y: parent_rect.y, width, height },
+        0 => LayoutRect {
+            x: parent_rect.x,
+            y: parent_rect.y,
+            width,
+            height,
+        },
         1 => resolve_single_anchor(&anchors[0], width, height, parent_rect),
         _ => resolve_two_anchors(&anchors[0], &anchors[1], width, height, parent_rect),
     }
@@ -75,7 +91,12 @@ fn resolve_no_anchors(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
     let target = fallback_target(registry, frame_id);
     let w = resolve_dimension(frame.width, target.width);
     let h = resolve_dimension(frame.height, target.height);
-    LayoutRect { x: target.x, y: target.y, width: w, height: h }
+    LayoutRect {
+        x: target.x,
+        y: target.y,
+        width: w,
+        height: h,
+    }
 }
 
 fn resolve_one_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
@@ -87,7 +108,12 @@ fn resolve_one_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
     let h = resolve_dimension(frame.height, fallback.height);
     let (tx, ty) = resolve_target_in_rect(anchor, target_rect);
     let (fx, fy) = frame_position_from_anchor(anchor.point, tx, ty, w, h);
-    LayoutRect { x: fx, y: fy, width: w, height: h }
+    LayoutRect {
+        x: fx,
+        y: fy,
+        width: w,
+        height: h,
+    }
 }
 
 fn resolve_multi_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
@@ -104,11 +130,18 @@ fn resolve_multi_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
     let (frac2x, frac2y) = point_to_edge_offsets(b.point);
     let (final_x, final_w) = stretch_or_fixed(t1x, frac1x, t2x, frac2x, w);
     let (final_y, final_h) = stretch_or_fixed(t1y, frac1y, t2y, frac2y, h);
-    LayoutRect { x: final_x, y: final_y, width: final_w, height: final_h }
+    LayoutRect {
+        x: final_x,
+        y: final_y,
+        width: final_w,
+        height: final_h,
+    }
 }
 
 fn anchor_target_rect<'a>(
-    registry: &'a FrameRegistry, anchor: &Anchor, fallback: &'a LayoutRect,
+    registry: &'a FrameRegistry,
+    anchor: &Anchor,
+    fallback: &'a LayoutRect,
 ) -> &'a LayoutRect {
     anchor
         .relative_to
@@ -140,20 +173,41 @@ pub fn resolve_frame_layout(registry: &FrameRegistry, frame_id: u64) -> Option<L
     })
 }
 
-fn resolve_single_anchor(anchor: &Anchor, width: f32, height: f32, parent: &LayoutRect) -> LayoutRect {
+fn resolve_single_anchor(
+    anchor: &Anchor,
+    width: f32,
+    height: f32,
+    parent: &LayoutRect,
+) -> LayoutRect {
     let (tx, ty) = resolve_target(anchor, parent);
     let (fx, fy) = frame_position_from_anchor(anchor.point, tx, ty, width, height);
-    LayoutRect { x: fx, y: fy, width, height }
+    LayoutRect {
+        x: fx,
+        y: fy,
+        width,
+        height,
+    }
 }
 
-fn resolve_two_anchors(a: &Anchor, b: &Anchor, width: f32, height: f32, parent: &LayoutRect) -> LayoutRect {
+fn resolve_two_anchors(
+    a: &Anchor,
+    b: &Anchor,
+    width: f32,
+    height: f32,
+    parent: &LayoutRect,
+) -> LayoutRect {
     let (t1x, t1y) = resolve_target(a, parent);
     let (t2x, t2y) = resolve_target(b, parent);
     let (frac1x, frac1y) = point_to_edge_offsets(a.point);
     let (frac2x, frac2y) = point_to_edge_offsets(b.point);
     let (final_x, final_w) = stretch_or_fixed(t1x, frac1x, t2x, frac2x, width);
     let (final_y, final_h) = stretch_or_fixed(t1y, frac1y, t2y, frac2y, height);
-    LayoutRect { x: final_x, y: final_y, width: final_w, height: final_h }
+    LayoutRect {
+        x: final_x,
+        y: final_y,
+        width: final_w,
+        height: final_h,
+    }
 }
 
 // --- Layout recomputation ---
@@ -173,8 +227,10 @@ pub fn recompute_layouts(registry: &mut FrameRegistry) {
 }
 
 fn resolve_frame_recursive(
-    registry: &mut FrameRegistry, frame_id: u64,
-    visiting: &mut HashSet<u64>, resolved: &mut HashSet<u64>,
+    registry: &mut FrameRegistry,
+    frame_id: u64,
+    visiting: &mut HashSet<u64>,
+    resolved: &mut HashSet<u64>,
 ) {
     if resolved.contains(&frame_id) || !visiting.insert(frame_id) {
         return;
@@ -191,10 +247,14 @@ fn resolve_frame_recursive(
 }
 
 fn resolve_dependencies(
-    registry: &mut FrameRegistry, frame_id: u64,
-    visiting: &mut HashSet<u64>, resolved: &mut HashSet<u64>,
+    registry: &mut FrameRegistry,
+    frame_id: u64,
+    visiting: &mut HashSet<u64>,
+    resolved: &mut HashSet<u64>,
 ) {
-    let Some(frame) = registry.get(frame_id) else { return };
+    let Some(frame) = registry.get(frame_id) else {
+        return;
+    };
     let parent_id = frame.parent_id;
     let targets: Vec<u64> = frame.anchors.iter().filter_map(|a| a.relative_to).collect();
     if let Some(pid) = parent_id {
@@ -206,17 +266,34 @@ fn resolve_dependencies(
 }
 
 fn apply_flex_to_children(
-    registry: &mut FrameRegistry, frame_id: u64,
-    visiting: &mut HashSet<u64>, resolved: &mut HashSet<u64>,
+    registry: &mut FrameRegistry,
+    frame_id: u64,
+    visiting: &mut HashSet<u64>,
+    resolved: &mut HashSet<u64>,
 ) {
-    let Some(frame) = registry.get(frame_id) else { return };
-    let Some(flex) = frame.flex_layout.clone() else { return };
-    let Some(parent_rect) = frame.layout_rect.clone() else { return };
+    let Some(frame) = registry.get(frame_id) else {
+        return;
+    };
+    let Some(flex) = frame.flex_layout.clone() else {
+        return;
+    };
+    let Some(mut parent_rect) = frame.layout_rect.clone() else {
+        return;
+    };
+    let auto_width = matches!(frame.width, Dimension::Fixed(v) if v == 0.0);
+    let auto_height = matches!(frame.height, Dimension::Fixed(v) if v == 0.0);
     let children: Vec<u64> = frame.children.clone();
     for &cid in &children {
         resolve_dependencies(registry, cid, visiting, resolved);
     }
     let rects = compute_flex_rects(&flex, &parent_rect, registry, &children);
+    if (auto_width || auto_height) && flex.direction == FlexDirection::RowWrap {
+        parent_rect =
+            auto_size_row_wrap_parent(&parent_rect, &rects, flex.padding, auto_width, auto_height);
+        if let Some(frame) = registry.get_mut(frame_id) {
+            frame.layout_rect = Some(parent_rect.clone());
+        }
+    }
     for (&cid, rect) in children.iter().zip(rects) {
         if let Some(child) = registry.get_mut(cid) {
             child.layout_rect = Some(rect);
@@ -228,15 +305,20 @@ fn apply_flex_to_children(
 // --- Flex layout computation ---
 
 fn compute_flex_rects(
-    flex: &FlexLayout, parent: &LayoutRect, registry: &FrameRegistry, children: &[u64],
+    flex: &FlexLayout,
+    parent: &LayoutRect,
+    registry: &FrameRegistry,
+    children: &[u64],
 ) -> Vec<LayoutRect> {
     let sizes: Vec<(f32, f32)> = children
         .iter()
         .filter_map(|&id| registry.get(id))
-        .map(|f| (
-            resolve_dimension(f.width, parent.width),
-            resolve_dimension(f.height, parent.height),
-        ))
+        .map(|f| {
+            (
+                resolve_dimension(f.width, parent.width),
+                resolve_dimension(f.height, parent.height),
+            )
+        })
         .collect();
 
     if flex.direction == FlexDirection::RowWrap {
@@ -250,19 +332,28 @@ fn compute_flex_rects(
     let offset = main_start_offset(flex.justify, avail_main, total_main, gap_total);
     let eff_gap = eff_gap(flex.justify, avail_main, total_main, flex.gap, sizes.len());
     let mut cursor = offset + flex.padding;
-    sizes.iter().map(|&(w, h)| {
-        let ms = main_sz(flex.direction, (w, h));
-        let cs = cross_sz(flex.direction, (w, h));
-        let fcs = if flex.align == FlexAlign::Stretch { avail_cross } else { cs };
-        let cp = cross_pos(flex.align, avail_cross, fcs) + flex.padding;
-        let rect = build_flex_rect(flex.direction, parent, cursor, cp, ms, fcs);
-        cursor += ms + eff_gap;
-        rect
-    }).collect()
+    sizes
+        .iter()
+        .map(|&(w, h)| {
+            let ms = main_sz(flex.direction, (w, h));
+            let cs = cross_sz(flex.direction, (w, h));
+            let fcs = if flex.align == FlexAlign::Stretch {
+                avail_cross
+            } else {
+                cs
+            };
+            let cp = cross_pos(flex.align, avail_cross, fcs) + flex.padding;
+            let rect = build_flex_rect(flex.direction, parent, cursor, cp, ms, fcs);
+            cursor += ms + eff_gap;
+            rect
+        })
+        .collect()
 }
 
 fn compute_row_wrap_rects(
-    flex: &FlexLayout, parent: &LayoutRect, sizes: &[(f32, f32)],
+    flex: &FlexLayout,
+    parent: &LayoutRect,
+    sizes: &[(f32, f32)],
 ) -> Vec<LayoutRect> {
     let avail_width = parent.width - 2.0 * flex.padding;
     let mut rects = Vec::with_capacity(sizes.len());
@@ -291,20 +382,68 @@ fn compute_row_wrap_rects(
     rects
 }
 
+fn auto_size_row_wrap_parent(
+    parent: &LayoutRect,
+    rects: &[LayoutRect],
+    padding: f32,
+    auto_width: bool,
+    auto_height: bool,
+) -> LayoutRect {
+    let mut sized = parent.clone();
+    if rects.is_empty() {
+        if auto_width {
+            sized.width = 2.0 * padding;
+        }
+        if auto_height {
+            sized.height = 2.0 * padding;
+        }
+        return sized;
+    }
+
+    let max_right = rects
+        .iter()
+        .map(|rect| rect.x + rect.width)
+        .fold(parent.x, f32::max);
+    let max_bottom = rects
+        .iter()
+        .map(|rect| rect.y + rect.height)
+        .fold(parent.y, f32::max);
+
+    if auto_width {
+        sized.width = (max_right - parent.x) + padding;
+    }
+    if auto_height {
+        sized.height = (max_bottom - parent.y) + padding;
+    }
+    sized
+}
+
 fn main_sz(d: FlexDirection, (w, h): (f32, f32)) -> f32 {
-    match d { FlexDirection::Column => h, FlexDirection::Row | FlexDirection::RowWrap => w }
+    match d {
+        FlexDirection::Column => h,
+        FlexDirection::Row | FlexDirection::RowWrap => w,
+    }
 }
 
 fn cross_sz(d: FlexDirection, (w, h): (f32, f32)) -> f32 {
-    match d { FlexDirection::Column => w, FlexDirection::Row | FlexDirection::RowWrap => h }
+    match d {
+        FlexDirection::Column => w,
+        FlexDirection::Row | FlexDirection::RowWrap => h,
+    }
 }
 
 fn main_extent(d: FlexDirection, r: &LayoutRect) -> f32 {
-    match d { FlexDirection::Column => r.height, FlexDirection::Row | FlexDirection::RowWrap => r.width }
+    match d {
+        FlexDirection::Column => r.height,
+        FlexDirection::Row | FlexDirection::RowWrap => r.width,
+    }
 }
 
 fn cross_extent(d: FlexDirection, r: &LayoutRect) -> f32 {
-    match d { FlexDirection::Column => r.width, FlexDirection::Row | FlexDirection::RowWrap => r.height }
+    match d {
+        FlexDirection::Column => r.width,
+        FlexDirection::Row | FlexDirection::RowWrap => r.height,
+    }
 }
 
 fn main_start_offset(j: FlexJustify, avail: f32, total: f32, gap_total: f32) -> f32 {
@@ -332,14 +471,25 @@ fn cross_pos(align: FlexAlign, avail: f32, child_size: f32) -> f32 {
 }
 
 fn build_flex_rect(
-    d: FlexDirection, parent: &LayoutRect, main_pos: f32, cross_p: f32, main_s: f32, cross_s: f32,
+    d: FlexDirection,
+    parent: &LayoutRect,
+    main_pos: f32,
+    cross_p: f32,
+    main_s: f32,
+    cross_s: f32,
 ) -> LayoutRect {
     match d {
         FlexDirection::Column => LayoutRect {
-            x: parent.x + cross_p, y: parent.y + main_pos, width: cross_s, height: main_s,
+            x: parent.x + cross_p,
+            y: parent.y + main_pos,
+            width: cross_s,
+            height: main_s,
         },
         FlexDirection::Row | FlexDirection::RowWrap => LayoutRect {
-            x: parent.x + main_pos, y: parent.y + cross_p, width: main_s, height: cross_s,
+            x: parent.x + main_pos,
+            y: parent.y + cross_p,
+            width: main_s,
+            height: cross_s,
         },
     }
 }

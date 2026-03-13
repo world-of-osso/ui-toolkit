@@ -140,11 +140,8 @@ fn update_or_despawn_quads(
 
 // --- Quad helpers ---
 
-fn build_sorted_frame_ids(state: &UiState) -> Vec<u64> {
-    let mut frames: Vec<_> = state
-        .registry
-        .frames_iter()
-        .filter(|f| is_renderable(f))
+fn sort_frame_ids<'a>(frames: impl Iterator<Item = &'a crate::frame::Frame>) -> Vec<u64> {
+    let mut frames: Vec<_> = frames
         .map(|f| (f.id, f.strata, f.frame_level, f.raise_order))
         .collect();
     frames.sort_by(|a, b| {
@@ -154,6 +151,19 @@ fn build_sorted_frame_ids(state: &UiState) -> Vec<u64> {
             .then(a.0.cmp(&b.0))
     });
     frames.into_iter().map(|(id, _, _, _)| id).collect()
+}
+
+pub(crate) fn build_sorted_frame_ids(state: &UiState) -> Vec<u64> {
+    sort_frame_ids(state.registry.frames_iter().filter(|f| is_renderable(f)))
+}
+
+pub(crate) fn build_sorted_visible_frame_ids(state: &UiState) -> Vec<u64> {
+    sort_frame_ids(
+        state
+            .registry
+            .frames_iter()
+            .filter(|f| f.visible && effective_size(f).0 > 0.0 && effective_size(f).1 > 0.0),
+    )
 }
 
 /// Effective size: layout_rect if available, else explicit width/height.
@@ -338,14 +348,27 @@ fn frame_visual(
     }
     if let Some(WidgetData::Button(btn)) = &frame.widget_data {
         if let Some(v) = button_texture(
-            btn, frame.effective_alpha, images, texture_cache,
-            file_texture_cache, missing_textures, missing_file_textures, blp_loader,
+            btn,
+            frame.effective_alpha,
+            images,
+            texture_cache,
+            file_texture_cache,
+            missing_textures,
+            missing_file_textures,
+            blp_loader,
         ) {
             return v;
         }
     }
-    if let Some(v) = texture_visual(frame, images, texture_cache, file_texture_cache,
-        missing_textures, missing_file_textures, blp_loader) {
+    if let Some(v) = texture_visual(
+        frame,
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    ) {
         return v;
     }
     (frame_color(frame), Handle::default(), None)
@@ -356,7 +379,11 @@ fn statusbar_visual(frame: &crate::frame::Frame) -> Option<(Color, Handle<Image>
         return None;
     };
     let [r, g, b, a] = sb.color;
-    Some((Color::srgba(r, g, b, a * frame.effective_alpha), Handle::default(), None))
+    Some((
+        Color::srgba(r, g, b, a * frame.effective_alpha),
+        Handle::default(),
+        None,
+    ))
 }
 
 fn texture_visual(
@@ -370,8 +397,15 @@ fn texture_visual(
 ) -> Option<(Color, Handle<Image>, Option<Rect>)> {
     let source = frame_texture_source(frame)?;
     // TODO: additive blend requires custom pipeline
-    let texture = load_texture_source(source, images, texture_cache, file_texture_cache,
-        missing_textures, missing_file_textures, blp_loader)?;
+    let texture = load_texture_source(
+        source,
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    )?;
     Some((texture_tint(frame), texture.handle, texture.rect))
 }
 
@@ -554,8 +588,7 @@ mod tests {
 
     #[test]
     fn statusbar_sprite_params_proportional_to_fill() {
-        let mut frame =
-            crate::frame::Frame::new(1, None, crate::frame::WidgetType::StatusBar);
+        let mut frame = crate::frame::Frame::new(1, None, crate::frame::WidgetType::StatusBar);
         frame.width = Dimension::Fixed(200.0);
         frame.height = Dimension::Fixed(20.0);
         frame.widget_data = Some(WidgetData::StatusBar(
@@ -583,8 +616,7 @@ mod tests {
 
     #[test]
     fn statusbar_sprite_params_full_fill() {
-        let mut frame =
-            crate::frame::Frame::new(1, None, crate::frame::WidgetType::StatusBar);
+        let mut frame = crate::frame::Frame::new(1, None, crate::frame::WidgetType::StatusBar);
         frame.width = Dimension::Fixed(200.0);
         frame.height = Dimension::Fixed(20.0);
         frame.widget_data = Some(WidgetData::StatusBar(

@@ -71,9 +71,19 @@ impl FrameRegistry {
     }
 
     /// Insert a pre-built frame into the registry and wire up parent-child.
-    pub fn insert_frame(&mut self, frame: Frame) {
+    pub fn insert_frame(&mut self, mut frame: Frame) {
         let id = frame.id;
         let parent_id = frame.parent_id;
+
+        if let Some(pid) = parent_id
+            && let Some(parent) = self.frames.get(&pid)
+        {
+            frame.strata = parent.strata;
+            frame.visible = parent.visible && !frame.hidden;
+            frame.effective_alpha = parent.effective_alpha * frame.alpha;
+            frame.effective_scale = parent.effective_scale * frame.scale;
+            frame.frame_level = parent.frame_level + 1;
+        }
 
         if let Some(n) = &frame.name {
             self.names.insert(n.clone(), id);
@@ -136,6 +146,7 @@ impl FrameRegistry {
         if let Some(pid) = parent_id
             && let Some(parent) = self.frames.get(&pid)
         {
+            frame.strata = parent.strata;
             frame.visible = parent.visible && !frame.hidden;
             frame.effective_alpha = parent.effective_alpha * frame.alpha;
             frame.effective_scale = parent.effective_scale * frame.scale;
@@ -491,6 +502,7 @@ impl FrameRegistry {
 mod tests {
     use super::*;
     use crate::anchor::{Anchor, AnchorPoint};
+    use crate::strata::FrameStrata;
 
     #[test]
     fn create_and_lookup_by_id() {
@@ -596,6 +608,17 @@ mod tests {
         assert_eq!(reg.get(root).unwrap().frame_level, 0);
         assert_eq!(reg.get(mid).unwrap().frame_level, 1);
         assert_eq!(reg.get(leaf).unwrap().frame_level, 2);
+    }
+
+    #[test]
+    fn strata_inheritance() {
+        let mut reg = FrameRegistry::new(1024.0, 768.0);
+        let root = reg.create_frame("Root", None);
+        reg.get_mut(root).unwrap().strata = FrameStrata::Dialog;
+
+        let child = reg.create_frame("Child", Some(root));
+
+        assert_eq!(reg.get(child).unwrap().strata, FrameStrata::Dialog);
     }
 
     #[test]
