@@ -262,12 +262,10 @@ fn button_alpha_applied_to_text_color() {
 fn texture_tint_applies_effective_alpha() {
     let mut frame = crate::frame::Frame::new(1, None, WidgetType::Texture);
     frame.effective_alpha = 0.6;
-    frame.widget_data = Some(WidgetData::Texture(
-        crate::widgets::texture::TextureData {
-            vertex_color: [0.8, 0.5, 0.3, 1.0],
-            ..Default::default()
-        },
-    ));
+    frame.widget_data = Some(WidgetData::Texture(crate::widgets::texture::TextureData {
+        vertex_color: [0.8, 0.5, 0.3, 1.0],
+        ..Default::default()
+    }));
     let color = texture_tint(&frame);
     let Color::Srgba(srgba) = color else {
         panic!("expected srgba");
@@ -345,4 +343,64 @@ fn background_strata_sorts_below_medium() {
         bg_z < fg_z,
         "Background strata (z={bg_z}) must render below Medium strata (z={fg_z})"
     );
+}
+
+// --- Dynamic texture tests ---
+
+fn create_dynamic_texture(app: &mut App, name: &str, handle: Handle<Image>) -> u64 {
+    let mut ui = app.world_mut().resource_mut::<UiState>();
+    let id = ui.registry.create_frame(name, None);
+    let frame = ui.registry.get_mut(id).unwrap();
+    frame.width = Dimension::Fixed(200.0);
+    frame.height = Dimension::Fixed(200.0);
+    frame.widget_type = WidgetType::Texture;
+    frame.widget_data = Some(WidgetData::Texture(crate::widgets::texture::TextureData {
+        source: TextureSource::Dynamic(handle),
+        ..Default::default()
+    }));
+    id
+}
+
+#[test]
+fn dynamic_texture_spawns_quad() {
+    let mut app = setup_app();
+    let handle = app.world_mut().resource_mut::<Assets<Image>>().add(Image::default());
+    let id = create_dynamic_texture(&mut app, "DynTex", handle);
+    app.update();
+    assert!(quad_z(app.world_mut(), id).is_some(), "Dynamic texture should spawn a UiQuad");
+}
+
+fn quad_rotation_z(world: &mut World, frame_id: u64) -> Option<f32> {
+    world
+        .query::<(&Transform, &crate::render::UiQuad)>()
+        .iter(world)
+        .find(|(_, q)| q.0 == frame_id)
+        .map(|(t, _)| t.rotation.to_euler(bevy::math::EulerRot::XYZ).2)
+}
+
+#[test]
+fn texture_rotation_applies_to_transform() {
+    let mut app = setup_app();
+    let handle = app.world_mut().resource_mut::<Assets<Image>>().add(Image::default());
+    let id = create_dynamic_texture(&mut app, "RotTex", handle);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let frame = ui.registry.get_mut(id).unwrap();
+        if let Some(WidgetData::Texture(tex)) = &mut frame.widget_data {
+            tex.rotation = std::f32::consts::FRAC_PI_4;
+        }
+    }
+    app.update();
+    let rot = quad_rotation_z(app.world_mut(), id).expect("quad should exist");
+    assert!((rot - std::f32::consts::FRAC_PI_4).abs() < 0.01, "rotation should be pi/4, got {rot}");
+}
+
+#[test]
+fn texture_zero_rotation_no_transform_rotation() {
+    let mut app = setup_app();
+    let handle = app.world_mut().resource_mut::<Assets<Image>>().add(Image::default());
+    let id = create_dynamic_texture(&mut app, "NoRot", handle);
+    app.update();
+    let rot = quad_rotation_z(app.world_mut(), id).expect("quad should exist");
+    assert!(rot.abs() < 0.001, "zero rotation should produce no Z rotation, got {rot}");
 }
