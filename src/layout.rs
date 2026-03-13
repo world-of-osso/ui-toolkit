@@ -238,6 +238,11 @@ fn compute_flex_rects(
             resolve_dimension(f.height, parent.height),
         ))
         .collect();
+
+    if flex.direction == FlexDirection::RowWrap {
+        return compute_row_wrap_rects(flex, parent, &sizes);
+    }
+
     let total_main: f32 = sizes.iter().map(|s| main_sz(flex.direction, *s)).sum();
     let gap_total = flex.gap * sizes.len().saturating_sub(1) as f32;
     let avail_main = main_extent(flex.direction, parent) - 2.0 * flex.padding;
@@ -256,20 +261,50 @@ fn compute_flex_rects(
     }).collect()
 }
 
+fn compute_row_wrap_rects(
+    flex: &FlexLayout, parent: &LayoutRect, sizes: &[(f32, f32)],
+) -> Vec<LayoutRect> {
+    let avail_width = parent.width - 2.0 * flex.padding;
+    let mut rects = Vec::with_capacity(sizes.len());
+    let mut x_cursor = 0.0_f32;
+    let mut y_cursor = 0.0_f32;
+    let mut row_height = 0.0_f32;
+
+    for &(w, h) in sizes {
+        // Wrap to next row if this item doesn't fit (unless it's the first in the row)
+        if x_cursor > 0.0 && x_cursor + w > avail_width {
+            y_cursor += row_height + flex.gap;
+            x_cursor = 0.0;
+            row_height = 0.0;
+        }
+        rects.push(LayoutRect {
+            x: parent.x + flex.padding + x_cursor,
+            y: parent.y + flex.padding + y_cursor,
+            width: w,
+            height: h,
+        });
+        x_cursor += w + flex.gap;
+        if h > row_height {
+            row_height = h;
+        }
+    }
+    rects
+}
+
 fn main_sz(d: FlexDirection, (w, h): (f32, f32)) -> f32 {
-    match d { FlexDirection::Column => h, FlexDirection::Row => w }
+    match d { FlexDirection::Column => h, FlexDirection::Row | FlexDirection::RowWrap => w }
 }
 
 fn cross_sz(d: FlexDirection, (w, h): (f32, f32)) -> f32 {
-    match d { FlexDirection::Column => w, FlexDirection::Row => h }
+    match d { FlexDirection::Column => w, FlexDirection::Row | FlexDirection::RowWrap => h }
 }
 
 fn main_extent(d: FlexDirection, r: &LayoutRect) -> f32 {
-    match d { FlexDirection::Column => r.height, FlexDirection::Row => r.width }
+    match d { FlexDirection::Column => r.height, FlexDirection::Row | FlexDirection::RowWrap => r.width }
 }
 
 fn cross_extent(d: FlexDirection, r: &LayoutRect) -> f32 {
-    match d { FlexDirection::Column => r.width, FlexDirection::Row => r.height }
+    match d { FlexDirection::Column => r.width, FlexDirection::Row | FlexDirection::RowWrap => r.height }
 }
 
 fn main_start_offset(j: FlexJustify, avail: f32, total: f32, gap_total: f32) -> f32 {
@@ -303,7 +338,7 @@ fn build_flex_rect(
         FlexDirection::Column => LayoutRect {
             x: parent.x + cross_p, y: parent.y + main_pos, width: cross_s, height: main_s,
         },
-        FlexDirection::Row => LayoutRect {
+        FlexDirection::Row | FlexDirection::RowWrap => LayoutRect {
             x: parent.x + main_pos, y: parent.y + cross_p, width: main_s, height: cross_s,
         },
     }

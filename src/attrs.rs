@@ -152,6 +152,7 @@ fn apply_flex_attr(frame: &mut Frame, name: &str, value: &str) -> bool {
         "layout" => {
             let dir = match value {
                 "flex-row" => FlexDirection::Row,
+                "flex-row-wrap" => FlexDirection::RowWrap,
                 _ => FlexDirection::Column,
             };
             frame.flex_layout.get_or_insert_with(FlexLayout::default).direction = dir;

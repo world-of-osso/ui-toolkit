@@ -276,3 +276,88 @@ fn flex_space_between() {
     assert!((ra.y - 0.0).abs() < 0.01);
     assert!((rb.y - 250.0).abs() < 0.01, "y={}", rb.y); // 300-50
 }
+
+#[test]
+fn flex_row_wrap_wraps_to_next_row() {
+    let mut reg = FrameRegistry::new(800.0, 600.0);
+    // 200px wide container, 5px gap, children are 60px wide
+    // Row 1: 60 + 5 + 60 + 5 + 60 = 190 (fits), next would be 190+5+60=255 > 200
+    let c = setup_flex_container(&mut reg, 200.0, 300.0, FlexLayout {
+        direction: FlexDirection::RowWrap, gap: 5.0, ..Default::default()
+    });
+    let a = add_flex_child(&mut reg, c, 60.0, 30.0);
+    let b = add_flex_child(&mut reg, c, 60.0, 30.0);
+    let d = add_flex_child(&mut reg, c, 60.0, 30.0);
+    let e = add_flex_child(&mut reg, c, 60.0, 30.0); // wraps to row 2
+
+    recompute_layouts(&mut reg);
+
+    let ra = reg.get(a).unwrap().layout_rect.as_ref().unwrap();
+    let rb = reg.get(b).unwrap().layout_rect.as_ref().unwrap();
+    let rd = reg.get(d).unwrap().layout_rect.as_ref().unwrap();
+    let re = reg.get(e).unwrap().layout_rect.as_ref().unwrap();
+
+    // Row 1: a at x=0, b at x=65, d at x=130
+    assert!((ra.x - 0.0).abs() < 0.01, "a.x={}", ra.x);
+    assert!((ra.y - 0.0).abs() < 0.01, "a.y={}", ra.y);
+    assert!((rb.x - 65.0).abs() < 0.01, "b.x={}", rb.x);
+    assert!((rb.y - 0.0).abs() < 0.01, "b.y={}", rb.y);
+    assert!((rd.x - 130.0).abs() < 0.01, "d.x={}", rd.x);
+    assert!((rd.y - 0.0).abs() < 0.01, "d.y={}", rd.y);
+
+    // Row 2: e wraps, x=0, y=30+5=35
+    assert!((re.x - 0.0).abs() < 0.01, "e.x={}", re.x);
+    assert!((re.y - 35.0).abs() < 0.01, "e.y={}", re.y);
+}
+
+#[test]
+fn flex_row_wrap_with_padding() {
+    let mut reg = FrameRegistry::new(800.0, 600.0);
+    // 200px container, 10px padding → 180px available
+    // Two 100px children: first fits, second wraps
+    let c = setup_flex_container(&mut reg, 200.0, 300.0, FlexLayout {
+        direction: FlexDirection::RowWrap, gap: 5.0, padding: 10.0, ..Default::default()
+    });
+    let a = add_flex_child(&mut reg, c, 100.0, 40.0);
+    let b = add_flex_child(&mut reg, c, 100.0, 40.0);
+
+    recompute_layouts(&mut reg);
+
+    let ra = reg.get(a).unwrap().layout_rect.as_ref().unwrap();
+    let rb = reg.get(b).unwrap().layout_rect.as_ref().unwrap();
+
+    // a at padding offset
+    assert!((ra.x - 10.0).abs() < 0.01, "a.x={}", ra.x);
+    assert!((ra.y - 10.0).abs() < 0.01, "a.y={}", ra.y);
+
+    // b wraps: x=padding, y=padding+40+5=55
+    assert!((rb.x - 10.0).abs() < 0.01, "b.x={}", rb.x);
+    assert!((rb.y - 55.0).abs() < 0.01, "b.y={}", rb.y);
+}
+
+#[test]
+fn flex_row_wrap_mixed_heights() {
+    let mut reg = FrameRegistry::new(800.0, 600.0);
+    // 150px wide, children: 70x20, 70x40, 70x25
+    // Row 1: 70+5+70=145 fits, row height=max(20,40)=40
+    // Row 2: 70x25 wraps at y=40+5=45
+    let c = setup_flex_container(&mut reg, 150.0, 300.0, FlexLayout {
+        direction: FlexDirection::RowWrap, gap: 5.0, ..Default::default()
+    });
+    let a = add_flex_child(&mut reg, c, 70.0, 20.0);
+    let b = add_flex_child(&mut reg, c, 70.0, 40.0);
+    let d = add_flex_child(&mut reg, c, 70.0, 25.0);
+
+    recompute_layouts(&mut reg);
+
+    let ra = reg.get(a).unwrap().layout_rect.as_ref().unwrap();
+    let rb = reg.get(b).unwrap().layout_rect.as_ref().unwrap();
+    let rd = reg.get(d).unwrap().layout_rect.as_ref().unwrap();
+
+    assert!((ra.y - 0.0).abs() < 0.01);
+    assert!((rb.x - 75.0).abs() < 0.01);
+    assert!((rb.y - 0.0).abs() < 0.01);
+    // Row 2 starts at max_height(40) + gap(5) = 45
+    assert!((rd.x - 0.0).abs() < 0.01, "d.x={}", rd.x);
+    assert!((rd.y - 45.0).abs() < 0.01, "d.y={}", rd.y);
+}

@@ -130,6 +130,7 @@ pub enum FlexDirection {
     #[default]
     Column,
     Row,
+    RowWrap,
 }
 
 /// Alignment along the cross axis.
