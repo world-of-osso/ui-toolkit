@@ -7,7 +7,7 @@ use bevy::text::TextFont;
 use crate::font_registry::FontRegistry;
 use crate::frame::WidgetData;
 use crate::plugin::UiState;
-use crate::render::{build_sorted_visible_frame_ids, UiText, UI_RENDER_LAYER};
+use crate::render::{UI_RENDER_LAYER, UiText, build_sorted_visible_frame_ids};
 use crate::render_text_fx::{UiTextOutline, UiTextShadow};
 use crate::widgets::button::ButtonState;
 use crate::widgets::font_string::{GameFont, JustifyH, JustifyV};

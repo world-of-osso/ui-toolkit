@@ -22,7 +22,6 @@ impl GameFont {
     }
 }
 
-
 impl std::fmt::Display for GameFont {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
@@ -49,7 +48,6 @@ impl JustifyH {
     }
 }
 
-
 impl std::fmt::Display for JustifyH {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
@@ -69,7 +67,6 @@ impl FontColor {
         Self([r, g, b, a])
     }
 }
-
 
 impl std::fmt::Display for FontColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

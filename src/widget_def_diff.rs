@@ -94,11 +94,20 @@ impl DiffContext {
             let attr_name = attr.effective_name();
             let value = attr.value_str();
             if self.log_changes {
-                log::info!("hot-reload: set {}.{} = {}", frame_label(frame_id, registry), attr_name, value);
+                log::info!(
+                    "hot-reload: set {}.{} = {}",
+                    frame_label(frame_id, registry),
+                    attr_name,
+                    value
+                );
             }
             crate::attrs::apply_attribute(
-                registry, frame_id, attr_name, value,
-                &mut self.validated_paths, &mut self.missing_paths,
+                registry,
+                frame_id,
+                attr_name,
+                value,
+                &mut self.validated_paths,
+                &mut self.missing_paths,
             );
         }
         // Apply anchors
@@ -118,13 +127,15 @@ impl DiffContext {
         registry: &mut FrameRegistry,
     ) -> u64 {
         let tag = def.effective_tag();
-        let widget_type =
-            crate::attrs::tag_to_widget_type(tag).unwrap_or(WidgetType::Frame);
+        let widget_type = crate::attrs::tag_to_widget_type(tag).unwrap_or(WidgetType::Frame);
         let frame_id = registry.next_id();
         let mut frame = Frame::new(frame_id, None, widget_type);
         frame.widget_data = default_widget_data(widget_type);
         frame.parent_id = parent_id;
-        if matches!(widget_type, WidgetType::Button | WidgetType::CheckButton | WidgetType::EditBox) {
+        if matches!(
+            widget_type,
+            WidgetType::Button | WidgetType::CheckButton | WidgetType::EditBox
+        ) {
             frame.mouse_enabled = true;
         }
         registry.insert_frame(frame);
@@ -141,7 +152,11 @@ impl DiffContext {
 
     fn remove_subtree(&mut self, frame_id: u64, registry: &mut FrameRegistry) {
         if self.log_changes {
-            log::info!("hot-reload: remove {} (id={})", frame_label(frame_id, registry), frame_id);
+            log::info!(
+                "hot-reload: remove {} (id={})",
+                frame_label(frame_id, registry),
+                frame_id
+            );
         }
         let children = registry.children_of(frame_id);
         for child in children {
@@ -161,7 +176,9 @@ impl DiffContext {
 
     fn patch_widget(&mut self, def: &WidgetDef, registry: &mut FrameRegistry) {
         let Some(name) = &def.name else { return };
-        let Some(frame_id) = registry.get_by_name(name) else { return };
+        let Some(frame_id) = registry.get_by_name(name) else {
+            return;
+        };
         for attr in &def.attrs {
             let attr_name = attr.effective_name();
             let value = attr.value_str();
@@ -171,8 +188,12 @@ impl DiffContext {
                 None
             };
             crate::attrs::apply_attribute(
-                registry, frame_id, attr_name, value,
-                &mut self.validated_paths, &mut self.missing_paths,
+                registry,
+                frame_id,
+                attr_name,
+                value,
+                &mut self.validated_paths,
+                &mut self.missing_paths,
             );
             if self.log_changes {
                 if let Some(old) = &old {
@@ -195,7 +216,8 @@ impl Default for DiffContext {
 }
 
 fn frame_label(frame_id: u64, registry: &FrameRegistry) -> String {
-    registry.get(frame_id)
+    registry
+        .get(frame_id)
         .and_then(|f| f.name.as_deref())
         .map(|n| format!("\"{}\"", n))
         .unwrap_or_else(|| format!("(id={})", frame_id))
@@ -246,7 +268,9 @@ fn consume_match(
 
 /// Compare attribute values, treating numeric equivalents as equal (e.g. "320" == "320.0").
 fn values_equal(old: &str, new: &str) -> bool {
-    if old == new { return true; }
+    if old == new {
+        return true;
+    }
     if let (Ok(a), Ok(b)) = (old.parse::<f32>(), new.parse::<f32>()) {
         return (a - b).abs() < f32::EPSILON;
     }

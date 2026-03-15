@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::anchor::{anchor_position, frame_position_from_anchor, Anchor, AnchorPoint};
+use crate::anchor::{Anchor, AnchorPoint, anchor_position, frame_position_from_anchor};
 use crate::frame::{Dimension, FlexAlign, FlexDirection, FlexJustify, FlexLayout};
 use crate::registry::FrameRegistry;
 

@@ -78,11 +78,19 @@ impl WidgetDef {
 
 impl Attr {
     pub fn new_static(name: &'static str, value: String) -> Self {
-        Self { name, name_owned: None, value: AttrValue::Static(value) }
+        Self {
+            name,
+            name_owned: None,
+            value: AttrValue::Static(value),
+        }
     }
 
     pub fn new_dynamic(name: &'static str, value: String) -> Self {
-        Self { name, name_owned: None, value: AttrValue::Dynamic(value) }
+        Self {
+            name,
+            name_owned: None,
+            value: AttrValue::Dynamic(value),
+        }
     }
 
     /// Get the effective attribute name (owned takes precedence).

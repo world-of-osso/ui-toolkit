@@ -186,10 +186,19 @@ fn update_css_border(
     screen_h: f32,
     commands: &mut Commands,
 ) {
-    let Some(frame) = state.registry.get(part.0) else { return };
+    let Some(frame) = state.registry.get(part.0) else {
+        return;
+    };
     let Some(border) = &frame.border else { return };
     let (transform, size, color) = css_edge_geometry(frame, border, part.1, screen_w, screen_h);
-    commands.entity(entity).insert((transform, Sprite { color, custom_size: Some(size), ..default() }));
+    commands.entity(entity).insert((
+        transform,
+        Sprite {
+            color,
+            custom_size: Some(size),
+            ..default()
+        },
+    ));
 }
 
 fn spawn_missing_css_borders(
@@ -200,13 +209,24 @@ fn spawn_missing_css_borders(
     commands: &mut Commands,
 ) {
     for frame in state.registry.frames_iter() {
-        if !frame.visible { continue; }
-        let Some(border) = &frame.border else { continue };
+        if !frame.visible {
+            continue;
+        }
+        let Some(border) = &frame.border else {
+            continue;
+        };
         for side in 0..4u8 {
-            if existing.contains(&(frame.id, side)) { continue; }
-            let (transform, size, color) = css_edge_geometry(frame, border, side, screen_w, screen_h);
+            if existing.contains(&(frame.id, side)) {
+                continue;
+            }
+            let (transform, size, color) =
+                css_edge_geometry(frame, border, side, screen_w, screen_h);
             commands.spawn((
-                Sprite { color, custom_size: Some(size), ..default() },
+                Sprite {
+                    color,
+                    custom_size: Some(size),
+                    ..default()
+                },
                 transform,
                 RenderLayers::layer(UI_RENDER_LAYER),
                 UiBorderPart(frame.id, side),
@@ -229,15 +249,21 @@ fn css_edge_geometry(
     let rect = frame.layout_rect.as_ref();
     let fx = rect.map_or(0.0, |r| r.x);
     let fy = rect.map_or(0.0, |r| r.y);
-    let fw = frame.layout_rect.as_ref().map_or(frame.resolved_width(), |r| r.width);
-    let fh = frame.layout_rect.as_ref().map_or(frame.resolved_height(), |r| r.height);
+    let fw = frame
+        .layout_rect
+        .as_ref()
+        .map_or(frame.resolved_width(), |r| r.width);
+    let fh = frame
+        .layout_rect
+        .as_ref()
+        .map_or(frame.resolved_height(), |r| r.height);
 
     // side: 0=top, 1=right, 2=bottom, 3=left
     let (cx, cy, w, h) = match side {
-        0 => (fx + fw * 0.5, fy + e * 0.5,        fw,           e), // top
-        1 => (fx + fw - e * 0.5, fy + fh * 0.5,   e,            fh), // right
-        2 => (fx + fw * 0.5, fy + fh - e * 0.5,   fw,           e), // bottom
-        _ => (fx + e * 0.5, fy + fh * 0.5,         e,            fh), // left
+        0 => (fx + fw * 0.5, fy + e * 0.5, fw, e),      // top
+        1 => (fx + fw - e * 0.5, fy + fh * 0.5, e, fh), // right
+        2 => (fx + fw * 0.5, fy + fh - e * 0.5, fw, e), // bottom
+        _ => (fx + e * 0.5, fy + fh * 0.5, e, fh),      // left
     };
 
     let bx = cx - screen_w * 0.5;

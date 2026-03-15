@@ -11,7 +11,7 @@ use crate::frame::WidgetData;
 use crate::plugin::UiState;
 use crate::widgets::font_string::{GameFont, JustifyH, JustifyV, Outline};
 
-use super::render::{build_sorted_visible_frame_ids, UiText, UI_RENDER_LAYER};
+use super::render::{UI_RENDER_LAYER, UiText, build_sorted_visible_frame_ids};
 
 /// Marker for shadow text entities.
 #[derive(Component)]

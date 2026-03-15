@@ -1,10 +1,10 @@
+use super::HotReloadTemplate;
+use super::parser::parse_rsx_blocks;
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use super::HotReloadTemplate;
-use super::parser::parse_rsx_blocks;
 
 const DEBOUNCE: Duration = Duration::from_millis(50);
 
@@ -13,7 +13,10 @@ fn is_rs_change(event: &Event) -> bool {
 }
 
 fn collect_changed_rs_paths(event: &Event) -> impl Iterator<Item = &PathBuf> {
-    event.paths.iter().filter(|p| p.extension().is_some_and(|e| e == "rs"))
+    event
+        .paths
+        .iter()
+        .filter(|p| p.extension().is_some_and(|e| e == "rs"))
 }
 
 /// Drain pending events for DEBOUNCE duration, collecting unique .rs paths.
@@ -27,10 +30,16 @@ fn drain_debounce(notify_rx: &mpsc::Receiver<Event>, paths: &mut HashSet<PathBuf
 
 fn process_changed_paths(paths: &HashSet<PathBuf>, tx: &mpsc::Sender<HotReloadTemplate>) {
     for path in paths {
-        let Ok(source) = std::fs::read_to_string(path) else { continue };
+        let Ok(source) = std::fs::read_to_string(path) else {
+            continue;
+        };
         let file_str = path.to_string_lossy().to_string();
         let templates = parse_rsx_blocks(&source, &file_str);
-        log::info!("hot-reload: {} — {} rsx blocks", path.display(), templates.len());
+        log::info!(
+            "hot-reload: {} — {} rsx blocks",
+            path.display(),
+            templates.len()
+        );
         for t in templates {
             let _ = tx.send(t);
         }
@@ -49,10 +58,13 @@ fn run_watcher_loop(watch_dirs: Vec<PathBuf>, tx: mpsc::Sender<HotReloadTemplate
     let (notify_tx, notify_rx) = mpsc::channel();
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<Event, notify::Error>| {
-            if let Ok(event) = res { let _ = notify_tx.send(event); }
+            if let Ok(event) = res {
+                let _ = notify_tx.send(event);
+            }
         },
         notify::Config::default(),
-    ).expect("failed to create file watcher");
+    )
+    .expect("failed to create file watcher");
 
     for dir in &watch_dirs {
         log::info!("hot-reload: watching {}", dir.display());
@@ -60,7 +72,9 @@ fn run_watcher_loop(watch_dirs: Vec<PathBuf>, tx: mpsc::Sender<HotReloadTemplate
     }
 
     for event in &notify_rx {
-        if !is_rs_change(&event) { continue; }
+        if !is_rs_change(&event) {
+            continue;
+        }
         let mut paths: HashSet<PathBuf> = HashSet::new();
         paths.extend(collect_changed_rs_paths(&event).cloned());
         drain_debounce(&notify_rx, &mut paths);
@@ -76,7 +90,9 @@ mod tests {
 
     fn test_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "ui_toolkit_watcher_{}_{}", name, std::process::id()
+            "ui_toolkit_watcher_{}_{}",
+            name,
+            std::process::id()
         ));
         fs::create_dir_all(&dir).unwrap();
         dir

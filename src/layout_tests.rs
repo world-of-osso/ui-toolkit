@@ -1,6 +1,6 @@
 use crate::anchor::{Anchor, AnchorPoint};
 use crate::frame::{Dimension, FlexAlign, FlexDirection, FlexJustify, FlexLayout};
-use crate::layout::{recompute_layouts, resolve_anchors, resolve_frame_layout, LayoutRect};
+use crate::layout::{LayoutRect, recompute_layouts, resolve_anchors, resolve_frame_layout};
 use crate::registry::FrameRegistry;
 
 fn parent() -> LayoutRect {

@@ -46,7 +46,10 @@ impl SharedContext {
 
     /// Current generation for a type (0 if never inserted).
     pub fn generation<T: 'static>(&self) -> u64 {
-        self.generations.get(&TypeId::of::<T>()).copied().unwrap_or(0)
+        self.generations
+            .get(&TypeId::of::<T>())
+            .copied()
+            .unwrap_or(0)
     }
 
     fn generation_of(&self, tid: &TypeId) -> u64 {
@@ -59,7 +62,10 @@ impl SharedContext {
 
     fn take_reads(&self) -> HashMap<TypeId, u64> {
         let reads = self.read_tracker.borrow();
-        reads.iter().map(|&tid| (tid, self.generation_of(&tid))).collect()
+        reads
+            .iter()
+            .map(|&tid| (tid, self.generation_of(&tid)))
+            .collect()
     }
 }
 
@@ -143,18 +149,23 @@ impl Screen {
     }
 
     fn deps_changed(&self, ctx: &SharedContext) -> bool {
-        self.deps.iter().any(|(tid, &last_gen)| ctx.generation_of(tid) > last_gen)
+        self.deps
+            .iter()
+            .any(|(tid, &last_gen)| ctx.generation_of(tid) > last_gen)
     }
 
     fn resolve_parent(&self, registry: &FrameRegistry) -> Option<u64> {
-        self.parent_frame_name.as_ref().and_then(|name| registry.get_by_name(name))
+        self.parent_frame_name
+            .as_ref()
+            .and_then(|name| registry.get_by_name(name))
     }
 
     fn resolve_pending_anchors(&mut self, registry: &mut FrameRegistry) {
         let pending = std::mem::take(&mut self.diff.pending_anchors);
         for (frame_id, spec) in pending {
-            let already_has =
-                registry.get(frame_id).is_some_and(|f| !f.anchors.is_empty());
+            let already_has = registry
+                .get(frame_id)
+                .is_some_and(|f| !f.anchors.is_empty());
             if !already_has {
                 apply_anchor_resolved(registry, frame_id, &spec);
             }
@@ -179,9 +190,15 @@ impl Screen {
 
 fn auto_size_fontstrings(diff: &DiffContext, registry: &mut FrameRegistry) {
     for &fid in &diff.created_frames {
-        let Some(frame) = registry.get(fid) else { continue };
-        let Some(WidgetData::FontString(fs)) = &frame.widget_data else { continue };
-        if frame.width.value() > 0.0 || fs.text.is_empty() { continue }
+        let Some(frame) = registry.get(fid) else {
+            continue;
+        };
+        let Some(WidgetData::FontString(fs)) = &frame.widget_data else {
+            continue;
+        };
+        if frame.width.value() > 0.0 || fs.text.is_empty() {
+            continue;
+        }
         let text = fs.text.clone();
         let font = fs.font;
         let font_size = fs.font_size;
@@ -195,9 +212,15 @@ fn auto_size_fontstrings(diff: &DiffContext, registry: &mut FrameRegistry) {
 
 fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
     for &fid in &diff.created_frames {
-        let Some(frame) = registry.get(fid) else { continue };
-        if frame.height.value() > 0.0 { continue }
-        let Some(WidgetData::EditBox(eb)) = &frame.widget_data else { continue };
+        let Some(frame) = registry.get(fid) else {
+            continue;
+        };
+        if frame.height.value() > 0.0 {
+            continue;
+        }
+        let Some(WidgetData::EditBox(eb)) = &frame.widget_data else {
+            continue;
+        };
         let font_size = eb.font_size;
         let v_inset = if eb.text_insets != [0.0; 4] {
             eb.text_insets[2] + eb.text_insets[3]

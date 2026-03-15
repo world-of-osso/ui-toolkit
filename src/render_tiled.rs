@@ -75,7 +75,13 @@ fn load_tile_texture(
     missing_textures: &mut HashSet<u32>,
     blp_loader: Option<&BlpLoaderRes>,
 ) -> Option<Handle<Image>> {
-    crate::render_texture::load_fdid_texture(fdid, images, texture_cache, missing_textures, blp_loader)
+    crate::render_texture::load_fdid_texture(
+        fdid,
+        images,
+        texture_cache,
+        missing_textures,
+        blp_loader,
+    )
 }
 
 fn spawn_or_update_tile(
@@ -133,7 +139,8 @@ fn sync_tiled_frame(
     let Some(fdid) = frame_tiled_fdid(frame) else {
         return;
     };
-    let Some(handle) = load_tile_texture(fdid, images, texture_cache, missing_textures, blp_loader) else {
+    let Some(handle) = load_tile_texture(fdid, images, texture_cache, missing_textures, blp_loader)
+    else {
         return;
     };
     let positions = tile_positions(frame, horiz, vert);

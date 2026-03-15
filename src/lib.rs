@@ -1,17 +1,16 @@
 pub mod anchor;
 pub mod anchor_resolve;
 pub mod animation;
-pub mod attrs;
 pub mod atlas;
+pub mod attrs;
 pub mod event;
-pub mod plugin;
 pub mod font_registry;
-pub mod hotreload;
 pub mod frame;
+pub mod hotreload;
 pub mod input;
 pub mod layout;
+pub mod plugin;
 pub mod registry;
-pub mod screen;
 pub mod render;
 pub mod render_border;
 pub mod render_button;
@@ -20,6 +19,7 @@ pub mod render_text;
 pub mod render_text_fx;
 pub mod render_texture;
 pub mod render_tiled;
+pub mod screen;
 pub mod strata;
 pub mod text_measure;
 pub mod widget_def;
@@ -34,4 +34,3 @@ mod layout_tests;
 mod panel_tests;
 #[cfg(test)]
 mod render_tests;
-

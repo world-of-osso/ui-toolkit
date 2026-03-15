@@ -45,7 +45,6 @@ impl FrameStrata {
     }
 }
 
-
 impl std::fmt::Display for FrameStrata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
@@ -92,7 +91,6 @@ impl DrawLayer {
         }
     }
 }
-
 
 impl Default for DrawLayer {
     fn default() -> Self {
