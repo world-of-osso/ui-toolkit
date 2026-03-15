@@ -167,7 +167,8 @@ fn crop_image_region(image: &Image, left: f32, right: f32, top: f32, bottom: f32
     if x1 <= x0 || y1 <= y0 {
         return None;
     }
-    let pixels = crop_rgba_pixels(data, w, x0, x1, y0, y1);
+    let mut pixels = crop_rgba_pixels(data, w, x0, x1, y0, y1);
+    sanitize_transparent_pixels(&mut pixels);
     Some(Image::new(
         Extent3d {
             width: (x1 - x0) as u32,
@@ -197,6 +198,16 @@ fn crop_rgba_pixels(
         out[dst..dst + crop_w * 4].copy_from_slice(&data[src..src + crop_w * 4]);
     }
     out
+}
+
+fn sanitize_transparent_pixels(pixels: &mut [u8]) {
+    for px in pixels.chunks_exact_mut(4) {
+        if px[3] == 0 {
+            px[0] = 0;
+            px[1] = 0;
+            px[2] = 0;
+        }
+    }
 }
 
 pub fn load_file_texture(
@@ -292,4 +303,26 @@ pub fn load_fdid_texture(
     let handle = assets.add(image);
     texture_cache.insert(fdid, handle.clone());
     Some(handle)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_transparent_pixels;
+
+    #[test]
+    fn transparent_pixels_have_rgb_cleared() {
+        let mut pixels = vec![
+            239, 195, 140, 0, //
+            255, 255, 255, 0, //
+            24, 20, 16, 151, //
+            18, 13, 8, 255,
+        ];
+
+        sanitize_transparent_pixels(&mut pixels);
+
+        assert_eq!(&pixels[0..4], &[0, 0, 0, 0]);
+        assert_eq!(&pixels[4..8], &[0, 0, 0, 0]);
+        assert_eq!(&pixels[8..12], &[24, 20, 16, 151]);
+        assert_eq!(&pixels[12..16], &[18, 13, 8, 255]);
+    }
 }
