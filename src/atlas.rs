@@ -25,6 +25,15 @@ impl AtlasRegion {
     }
 }
 
+pub fn nine_slice_margins(name: &str) -> Option<[f32; 4]> {
+    match name.to_ascii_lowercase().as_str() {
+        "glues-characterselect-card-all-bg" => Some([14.0, 11.0, 14.0, 17.0]),
+        _ => get_region(name)
+            .and_then(|region| region.nine_slice_edge)
+            .map(|edge| [edge, edge, edge, edge]),
+    }
+}
+
 pub fn get_region(name: &str) -> Option<AtlasRegion> {
     match name.to_ascii_lowercase().as_str() {
         "128-redbutton-up" => Some(AtlasRegion {
@@ -389,33 +398,63 @@ pub fn get_region(name: &str) -> Option<AtlasRegion> {
         }),
         "common-dropdown-c-button" => Some(AtlasRegion {
             path: "/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP",
-            left: 0.001953, right: 0.078125, top: 0.804688, bottom: 0.957031,
-            width: 39.0, height: 39.0,
-            tiles_horizontally: false, tiles_vertically: false, nine_slice_edge: None,
+            left: 0.001953,
+            right: 0.078125,
+            top: 0.804688,
+            bottom: 0.957031,
+            width: 39.0,
+            height: 39.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
         }),
         "common-dropdown-icon-back" => Some(AtlasRegion {
             path: "/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP",
-            left: 0.955078, right: 0.988281, top: 0.003906, bottom: 0.070312,
-            width: 17.0, height: 17.0,
-            tiles_horizontally: false, tiles_vertically: false, nine_slice_edge: None,
+            left: 0.955078,
+            right: 0.988281,
+            top: 0.003906,
+            bottom: 0.070312,
+            width: 17.0,
+            height: 17.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
         }),
         "common-dropdown-icon-next" => Some(AtlasRegion {
             path: "/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP",
-            left: 0.605469, right: 0.638672, top: 0.113281, bottom: 0.179688,
-            width: 17.0, height: 17.0,
-            tiles_horizontally: false, tiles_vertically: false, nine_slice_edge: None,
+            left: 0.605469,
+            right: 0.638672,
+            top: 0.113281,
+            bottom: 0.179688,
+            width: 17.0,
+            height: 17.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
         }),
         "charactercreate-customize-palette" => Some(AtlasRegion {
             path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.938965, right: 0.979980, top: 0.104004, bottom: 0.113770,
-            width: 42.0, height: 10.0,
-            tiles_horizontally: false, tiles_vertically: false, nine_slice_edge: None,
+            left: 0.938965,
+            right: 0.979980,
+            top: 0.104004,
+            bottom: 0.113770,
+            width: 42.0,
+            height: 10.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
         }),
         "charactercreate-customize-palette-selected" => Some(AtlasRegion {
             path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.888184, right: 0.937988, top: 0.104004, bottom: 0.123535,
-            width: 51.0, height: 20.0,
-            tiles_horizontally: false, tiles_vertically: false, nine_slice_edge: None,
+            left: 0.888184,
+            right: 0.937988,
+            top: 0.104004,
+            bottom: 0.123535,
+            width: 51.0,
+            height: 20.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
         }),
         _ => None,
     }
@@ -453,5 +492,13 @@ mod tests {
         assert_eq!(region.width, 500.0);
         assert_eq!(region.height, 132.0);
         assert_eq!(region.nine_slice_edge, Some(24.0));
+    }
+
+    #[test]
+    fn char_select_list_backdrop_has_asymmetric_slice_margins() {
+        assert_eq!(
+            nine_slice_margins("glues-characterselect-card-all-bg"),
+            Some([14.0, 11.0, 14.0, 17.0])
+        );
     }
 }

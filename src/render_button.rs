@@ -8,7 +8,7 @@ use crate::atlas;
 use crate::frame::{NineSlice, WidgetData};
 use crate::plugin::UiState;
 use crate::render::{LoadedTexture, UI_RENDER_LAYER};
-use crate::render_texture::{load_texture_source, BlpLoaderRes};
+use crate::render_texture::{BlpLoaderRes, load_texture_source};
 use crate::widgets::button::{ButtonData, ButtonState};
 use crate::widgets::texture::TextureSource;
 
@@ -22,22 +22,23 @@ const DEFAULT_BUTTON_HIGHLIGHT: &str = "defaultbutton-nineslice-highlight";
 const DEFAULT_BUTTON_PRESSED: &str = "defaultbutton-nineslice-pressed";
 const DEFAULT_BUTTON_DISABLED: &str = "defaultbutton-nineslice-disabled";
 
-/// Returns `(edge_h, edge_v, uv_edge)` — scaled screen edges + original texture edge.
-fn button_nine_slice_edges(tex: &TextureSource, frame_w: f32, frame_h: f32) -> (f32, f32, f32) {
+fn button_nine_slice_metrics(tex: &TextureSource, frame_w: f32, frame_h: f32) -> ([f32; 4], [f32; 4]) {
     let TextureSource::Atlas(name) = tex else {
         let e = BUTTON_NINE_SLICE_EDGE;
-        return (e, e, e);
+        return ([e, e, e, e], [e, e, e, e]);
     };
     let Some(region) = atlas::get_region(name) else {
         let e = BUTTON_NINE_SLICE_EDGE;
-        return (e, e, e);
+        return ([e, e, e, e], [e, e, e, e]);
     };
-    let base = region.nine_slice_edge.unwrap_or(BUTTON_NINE_SLICE_EDGE);
-    (
-        base * frame_w / region.width,
-        base * frame_h / region.height,
-        base,
-    )
+    let uv = atlas::nine_slice_margins(name).unwrap_or([BUTTON_NINE_SLICE_EDGE; 4]);
+    let display = [
+        uv[0] * frame_w / region.width,
+        uv[1] * frame_h / region.height,
+        uv[2] * frame_w / region.width,
+        uv[3] * frame_h / region.height,
+    ];
+    (display, uv)
 }
 
 fn select_button_texture_source(btn: &ButtonData) -> Option<&TextureSource> {
@@ -74,11 +75,14 @@ pub fn sync_button_nine_slices(mut state: ResMut<UiState>) {
         let Some(frame) = state.registry.get_mut(id) else {
             continue;
         };
-        let (eh, ev, uv_e) = button_nine_slice_edges(&tex, frame.resolved_width(), frame.resolved_height());
+        let (display_edges, uv_edges) =
+            button_nine_slice_metrics(&tex, frame.resolved_width(), frame.resolved_height());
         frame.nine_slice = Some(NineSlice {
-            edge_size: eh,
-            edge_size_v: Some(ev),
-            uv_edge_size: Some(uv_e),
+            edge_size: display_edges[0],
+            edge_size_v: Some(display_edges[1]),
+            edge_sizes: Some(display_edges),
+            uv_edge_size: Some(uv_edges[0]),
+            uv_edge_sizes: Some(uv_edges),
             bg_color: [1.0, 1.0, 1.0, 1.0],
             border_color: [1.0, 1.0, 1.0, 1.0],
             texture: Some(tex),
@@ -185,7 +189,8 @@ fn upsert_highlight_sprite(
         .value()
         .mul_add(0.5, frame.layout_rect.as_ref().map_or(0.0, |r| r.x))
         - sw * 0.5;
-    let by = sh * 0.5 - frame.layout_rect.as_ref().map_or(0.0, |r| r.y) - frame.resolved_height() * 0.5;
+    let by =
+        sh * 0.5 - frame.layout_rect.as_ref().map_or(0.0, |r| r.y) - frame.resolved_height() * 0.5;
     let transform = Transform::from_xyz(bx, by, 500.0);
     let sprite = Sprite {
         color,

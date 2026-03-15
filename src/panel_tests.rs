@@ -453,13 +453,47 @@ fn nine_slice_edge_size_determines_corner_dimensions() {
     assert_eq!(size.y, 96.0, "center height should be frame_h - 2*edge");
 }
 
+#[test]
+fn asymmetric_nine_slice_edges_use_per_side_dimensions() {
+    use crate::render_nine_slice::part_geometry;
+
+    let mut frame = crate::frame::Frame::new(1, None, WidgetType::Frame);
+    frame.width = Dimension::Fixed(300.0);
+    frame.height = Dimension::Fixed(120.0);
+    frame.layout_rect = Some(crate::layout::LayoutRect {
+        x: 100.0,
+        y: 200.0,
+        width: 300.0,
+        height: 120.0,
+    });
+    let ns = NineSlice {
+        edge_sizes: Some([14.0, 11.0, 14.0, 17.0]),
+        ..Default::default()
+    };
+
+    let (_, top_left_size, _) = part_geometry(&frame, &ns, 0, 1920.0, 1080.0, 0.0);
+    assert_eq!(top_left_size.x, 14.0);
+    assert_eq!(top_left_size.y, 11.0);
+
+    let (_, bottom_right_size, _) = part_geometry(&frame, &ns, 8, 1920.0, 1080.0, 0.0);
+    assert_eq!(bottom_right_size.x, 14.0);
+    assert_eq!(bottom_right_size.y, 17.0);
+
+    let (_, center_size, _) = part_geometry(&frame, &ns, 4, 1920.0, 1080.0, 0.0);
+    assert_eq!(center_size.x, 272.0);
+    assert_eq!(center_size.y, 92.0);
+}
+
 fn nine_slice_test_frame() -> crate::frame::Frame {
     let mut frame = crate::frame::Frame::new(1, None, WidgetType::Frame);
     frame.width = Dimension::Fixed(200.0);
     frame.height = Dimension::Fixed(100.0);
     frame.effective_alpha = 0.8;
     frame.layout_rect = Some(crate::layout::LayoutRect {
-        x: 0.0, y: 0.0, width: 200.0, height: 100.0,
+        x: 0.0,
+        y: 0.0,
+        width: 200.0,
+        height: 100.0,
     });
     frame
 }
@@ -482,13 +516,26 @@ fn nine_slice_border_color_applied_to_edge_parts() {
 
     // Part 1 = top edge → should use border_color with alpha
     let (_, _, color) = part_geometry(&frame, &ns, 1, 1920.0, 1080.0, 0.0);
-    let bevy::color::Color::Srgba(srgba) = color else { panic!("expected srgba") };
-    assert!((srgba.green - 0.92).abs() < 0.01, "edge should use border_color green");
-    assert!((srgba.alpha - 0.8).abs() < 0.01, "edge alpha should include effective_alpha");
+    let bevy::color::Color::Srgba(srgba) = color else {
+        panic!("expected srgba")
+    };
+    assert!(
+        (srgba.green - 0.92).abs() < 0.01,
+        "edge should use border_color green"
+    );
+    assert!(
+        (srgba.alpha - 0.8).abs() < 0.01,
+        "edge alpha should include effective_alpha"
+    );
 
     // Part 4 = center → should use bg_color with alpha
     let (_, _, color) = part_geometry(&frame, &ns, 4, 1920.0, 1080.0, 0.0);
-    let bevy::color::Color::Srgba(srgba) = color else { panic!("expected srgba") };
+    let bevy::color::Color::Srgba(srgba) = color else {
+        panic!("expected srgba")
+    };
     assert!(srgba.red < 0.01, "center should use bg_color red=0");
-    assert!((srgba.alpha - 0.64).abs() < 0.01, "center alpha = bg_alpha * effective_alpha");
+    assert!(
+        (srgba.alpha - 0.64).abs() < 0.01,
+        "center alpha = bg_alpha * effective_alpha"
+    );
 }
