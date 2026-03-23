@@ -58,8 +58,13 @@ pub fn sync_ui_quads(
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
 
-    let sorted_ids = build_sorted_frame_ids(&state);
-    let sort_map: HashMap<u64, usize> = sorted_ids
+    let visible_sorted_ids = build_sorted_visible_frame_ids(&state);
+    let sorted_ids: Vec<u64> = visible_sorted_ids
+        .iter()
+        .copied()
+        .filter(|id| state.registry.get(*id).is_some_and(is_renderable))
+        .collect();
+    let sort_map: HashMap<u64, usize> = visible_sorted_ids
         .iter()
         .copied()
         .enumerate()
@@ -151,10 +156,6 @@ fn sort_frame_ids<'a>(frames: impl Iterator<Item = &'a crate::frame::Frame>) -> 
             .then(a.0.cmp(&b.0))
     });
     frames.into_iter().map(|(id, _, _, _)| id).collect()
-}
-
-pub(crate) fn build_sorted_frame_ids(state: &UiState) -> Vec<u64> {
-    sort_frame_ids(state.registry.frames_iter().filter(|f| is_renderable(f)))
 }
 
 pub(crate) fn build_sorted_visible_frame_ids(state: &UiState) -> Vec<u64> {

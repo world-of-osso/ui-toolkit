@@ -368,6 +368,14 @@ fn quad_z(world: &mut World, frame_id: u64) -> Option<f32> {
         .map(|(t, _)| t.translation.z)
 }
 
+fn nine_slice_part_z(world: &mut World, frame_id: u64, part: u8) -> Option<f32> {
+    world
+        .query::<(&Transform, &crate::render_nine_slice::UiNineSlicePart)>()
+        .iter(world)
+        .find(|(_, p)| p.0 == frame_id && p.1 == part)
+        .map(|(t, _)| t.translation.z)
+}
+
 /// Frames with equal sort keys use creation order (id) as tiebreaker,
 /// so z-ordering is deterministic regardless of HashMap iteration order.
 #[test]
@@ -403,6 +411,75 @@ fn background_strata_sorts_below_medium() {
     assert!(
         bg_z < fg_z,
         "Background strata (z={bg_z}) must render below Medium strata (z={fg_z})"
+    );
+}
+
+#[test]
+fn nested_texture_quad_renders_above_button_nine_slice_even_with_visible_text() {
+    let mut app = setup_app();
+
+    let mut title = WidgetDef::new("fontstring");
+    title.name = Some("Title".into());
+    title.attrs = vec![
+        Attr::new_static("width", "200".into()),
+        Attr::new_static("height", "20".into()),
+        Attr::new_static("text", "Visible text".into()),
+    ];
+
+    let mut button = WidgetDef::new("button");
+    button.name = Some("DeleteChar".into());
+    button.attrs = vec![
+        Attr::new_static("width", "46".into()),
+        Attr::new_static("height", "42".into()),
+        Attr::new_static("text", "".into()),
+        Attr::new_static("button_atlas_up", "defaultbutton-nineslice-up".into()),
+        Attr::new_static("button_atlas_pressed", "defaultbutton-nineslice-pressed".into()),
+        Attr::new_static(
+            "button_atlas_highlight",
+            "defaultbutton-nineslice-highlight".into(),
+        ),
+        Attr::new_static(
+            "button_atlas_disabled",
+            "defaultbutton-nineslice-disabled".into(),
+        ),
+    ];
+
+    let mut icon = WidgetDef::new("texture");
+    icon.name = Some("DeleteCharIcon".into());
+    icon.attrs = vec![
+        Attr::new_static("width", "24".into()),
+        Attr::new_static("height", "24".into()),
+        Attr::new_static("frame_level", "100".into()),
+        Attr::new_static("texture_atlas", "defaultbutton-nineslice-highlight".into()),
+    ];
+    button.children.push(WidgetChild::Widget(icon));
+
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let mut diff = DiffContext::new();
+        diff.diff_roots(
+            &[WidgetChild::Widget(title), WidgetChild::Widget(button)],
+            None,
+            &mut ui.registry,
+        );
+    }
+
+    app.update();
+
+    let ui = app.world().resource::<UiState>();
+    let button_id = ui.registry.get_by_name("DeleteChar").expect("button frame");
+    let icon_id = ui
+        .registry
+        .get_by_name("DeleteCharIcon")
+        .expect("icon frame");
+    let _ = ui;
+
+    let icon_z = quad_z(app.world_mut(), icon_id).expect("icon quad z");
+    let button_center_z =
+        nine_slice_part_z(app.world_mut(), button_id, 4).expect("button center z");
+    assert!(
+        icon_z > button_center_z,
+        "icon quad z={icon_z} should render above button center z={button_center_z}"
     );
 }
 

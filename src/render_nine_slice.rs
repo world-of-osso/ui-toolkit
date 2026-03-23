@@ -5,7 +5,7 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-use super::render::UI_RENDER_LAYER;
+use super::render::{UI_RENDER_LAYER, build_sorted_visible_frame_ids};
 use super::render_texture::{BlpLoaderRes, load_texture_source_pub};
 use crate::frame::NineSlice;
 use crate::plugin::UiState;
@@ -74,22 +74,11 @@ pub fn sync_ui_nine_slices(
 
 /// Build z-order map: frame_id → z value, matching the strata sort used by UiQuad.
 fn build_z_map(state: &UiState) -> HashMap<u64, f32> {
-    let mut frames: Vec<_> = state
-        .registry
-        .frames_iter()
-        .filter(|f| f.visible && f.resolved_width() > 0.0 && f.resolved_height() > 0.0)
-        .map(|f| (f.id, f.strata, f.frame_level, f.raise_order))
-        .collect();
-    frames.sort_by(|a, b| {
-        a.1.cmp(&b.1)
-            .then(a.2.cmp(&b.2))
-            .then(a.3.cmp(&b.3))
-            .then(a.0.cmp(&b.0))
-    });
-    frames
+    build_sorted_visible_frame_ids(state)
         .iter()
+        .copied()
         .enumerate()
-        .map(|(i, &(id, _, _, _))| (id, i as f32 * 0.001))
+        .map(|(i, id)| (id, i as f32 * 0.001))
         .collect()
 }
 
