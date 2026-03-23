@@ -5,6 +5,8 @@ use crate::plugin::{UiPlugin, UiState};
 use crate::render::{frame_sprite_params, texture_tint};
 use crate::render_nine_slice::UiNineSlicePart;
 use crate::render_text::extract_button_text;
+use crate::widget_def::{Attr, WidgetChild, WidgetDef};
+use crate::widget_def_diff::DiffContext;
 use crate::widgets::button::{ButtonData, ButtonState};
 use crate::widgets::edit_box::EditBoxData;
 use crate::widgets::font_string::{FontStringData, GameFont};
@@ -217,6 +219,65 @@ fn button_font_size_flows_to_text_props() {
     let props = extract_button_text(&btn, 1.0);
     assert_eq!(props.font_size, 20.0);
     assert_eq!(props.content, "Click");
+}
+
+#[test]
+fn nested_texture_inside_button_creates_child_frame_and_quad() {
+    let mut app = setup_app();
+
+    let mut button = WidgetDef::new("button");
+    button.name = Some("DeleteChar".into());
+    button.attrs = vec![
+        Attr::new_static("width", "46".into()),
+        Attr::new_static("height", "42".into()),
+        Attr::new_static("text", "".into()),
+        Attr::new_static("button_atlas_up", "defaultbutton-nineslice-up".into()),
+        Attr::new_static("button_atlas_pressed", "defaultbutton-nineslice-pressed".into()),
+        Attr::new_static(
+            "button_atlas_highlight",
+            "defaultbutton-nineslice-highlight".into(),
+        ),
+        Attr::new_static(
+            "button_atlas_disabled",
+            "defaultbutton-nineslice-disabled".into(),
+        ),
+    ];
+
+    let mut icon = WidgetDef::new("texture");
+    icon.name = Some("DeleteCharIcon".into());
+    icon.attrs = vec![
+        Attr::new_static("width", "24".into()),
+        Attr::new_static("height", "24".into()),
+        Attr::new_static("texture_atlas", "defaultbutton-nineslice-highlight".into()),
+    ];
+
+    button.children.push(WidgetChild::Widget(icon));
+
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let mut diff = DiffContext::new();
+        diff.diff_roots(&[WidgetChild::Widget(button)], None, &mut ui.registry);
+    }
+
+    app.update();
+
+    let ui = app.world().resource::<UiState>();
+    let button_id = ui
+        .registry
+        .get_by_name("DeleteChar")
+        .expect("button frame should exist");
+    let icon_id = ui
+        .registry
+        .get_by_name("DeleteCharIcon")
+        .expect("nested texture frame should exist");
+    let icon_frame = ui.registry.get(icon_id).expect("icon frame");
+    assert_eq!(icon_frame.parent_id, Some(button_id));
+
+    let mut q = app.world_mut().query::<&crate::render::UiQuad>();
+    assert!(
+        q.iter(app.world()).any(|quad| quad.0 == icon_id),
+        "nested texture should spawn a render quad"
+    );
 }
 
 // --- Alpha tests ---
