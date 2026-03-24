@@ -288,10 +288,17 @@ fn apply_flex_to_children(
     }
     let rects = compute_flex_rects(&flex, &parent_rect, registry, &children);
     if auto_width || auto_height {
+        let old_rect = parent_rect.clone();
         parent_rect =
             auto_size_flex_parent(&parent_rect, &rects, flex.padding, auto_width, auto_height);
         if let Some(frame) = registry.get_mut(frame_id) {
             frame.layout_rect = Some(parent_rect.clone());
+        }
+        // Dimensions changed — mark dirty so anchors re-resolve next pass
+        if (parent_rect.width - old_rect.width).abs() > 0.01
+            || (parent_rect.height - old_rect.height).abs() > 0.01
+        {
+            registry.rect_dirty.insert(frame_id);
         }
     }
     for (&cid, rect) in children.iter().zip(rects) {
