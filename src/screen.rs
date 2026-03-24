@@ -188,8 +188,19 @@ impl Screen {
     }
 }
 
+fn collect_all_frame_ids(roots: &[u64], registry: &FrameRegistry) -> Vec<u64> {
+    let mut all = Vec::new();
+    let mut stack: Vec<u64> = roots.iter().copied().collect();
+    while let Some(fid) = stack.pop() {
+        all.push(fid);
+        stack.extend(registry.children_of(fid));
+    }
+    all
+}
+
 fn auto_size_fontstrings(diff: &DiffContext, registry: &mut FrameRegistry) {
-    for &fid in &diff.created_frames {
+    let all_ids = collect_all_frame_ids(&diff.created_frames, registry);
+    for fid in all_ids {
         let Some(frame) = registry.get(fid) else {
             continue;
         };
@@ -211,7 +222,8 @@ fn auto_size_fontstrings(diff: &DiffContext, registry: &mut FrameRegistry) {
 }
 
 fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
-    for &fid in &diff.created_frames {
+    let all_ids = collect_all_frame_ids(&diff.created_frames, registry);
+    for fid in all_ids {
         let Some(frame) = registry.get(fid) else {
             continue;
         };
