@@ -596,3 +596,56 @@ fn column_flex_auto_height() {
         root_rect.height
     );
 }
+
+#[test]
+fn auto_height_center_anchor_settles_in_one_pass() {
+    let mut reg = FrameRegistry::new(800.0, 600.0);
+
+    // Screen-filling parent
+    let screen_id = reg.create_frame("Screen", None);
+    let screen = reg.get_mut(screen_id).unwrap();
+    screen.width = Dimension::Fixed(800.0);
+    screen.height = Dimension::Fixed(600.0);
+    screen.layout_rect = Some(LayoutRect { x: 0.0, y: 0.0, width: 800.0, height: 600.0 });
+
+    // Auto-height panel centered in screen
+    let panel_id = reg.create_frame("Panel", Some(screen_id));
+    let panel = reg.get_mut(panel_id).unwrap();
+    panel.width = Dimension::Fixed(200.0);
+    panel.height = Dimension::Fixed(0.0);
+    panel.flex_layout = Some(FlexLayout {
+        direction: FlexDirection::Column,
+        gap: 0.0,
+        padding: 10.0,
+        ..Default::default()
+    });
+    panel.anchors.push(Anchor {
+        point: AnchorPoint::Center,
+        relative_to: None,
+        relative_point: AnchorPoint::Center,
+        x_offset: 0.0,
+        y_offset: 0.0,
+    });
+
+    // Two children: 200x50 each
+    for name in ["A", "B"] {
+        let id = reg.create_frame(name, Some(panel_id));
+        let f = reg.get_mut(id).unwrap();
+        f.width = Dimension::Fixed(180.0);
+        f.height = Dimension::Fixed(50.0);
+    }
+
+    recompute_layouts(&mut reg);
+
+    let rect = reg.get(panel_id).unwrap().layout_rect.as_ref().unwrap();
+    // Auto-height: padding(10) + 50 + 50 + padding(10) = 120
+    assert!((rect.height - 120.0).abs() < 1.0, "height={}", rect.height);
+    // Centered: (600 - 120) / 2 = 240
+    let expected_y = (600.0 - rect.height) / 2.0;
+    assert!(
+        (rect.y - expected_y).abs() < 1.0,
+        "panel y={} expected={} (not vertically centered)",
+        rect.y,
+        expected_y
+    );
+}

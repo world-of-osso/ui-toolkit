@@ -104,16 +104,19 @@ fn resolve_one_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
     let anchor = &frame.anchors[0];
     let fallback = fallback_target(registry, frame_id);
     let target_rect = anchor_target_rect(registry, anchor, &fallback);
-    let w = resolve_dimension(frame.width, fallback.width);
-    let h = resolve_dimension(frame.height, fallback.height);
+    let (w, h) = resolved_or_auto_size(frame, fallback.width, fallback.height);
     let (tx, ty) = resolve_target_in_rect(anchor, target_rect);
     let (fx, fy) = frame_position_from_anchor(anchor.point, tx, ty, w, h);
-    LayoutRect {
-        x: fx,
-        y: fy,
-        width: w,
-        height: h,
-    }
+    LayoutRect { x: fx, y: fy, width: w, height: h }
+}
+
+/// Use layout_rect dimensions if the frame has auto-size (0) and was already sized by flex.
+fn resolved_or_auto_size(frame: &crate::frame::Frame, parent_w: f32, parent_h: f32) -> (f32, f32) {
+    let w = resolve_dimension(frame.width, parent_w);
+    let h = resolve_dimension(frame.height, parent_h);
+    let w = if w == 0.0 { frame.layout_rect.as_ref().map_or(0.0, |r| r.width) } else { w };
+    let h = if h == 0.0 { frame.layout_rect.as_ref().map_or(0.0, |r| r.height) } else { h };
+    (w, h)
 }
 
 fn resolve_multi_anchor(registry: &FrameRegistry, frame_id: u64) -> LayoutRect {
