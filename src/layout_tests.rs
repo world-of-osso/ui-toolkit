@@ -560,3 +560,39 @@ fn flex_row_wrap_mixed_heights() {
     assert!((rd.x - 0.0).abs() < 0.01, "d.x={}", rd.x);
     assert!((rd.y - 45.0).abs() < 0.01, "d.y={}", rd.y);
 }
+
+#[test]
+fn column_flex_auto_height() {
+    let mut reg = FrameRegistry::new(800.0, 600.0);
+    let root_id = reg.create_frame("Root", None);
+    let root = reg.get_mut(root_id).unwrap();
+    root.width = Dimension::Fixed(200.0);
+    root.height = Dimension::Fixed(0.0); // auto-height
+    root.layout_rect = Some(LayoutRect { x: 100.0, y: 50.0, width: 200.0, height: 0.0 });
+    root.flex_layout = Some(FlexLayout {
+        direction: FlexDirection::Column,
+        gap: 10.0,
+        padding: 20.0,
+        ..Default::default()
+    });
+
+    let a = reg.create_frame("A", Some(root_id));
+    reg.get_mut(a).unwrap().width = Dimension::Fixed(180.0);
+    reg.get_mut(a).unwrap().height = Dimension::Fixed(40.0);
+    let b = reg.create_frame("B", Some(root_id));
+    reg.get_mut(b).unwrap().width = Dimension::Fixed(180.0);
+    reg.get_mut(b).unwrap().height = Dimension::Fixed(60.0);
+    let c = reg.create_frame("C", Some(root_id));
+    reg.get_mut(c).unwrap().width = Dimension::Fixed(180.0);
+    reg.get_mut(c).unwrap().height = Dimension::Fixed(30.0);
+
+    recompute_layouts(&mut reg);
+
+    let root_rect = reg.get(root_id).unwrap().layout_rect.as_ref().unwrap();
+    // Expected: padding(20) + 40 + gap(10) + 60 + gap(10) + 30 + padding(20) = 190
+    assert!(
+        (root_rect.height - 190.0).abs() < 1.0,
+        "auto-height should be ~190, got {}",
+        root_rect.height
+    );
+}

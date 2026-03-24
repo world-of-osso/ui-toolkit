@@ -76,12 +76,23 @@ mod tests {
     }
 
     #[test]
-    fn default_panel_style_fallback() {
+    fn default_panel_style_defers_when_no_style_registered() {
         let mut reg = FrameRegistry::new(1920.0, 1080.0);
         let id = reg.create_frame("TestPanel", None);
         reg.apply_default_panel_style(id);
         let frame = reg.get(id).unwrap();
-        assert!(frame.nine_slice.is_some());
+        assert!(frame.nine_slice.is_none(), "no nine_slice until style is registered");
         assert_eq!(frame.panel_style.as_deref(), Some("default"));
+    }
+
+    #[test]
+    fn refresh_applies_deferred_style() {
+        let mut reg = FrameRegistry::new(1920.0, 1080.0);
+        let id = reg.create_frame("TestPanel", None);
+        reg.apply_default_panel_style(id);
+        reg.register_panel_style("default", NineSlice::default());
+        reg.refresh_panel_styles();
+        let frame = reg.get(id).unwrap();
+        assert!(frame.nine_slice.is_some());
     }
 }

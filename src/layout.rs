@@ -287,9 +287,9 @@ fn apply_flex_to_children(
         resolve_dependencies(registry, cid, visiting, resolved);
     }
     let rects = compute_flex_rects(&flex, &parent_rect, registry, &children);
-    if (auto_width || auto_height) && flex.direction == FlexDirection::RowWrap {
+    if auto_width || auto_height {
         parent_rect =
-            auto_size_row_wrap_parent(&parent_rect, &rects, flex.padding, auto_width, auto_height);
+            auto_size_flex_parent(&parent_rect, &rects, flex.padding, auto_width, auto_height);
         if let Some(frame) = registry.get_mut(frame_id) {
             frame.layout_rect = Some(parent_rect.clone());
         }
@@ -304,13 +304,12 @@ fn apply_flex_to_children(
 
 // --- Flex layout computation ---
 
-fn compute_flex_rects(
-    flex: &FlexLayout,
+fn collect_child_sizes(
     parent: &LayoutRect,
     registry: &FrameRegistry,
     children: &[u64],
-) -> Vec<LayoutRect> {
-    let sizes: Vec<(f32, f32)> = children
+) -> Vec<(f32, f32)> {
+    children
         .iter()
         .filter_map(|&id| registry.get(id))
         .map(|f| {
@@ -319,12 +318,27 @@ fn compute_flex_rects(
                 resolve_dimension(f.height, parent.height),
             )
         })
-        .collect();
+        .collect()
+}
 
+fn compute_flex_rects(
+    flex: &FlexLayout,
+    parent: &LayoutRect,
+    registry: &FrameRegistry,
+    children: &[u64],
+) -> Vec<LayoutRect> {
+    let sizes = collect_child_sizes(parent, registry, children);
     if flex.direction == FlexDirection::RowWrap {
         return compute_row_wrap_rects(flex, parent, &sizes);
     }
+    layout_linear_children(flex, parent, &sizes)
+}
 
+fn layout_linear_children(
+    flex: &FlexLayout,
+    parent: &LayoutRect,
+    sizes: &[(f32, f32)],
+) -> Vec<LayoutRect> {
     let total_main: f32 = sizes.iter().map(|s| main_sz(flex.direction, *s)).sum();
     let gap_total = flex.gap * sizes.len().saturating_sub(1) as f32;
     let avail_main = main_extent(flex.direction, parent) - 2.0 * flex.padding;
@@ -337,11 +351,7 @@ fn compute_flex_rects(
         .map(|&(w, h)| {
             let ms = main_sz(flex.direction, (w, h));
             let cs = cross_sz(flex.direction, (w, h));
-            let fcs = if flex.align == FlexAlign::Stretch {
-                avail_cross
-            } else {
-                cs
-            };
+            let fcs = if flex.align == FlexAlign::Stretch { avail_cross } else { cs };
             let cp = cross_pos(flex.align, avail_cross, fcs) + flex.padding;
             let rect = build_flex_rect(flex.direction, parent, cursor, cp, ms, fcs);
             cursor += ms + eff_gap;
@@ -382,7 +392,7 @@ fn compute_row_wrap_rects(
     rects
 }
 
-fn auto_size_row_wrap_parent(
+fn auto_size_flex_parent(
     parent: &LayoutRect,
     rects: &[LayoutRect],
     padding: f32,
