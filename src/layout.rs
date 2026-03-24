@@ -218,12 +218,27 @@ pub fn recompute_layouts(registry: &mut FrameRegistry) {
     } else {
         registry.rect_dirty.iter().copied().collect()
     };
+    registry.rect_dirty.clear();
+    resolve_dirty_frames(registry, &dirty_ids);
+    // Flex auto-sizing may dirty frames (e.g. auto-height changes anchor position).
+    // Run one extra pass to settle.
+    settle_flex_dirty(registry);
+}
+
+fn resolve_dirty_frames(registry: &mut FrameRegistry, ids: &[u64]) {
     let mut visiting = HashSet::new();
     let mut resolved = HashSet::new();
-    for frame_id in dirty_ids {
+    for &frame_id in ids {
         resolve_frame_recursive(registry, frame_id, &mut visiting, &mut resolved);
     }
-    registry.rect_dirty.clear();
+}
+
+fn settle_flex_dirty(registry: &mut FrameRegistry) {
+    if registry.rect_dirty.is_empty() {
+        return;
+    }
+    let ids: Vec<u64> = registry.rect_dirty.drain().collect();
+    resolve_dirty_frames(registry, &ids);
 }
 
 fn resolve_frame_recursive(
