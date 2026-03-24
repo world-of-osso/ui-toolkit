@@ -139,6 +139,9 @@ impl DiffContext {
             frame.mouse_enabled = true;
         }
         registry.insert_frame(frame);
+        if widget_type == WidgetType::Panel {
+            registry.apply_default_panel_style(frame_id);
+        }
         if parent_id.is_none() {
             self.created_frames.push(frame_id);
         }

@@ -23,6 +23,7 @@ pub mod screen;
 pub mod strata;
 pub mod text_measure;
 pub mod widget_def;
+pub mod panel_style;
 pub mod widget_def_diff;
 pub mod widgets;
 

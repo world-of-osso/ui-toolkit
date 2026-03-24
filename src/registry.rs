@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::frame::{Frame, WidgetData, WidgetType};
+use crate::frame::{Frame, NineSlice, WidgetData, WidgetType};
 use crate::layout::LayoutRect;
 
 /// Central registry owning all UI frames, keyed by ID.
@@ -14,6 +14,7 @@ pub struct FrameRegistry {
     pub rect_dirty: HashSet<u64>,
     pub anchor_dependents: HashMap<u64, HashSet<u64>>,
     pub focused_frame: Option<u64>,
+    pub(crate) panel_styles: HashMap<String, NineSlice>,
 }
 
 impl FrameRegistry {
@@ -28,6 +29,7 @@ impl FrameRegistry {
             rect_dirty: HashSet::new(),
             anchor_dependents: HashMap::new(),
             focused_frame: None,
+            panel_styles: HashMap::new(),
         }
     }
 

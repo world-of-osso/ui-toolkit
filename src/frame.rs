@@ -30,6 +30,7 @@ pub enum WidgetType {
     EditBox,
     ScrollFrame,
     Slider,
+    Panel,
     StatusBar,
     Cooldown,
     Model,
@@ -220,6 +221,8 @@ pub struct Frame {
     pub backdrop: Option<Backdrop>,
     pub nine_slice: Option<NineSlice>,
     pub border: Option<Border>,
+    /// Panel style name (for Panel widget type). Resolved via FrameRegistry::panel_styles.
+    pub panel_style: Option<String>,
 
     // Behavior
     pub clamped_to_screen: bool,

@@ -32,6 +32,7 @@ fn format_dimension(dim: Dimension) -> String {
 pub(crate) fn tag_to_widget_type(tag: &str) -> Option<WidgetType> {
     match tag {
         "frame" | "r#frame" | "Frame" => Some(WidgetType::Frame),
+        "panel" | "Panel" => Some(WidgetType::Panel),
         "button" | "Button" => Some(WidgetType::Button),
         "editbox" | "EditBox" => Some(WidgetType::EditBox),
         "fontstring" | "FontString" => Some(WidgetType::FontString),
@@ -72,6 +73,7 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
             _ => None,
         },
         "alpha" => Some(format!("{}", frame.alpha)),
+        "style" => frame.panel_style.clone(),
         _ => None,
     }
 }
@@ -118,52 +120,56 @@ pub(crate) fn apply_attribute(
     validated_paths: &mut HashSet<String>,
     missing_paths: &mut HashSet<String>,
 ) -> Option<(u64, String)> {
-    if name == "name" {
-        registry.set_name(frame_id, value.to_string());
+    if apply_registry_attr(registry, frame_id, name, value) {
         return None;
     }
     if name == "stretch" {
         return apply_stretch_attr(registry, frame_id, value);
     }
-    if let Some(frame) = registry.get_mut(frame_id) {
-        if apply_flex_attr(frame, name, value) {
-            return None;
-        }
-    }
-    if name == "disabled" {
-        let disabled = matches!(value, "true" | "TRUE" | "1");
-        if let Some(frame) = registry.get_mut(frame_id) {
-            if let Some(WidgetData::Button(bd)) = &mut frame.widget_data {
-                if disabled {
-                    bd.state = ButtonState::Disabled;
-                } else if bd.state == ButtonState::Disabled {
-                    bd.state = ButtonState::Normal;
-                }
-            }
-        }
-        return None;
-    }
-    if name == "hidden" {
-        match value {
-            "true" | "TRUE" | "1" => registry.set_hidden(frame_id, true),
-            "false" | "FALSE" | "0" => registry.set_hidden(frame_id, false),
-            _ => {}
-        }
-        return None;
-    }
-    if name == "alpha" {
-        if let Ok(v) = value.parse::<f32>() {
-            registry.set_alpha(frame_id, v);
-        }
+    if name == "style" {
+        registry.apply_panel_style(frame_id, value);
         return None;
     }
     let Some(frame) = registry.get_mut(frame_id) else {
         return None;
     };
+    apply_flex_attr(frame, name, value);
     apply_frame_attr(frame, name, value);
     apply_widget_text_attrs(frame, name, value, validated_paths, missing_paths);
     apply_widget_texture_attrs(frame, name, value, validated_paths, missing_paths);
     None
+}
+
+/// Handle attributes that need registry-level access.
+fn apply_registry_attr(
+    registry: &mut FrameRegistry,
+    frame_id: u64,
+    name: &str,
+    value: &str,
+) -> bool {
+    match name {
+        "name" => registry.set_name(frame_id, value.to_string()),
+        "hidden" => set_bool_via(value, |v| registry.set_hidden(frame_id, v)),
+        "alpha" => {
+            if let Ok(v) = value.parse::<f32>() { registry.set_alpha(frame_id, v); }
+        }
+        "disabled" => apply_disabled_attr(registry, frame_id, value),
+        _ => return false,
+    }
+    true
+}
+
+fn apply_disabled_attr(registry: &mut FrameRegistry, frame_id: u64, value: &str) {
+    let disabled = matches!(value, "true" | "TRUE" | "1");
+    if let Some(frame) = registry.get_mut(frame_id) {
+        if let Some(WidgetData::Button(bd)) = &mut frame.widget_data {
+            if disabled {
+                bd.state = ButtonState::Disabled;
+            } else if bd.state == ButtonState::Disabled {
+                bd.state = ButtonState::Normal;
+            }
+        }
+    }
 }
 
 fn apply_stretch_attr(
@@ -178,110 +184,83 @@ fn apply_stretch_attr(
     None
 }
 
-fn apply_flex_attr(frame: &mut Frame, name: &str, value: &str) -> bool {
+macro_rules! flex {
+    ($frame:expr) => {
+        $frame.flex_layout.get_or_insert_with(FlexLayout::default)
+    };
+}
+
+fn apply_flex_attr(frame: &mut Frame, name: &str, value: &str) {
     match name {
         "layout" => {
-            let dir = match value {
+            flex!(frame).direction = match value {
                 "flex-row" => FlexDirection::Row,
                 "flex-row-wrap" => FlexDirection::RowWrap,
                 _ => FlexDirection::Column,
             };
-            frame
-                .flex_layout
-                .get_or_insert_with(FlexLayout::default)
-                .direction = dir;
         }
-        "gap" => {
-            if let Ok(v) = value.parse::<f32>() {
-                frame
-                    .flex_layout
-                    .get_or_insert_with(FlexLayout::default)
-                    .gap = v;
-            }
-        }
-        "justify" => {
-            let j = match value {
-                "center" => FlexJustify::Center,
-                "end" => FlexJustify::End,
-                "space-between" => FlexJustify::SpaceBetween,
-                _ => FlexJustify::Start,
-            };
-            frame
-                .flex_layout
-                .get_or_insert_with(FlexLayout::default)
-                .justify = j;
-        }
-        "align" => {
-            let a = match value {
-                "start" => FlexAlign::Start,
-                "end" => FlexAlign::End,
-                "stretch" => FlexAlign::Stretch,
-                _ => FlexAlign::Center,
-            };
-            frame
-                .flex_layout
-                .get_or_insert_with(FlexLayout::default)
-                .align = a;
-        }
-        "padding" => {
-            if let Ok(v) = value.parse::<f32>() {
-                frame
-                    .flex_layout
-                    .get_or_insert_with(FlexLayout::default)
-                    .padding = v;
-            }
-        }
-        _ => return false,
+        "gap" => { if let Ok(v) = value.parse::<f32>() { flex!(frame).gap = v; } }
+        "justify" => { flex!(frame).justify = parse_flex_justify(value); }
+        "align" => { flex!(frame).align = parse_flex_align(value); }
+        "padding" => { if let Ok(v) = value.parse::<f32>() { flex!(frame).padding = v; } }
+        _ => {}
     }
-    true
+}
+
+fn parse_flex_justify(value: &str) -> FlexJustify {
+    match value {
+        "center" => FlexJustify::Center,
+        "end" => FlexJustify::End,
+        "space-between" => FlexJustify::SpaceBetween,
+        _ => FlexJustify::Start,
+    }
+}
+
+fn parse_flex_align(value: &str) -> FlexAlign {
+    match value {
+        "start" => FlexAlign::Start,
+        "end" => FlexAlign::End,
+        "stretch" => FlexAlign::Stretch,
+        _ => FlexAlign::Center,
+    }
 }
 
 fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
     match name {
-        "width" => {
-            frame.width = parse_dimension(value);
-        }
-        "height" => {
-            frame.height = parse_dimension(value);
-        }
-        "mouse_enabled" => match value {
-            "true" | "TRUE" | "1" => frame.mouse_enabled = true,
-            "false" | "FALSE" | "0" => frame.mouse_enabled = false,
-            _ => {}
-        },
-        "movable" => match value {
-            "true" | "TRUE" | "1" => frame.movable = true,
-            "false" | "FALSE" | "0" => frame.movable = false,
-            _ => {}
-        },
+        "width" => frame.width = parse_dimension(value),
+        "height" => frame.height = parse_dimension(value),
+        "mouse_enabled" => set_bool(&mut frame.mouse_enabled, value),
+        "movable" => set_bool(&mut frame.movable, value),
         "frame_level" => {
-            if let Ok(v) = value.parse::<f32>() {
-                frame.frame_level = v as i32;
-            }
+            if let Ok(v) = value.parse::<f32>() { frame.frame_level = v as i32; }
         }
-        "strata" => {
-            frame.strata = FrameStrata::from_str(value).unwrap_or_default();
-        }
-        "draw_layer" => {
-            frame.draw_layer = DrawLayer::from_str(value).unwrap_or_default();
-        }
-        "background_color" => {
-            if let Some(color) = parse_color(value) {
-                frame.background_color = Some(color);
-            }
-        }
+        "strata" => frame.strata = FrameStrata::from_str(value).unwrap_or_default(),
+        "draw_layer" => frame.draw_layer = DrawLayer::from_str(value).unwrap_or_default(),
+        "background_color" => frame.background_color = parse_color(value),
         "nine_slice" => {
-            if let Some(ns) = parse_nine_slice(value) {
-                frame.nine_slice = Some(ns);
-            }
+            if let Some(ns) = parse_nine_slice(value) { frame.nine_slice = Some(ns); }
         }
-        "border" => {
-            frame.border = parse_border(value);
-        }
+        "border" => frame.border = parse_border(value),
         "onclick" => {
             frame.onclick = Some(value.to_string());
             frame.mouse_enabled = true;
         }
+        _ => {}
+    }
+}
+
+fn set_bool(target: &mut bool, value: &str) {
+    match value {
+        "true" | "TRUE" | "1" => *target = true,
+        "false" | "FALSE" | "0" => *target = false,
+        _ => {}
+    }
+}
+
+fn set_bool_via(value: &str, f: impl FnOnce(bool)) {
+    match value {
+        "true" | "TRUE" | "1" => f(true),
+        "false" | "FALSE" | "0" => f(false),
         _ => {}
     }
 }
