@@ -42,6 +42,7 @@ impl Plugin for UiPlugin {
                 crate::render_tiled::sync_ui_tiled_textures,
                 crate::render_text_fx::sync_ui_text_shadows,
                 crate::render_text_fx::sync_ui_text_outlines,
+                crate::button_input::sync_button_input,
             )
                 .chain(),
         );

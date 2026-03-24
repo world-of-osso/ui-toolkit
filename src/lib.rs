@@ -1,6 +1,7 @@
 pub mod anchor;
 pub mod anchor_resolve;
 pub mod animation;
+pub mod button_input;
 pub mod atlas;
 pub mod attrs;
 pub mod event;
