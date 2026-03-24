@@ -23,18 +23,33 @@ impl FrameRegistry {
         }
     }
 
-    /// Apply the default panel style (or NineSlice::default if none registered).
+    /// Apply the default panel style if one is registered.
     pub fn apply_default_panel_style(&mut self, frame_id: u64) {
-        let ns = self
-            .panel_styles
-            .get("default")
-            .cloned()
-            .unwrap_or_default();
-        if let Some(frame) = self.get_mut(frame_id) {
-            if frame.panel_style.is_none() {
+        let Some(ns) = self.panel_styles.get("default").cloned() else {
+            // Mark as default so it gets applied when the style is registered later.
+            if let Some(frame) = self.get_mut(frame_id) {
                 frame.panel_style = Some("default".to_string());
             }
+            return;
+        };
+        if let Some(frame) = self.get_mut(frame_id) {
+            frame.panel_style = Some("default".to_string());
             frame.nine_slice = Some(ns);
+        }
+    }
+
+    /// Re-apply panel styles to all frames that reference them (call after registering styles).
+    pub fn refresh_panel_styles(&mut self) {
+        let ids: Vec<(u64, String)> = self
+            .frames_iter()
+            .filter_map(|f| f.panel_style.as_ref().map(|s| (f.id, s.clone())))
+            .collect();
+        for (id, style_name) in ids {
+            if let Some(ns) = self.panel_styles.get(&style_name).cloned() {
+                if let Some(frame) = self.get_mut(id) {
+                    frame.nine_slice = Some(ns);
+                }
+            }
         }
     }
 }
