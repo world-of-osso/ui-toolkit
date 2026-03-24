@@ -27,6 +27,8 @@ fn cursor_pos(windows: &Query<&Window, With<bevy::window::PrimaryWindow>>) -> Op
 }
 
 fn update_hover(ui: &mut UiState, cursor: Option<(f32, f32)>) {
+    // Find which frame the cursor is actually over (respects strata/z-order)
+    let topmost = cursor.and_then(|(x, y)| find_frame_at(&ui.registry, x, y));
     let button_ids: Vec<u64> = ui
         .registry
         .frames_iter()
@@ -34,18 +36,30 @@ fn update_hover(ui: &mut UiState, cursor: Option<(f32, f32)>) {
         .map(|f| f.id)
         .collect();
     for id in button_ids {
-        let hovered = cursor.is_some_and(|(x, y)| {
-            ui.registry
-                .get(id)
-                .and_then(|f| f.layout_rect.as_ref().map(|r| (r, &f.hit_rect_insets)))
-                .is_some_and(|(r, insets)| hit_test(x, y, r, insets))
-        });
+        let hovered = topmost.is_some_and(|top| is_frame_or_ancestor(&ui.registry, top, id));
         if let Some(WidgetData::Button(bd)) = ui
             .registry
             .get_mut(id)
             .and_then(|f| f.widget_data.as_mut())
         {
             bd.hovered = hovered;
+        }
+    }
+}
+
+/// Check if `frame_id` equals `target` or is a descendant of `target`.
+fn is_frame_or_ancestor(
+    reg: &crate::registry::FrameRegistry,
+    mut frame_id: u64,
+    target: u64,
+) -> bool {
+    loop {
+        if frame_id == target {
+            return true;
+        }
+        match reg.get(frame_id).and_then(|f| f.parent_id) {
+            Some(pid) => frame_id = pid,
+            None => return false,
         }
     }
 }
