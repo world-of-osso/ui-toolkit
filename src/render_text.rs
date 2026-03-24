@@ -1,8 +1,7 @@
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
-use bevy::text::Font;
-use bevy::text::TextFont;
+use bevy::text::{Font, Justify, LineBreak, TextBounds, TextFont, TextLayout};
 
 use crate::font_registry::FontRegistry;
 use crate::frame::WidgetData;
@@ -23,6 +22,8 @@ pub fn sync_ui_text(
             Entity,
             &UiText,
             &mut Text2d,
+            &mut TextLayout,
+            &mut TextBounds,
             &mut TextFont,
             &mut TextColor,
             &mut Transform,
@@ -41,7 +42,9 @@ pub fn sync_ui_text(
         .collect();
     let mut existing: std::collections::HashSet<u64> = std::collections::HashSet::new();
 
-    for (entity, ui_text, mut text, mut font, mut color, mut transform) in texts.iter_mut() {
+    for (entity, ui_text, mut text, mut layout, mut bounds, mut font, mut color, mut transform) in
+        texts.iter_mut()
+    {
         let Some(frame) = state.registry.get(ui_text.0) else {
             commands.entity(entity).despawn();
             continue;
@@ -53,6 +56,8 @@ pub fn sync_ui_text(
         let props = extract_text_props(frame);
         existing.insert(ui_text.0);
         *text = Text2d::new(&props.content);
+        *layout = text_layout(frame);
+        *bounds = text_bounds(frame);
         font.font_size = props.font_size;
         font.font = font_registry.get(props.font, &mut font_assets);
         *color = TextColor(props.color);
@@ -113,6 +118,8 @@ fn spawn_missing_text(
         let font = font_registry.get(props.font, font_assets);
         commands.spawn((
             Text2d::new(props.content),
+            text_layout(frame),
+            text_bounds(frame),
             TextFont {
                 font,
                 font_size: props.font_size,
@@ -265,6 +272,80 @@ fn text_anchor(justify_h: JustifyH, justify_v: JustifyV) -> Anchor {
     }
 }
 
+pub(crate) fn text_layout(frame: &crate::frame::Frame) -> TextLayout {
+    TextLayout::new(text_justify(frame), text_linebreak(frame))
+}
+
+pub(crate) fn text_bounds(frame: &crate::frame::Frame) -> TextBounds {
+    let width = if text_wraps(frame) {
+        Some(frame.resolved_width())
+    } else {
+        None
+    };
+    TextBounds {
+        width,
+        height: text_max_height(frame),
+    }
+}
+
+pub(crate) fn text_anchor_for_frame(frame: &crate::frame::Frame) -> Anchor {
+    text_anchor(text_justify_h(frame), text_justify_v(frame))
+}
+
+fn text_justify(frame: &crate::frame::Frame) -> Justify {
+    match text_justify_h(frame) {
+        JustifyH::Left => Justify::Left,
+        JustifyH::Center => Justify::Center,
+        JustifyH::Right => Justify::Right,
+    }
+}
+
+fn text_linebreak(frame: &crate::frame::Frame) -> LineBreak {
+    if text_wraps(frame) {
+        LineBreak::WordBoundary
+    } else {
+        LineBreak::NoWrap
+    }
+}
+
+fn text_wraps(frame: &crate::frame::Frame) -> bool {
+    matches!(&frame.widget_data, Some(WidgetData::FontString(fs)) if fs.word_wrap)
+}
+
+fn text_max_height(frame: &crate::frame::Frame) -> Option<f32> {
+    let Some(WidgetData::FontString(fs)) = &frame.widget_data else {
+        return None;
+    };
+    let frame_height = frame.resolved_height();
+    let max_lines_height = fs
+        .max_lines
+        .map(|lines| lines as f32 * fs.font_size * 1.2 * fs.text_scale);
+    match (fs.word_wrap, max_lines_height) {
+        (true, Some(limit)) => Some(frame_height.min(limit)),
+        (true, None) => Some(frame_height),
+        (false, Some(limit)) => Some(limit),
+        (false, None) => None,
+    }
+}
+
+fn text_justify_h(frame: &crate::frame::Frame) -> JustifyH {
+    match &frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.justify_h,
+        Some(WidgetData::EditBox(_)) => JustifyH::Left,
+        Some(WidgetData::Button(_)) => JustifyH::Center,
+        _ => JustifyH::Center,
+    }
+}
+
+fn text_justify_v(frame: &crate::frame::Frame) -> JustifyV {
+    match &frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.justify_v,
+        Some(WidgetData::EditBox(_)) => JustifyV::Middle,
+        Some(WidgetData::Button(_)) => JustifyV::Middle,
+        _ => JustifyV::Middle,
+    }
+}
+
 fn text_insets(frame: &crate::frame::Frame) -> [f32; 4] {
     if let Some(WidgetData::EditBox(eb)) = &frame.widget_data {
         if eb.text_insets != [0.0; 4] {
@@ -309,6 +390,40 @@ mod tests {
         app.add_plugins(UiPlugin);
         app.update();
         app
+    }
+
+    fn insert_fontstring_frame(
+        app: &mut App,
+        name: &str,
+        width: f32,
+        height: f32,
+        fs: FontStringData,
+    ) -> u64 {
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        let id = ui.registry.create_frame(name, None);
+        let frame = ui.registry.get_mut(id).unwrap();
+        frame.width = Dimension::Fixed(width);
+        frame.height = Dimension::Fixed(height);
+        frame.layout_rect = Some(LayoutRect {
+            x: 0.0,
+            y: 0.0,
+            width,
+            height,
+        });
+        frame.widget_data = Some(WidgetData::FontString(fs));
+        id
+    }
+
+    fn wrapped_text_components(
+        app: &mut App,
+        id: u64,
+    ) -> Option<(TextLayout, TextBounds)> {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&UiText, &TextLayout, &TextBounds), Without<UiTextShadow>>();
+        q.iter(app.world())
+            .find(|(ui_text, _, _)| ui_text.0 == id)
+            .map(|(_, layout, bounds)| (layout.clone(), *bounds))
     }
 
     #[test]
@@ -374,22 +489,16 @@ mod tests {
     #[test]
     fn text_only_fontstring_still_spawns_ui_text() {
         let mut app = make_test_app();
-        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
-        let id = ui.registry.create_frame("TextOnly", None);
-        let frame = ui.registry.get_mut(id).unwrap();
-        frame.width = Dimension::Fixed(120.0);
-        frame.height = Dimension::Fixed(20.0);
-        frame.layout_rect = Some(LayoutRect {
-            x: 10.0,
-            y: 10.0,
-            width: 120.0,
-            height: 20.0,
-        });
-        frame.widget_data = Some(WidgetData::FontString(FontStringData {
+        let id = insert_fontstring_frame(
+            &mut app,
+            "TextOnly",
+            120.0,
+            20.0,
+            FontStringData {
             text: "Hello".into(),
             ..Default::default()
-        }));
-        drop(ui);
+            },
+        );
 
         app.update();
 
@@ -397,5 +506,52 @@ mod tests {
             .world_mut()
             .query_filtered::<&UiText, Without<crate::render_text_fx::UiTextShadow>>();
         assert!(q.iter(app.world()).any(|t| t.0 == id));
+    }
+
+    #[test]
+    fn word_wrap_uses_word_boundary_and_frame_width() {
+        let mut app = make_test_app();
+        let id = insert_fontstring_frame(
+            &mut app,
+            "WrappedText",
+            52.0,
+            20.0,
+            FontStringData {
+                text: "Lightforged Draenei".into(),
+                word_wrap: true,
+                ..Default::default()
+            },
+        );
+
+        app.update();
+
+        let (layout, bounds) = wrapped_text_components(&mut app, id).expect("wrapped text");
+        assert_eq!(layout.justify, Justify::Center);
+        assert_eq!(layout.linebreak, LineBreak::WordBoundary);
+        assert_eq!(bounds.width, Some(52.0));
+        assert_eq!(bounds.height, Some(20.0));
+    }
+
+    #[test]
+    fn max_lines_caps_text_height() {
+        let mut app = make_test_app();
+        let id = insert_fontstring_frame(
+            &mut app,
+            "CappedText",
+            80.0,
+            40.0,
+            FontStringData {
+                text: "one two three four".into(),
+                font_size: 8.0,
+                word_wrap: true,
+                max_lines: Some(2),
+                ..Default::default()
+            },
+        );
+
+        app.update();
+
+        let (_, bounds) = wrapped_text_components(&mut app, id).expect("capped text");
+        assert_eq!(bounds.height, Some(19.2));
     }
 }

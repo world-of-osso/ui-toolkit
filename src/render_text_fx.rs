@@ -2,8 +2,8 @@
 
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
-use bevy::text::Font;
-use bevy::text::TextFont;
+use bevy::sprite::Anchor;
+use bevy::text::{Font, TextBounds, TextFont, TextLayout};
 use std::collections::{HashMap, HashSet};
 
 use crate::font_registry::FontRegistry;
@@ -31,9 +31,12 @@ pub fn sync_ui_text_shadows(
         Entity,
         &UiTextShadow,
         &mut Text2d,
+        &mut TextLayout,
+        &mut TextBounds,
         &mut TextFont,
         &mut TextColor,
         &mut Transform,
+        &mut Anchor,
     )>,
 ) {
     let screen_w = state.registry.screen_width;
@@ -45,21 +48,27 @@ pub fn sync_ui_text_shadows(
         .collect();
     let mut existing: HashSet<u64> = HashSet::new();
 
-    for (entity, shadow, mut text, mut font, mut color, mut transform) in shadows.iter_mut() {
+    for (entity, shadow, mut text, mut layout, mut bounds, mut font, mut color, mut transform, mut anchor) in
+        shadows.iter_mut()
+    {
         let Some(props) = extract_shadow(state.registry.get(shadow.0)) else {
             commands.entity(entity).despawn();
             continue;
         };
         existing.insert(shadow.0);
-        update_shadow_entity(
-            &props,
-            &mut text,
-            &mut font,
-            &mut color,
-            &mut font_assets,
-            &mut font_registry,
-        );
         if let Some(frame) = state.registry.get(shadow.0) {
+            update_shadow_entity(
+                frame,
+                &props,
+                &mut text,
+                &mut layout,
+                &mut bounds,
+                &mut font,
+                &mut color,
+                &mut font_assets,
+                &mut font_registry,
+            );
+            *anchor = super::render_text::text_anchor_for_frame(frame);
             if let Some(&sort_idx) = sort_map.get(&shadow.0) {
                 *transform = shadow_transform(frame, &props, screen_w, screen_h, sort_idx);
             }
@@ -103,12 +112,15 @@ fn spawn_missing_shadows(
         let font = font_registry.get(props.font, font_assets);
         commands.spawn((
             Text2d::new(props.content),
+            super::render_text::text_layout(frame),
+            super::render_text::text_bounds(frame),
             TextFont {
                 font,
                 font_size: props.font_size,
                 ..default()
             },
             TextColor(Color::srgba(r, g, b, a * frame.effective_alpha)),
+            super::render_text::text_anchor_for_frame(frame),
             transform,
             RenderLayers::layer(UI_RENDER_LAYER),
             UiText(frame.id),
@@ -151,14 +163,19 @@ fn extract_shadow(frame: Option<&crate::frame::Frame>) -> Option<ShadowProps> {
 }
 
 fn update_shadow_entity(
+    frame: &crate::frame::Frame,
     props: &ShadowProps,
     text: &mut Text2d,
+    layout: &mut TextLayout,
+    bounds: &mut TextBounds,
     font: &mut TextFont,
     color: &mut TextColor,
     font_assets: &mut Assets<Font>,
     font_registry: &mut FontRegistry,
 ) {
     *text = Text2d::new(&props.content);
+    *layout = super::render_text::text_layout(frame);
+    *bounds = super::render_text::text_bounds(frame);
     font.font_size = props.font_size;
     font.font = font_registry.get(props.font, font_assets);
     let [r, g, b, a] = props.shadow_color;
@@ -271,12 +288,15 @@ fn spawn_outlines(
         transform.translation.z = sort_idx as f32 * 0.001 + 0.0005;
         commands.spawn((
             Text2d::new(&fs.text),
+            super::render_text::text_layout(frame),
+            super::render_text::text_bounds(frame),
             TextFont {
                 font: font.clone(),
                 font_size: fs.font_size,
                 ..default()
             },
             TextColor(Color::srgba(0.0, 0.0, 0.0, alpha)),
+            super::render_text::text_anchor_for_frame(frame),
             transform,
             RenderLayers::layer(UI_RENDER_LAYER),
             UiText(frame.id),
