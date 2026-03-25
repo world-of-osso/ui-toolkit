@@ -10,6 +10,7 @@ use crate::registry::FrameRegistry;
 use crate::strata::{DrawLayer, FrameStrata};
 use crate::widgets::button::{ButtonData, ButtonState};
 use crate::widgets::font_string::{GameFont, JustifyH};
+use crate::widgets::slider::{FillStyle, Orientation};
 use crate::widgets::texture::TextureSource;
 
 fn parse_dimension(value: &str) -> Dimension {
@@ -36,6 +37,8 @@ pub(crate) fn tag_to_widget_type(tag: &str) -> Option<WidgetType> {
         "button" | "Button" => Some(WidgetType::Button),
         "editbox" | "EditBox" => Some(WidgetType::EditBox),
         "fontstring" | "FontString" => Some(WidgetType::FontString),
+        "slider" | "Slider" => Some(WidgetType::Slider),
+        "statusbar" | "StatusBar" => Some(WidgetType::StatusBar),
         "texture" | "Texture" => Some(WidgetType::Texture),
         _ => None,
     }
@@ -91,6 +94,9 @@ fn read_widget_text_attr(frame: &Frame, name: &str) -> Option<String> {
             Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.font_size)),
             _ => None,
         },
+        "value" => read_slider_numeric_attr(frame, |slider| slider.value, |sb| sb.value),
+        "min" => read_slider_numeric_attr(frame, |slider| slider.min, |sb| sb.min),
+        "max" => read_slider_numeric_attr(frame, |slider| slider.max, |sb| sb.max),
         "password" => match &frame.widget_data {
             Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.password)),
             _ => None,
@@ -106,8 +112,28 @@ fn read_widget_texture_attr(frame: &Frame, name: &str) -> Option<String> {
                 TextureSource::File(p) => Some(p.clone()),
                 _ => None,
             },
+            Some(WidgetData::Slider(slider)) => match &slider.thumb_texture {
+                Some(TextureSource::File(p)) => Some(p.clone()),
+                _ => None,
+            },
+            Some(WidgetData::StatusBar(sb)) => match &sb.texture {
+                Some(TextureSource::File(p)) => Some(p.clone()),
+                _ => None,
+            },
             _ => None,
         },
+        _ => None,
+    }
+}
+
+fn read_slider_numeric_attr(
+    frame: &Frame,
+    slider: impl FnOnce(&crate::widgets::slider::SliderData) -> f64,
+    statusbar: impl FnOnce(&crate::widgets::slider::StatusBarData) -> f64,
+) -> Option<String> {
+    match &frame.widget_data {
+        Some(WidgetData::Slider(data)) => Some(format!("{}", slider(data))),
+        Some(WidgetData::StatusBar(data)) => Some(format!("{}", statusbar(data))),
         _ => None,
     }
 }
@@ -136,6 +162,7 @@ pub(crate) fn apply_attribute(
     apply_flex_attr(frame, name, value);
     apply_frame_attr(frame, name, value);
     apply_widget_text_attrs(frame, name, value, validated_paths, missing_paths);
+    apply_slider_attrs(frame, name, value, validated_paths, missing_paths);
     apply_widget_texture_attrs(frame, name, value, validated_paths, missing_paths);
     None
 }
@@ -356,30 +383,9 @@ fn apply_widget_texture_attrs(
     missing_paths: &mut HashSet<String>,
 ) {
     match name {
-        "texture_file" => {
-            if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
-                check_path(validated_paths, missing_paths, "texture_file", value);
-                td.source = TextureSource::File(value.to_string());
-            }
-        }
-        "texture_fdid" => {
-            if let Ok(v) = value.parse::<f32>() {
-                if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
-                    let fdid = v as u32;
-                    let path = format!("data/textures/{fdid}.blp");
-                    check_path(validated_paths, missing_paths, "texture_fdid", &path);
-                    td.source = TextureSource::FileDataId(fdid);
-                }
-            }
-        }
-        "texture_atlas" => {
-            if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
-                if atlas::get_region(value).is_none() {
-                    eprintln!("[UI] texture_atlas not found: {value}");
-                }
-                td.source = TextureSource::Atlas(value.to_string());
-            }
-        }
+        "texture_file" => apply_texture_file(frame, value, validated_paths, missing_paths),
+        "texture_fdid" => apply_texture_fdid(frame, value, validated_paths, missing_paths),
+        "texture_atlas" => apply_texture_atlas(frame, value),
         "vertex_color" => {
             if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
                 if let Some(color) = parse_color(value) {
@@ -400,6 +406,129 @@ fn apply_widget_texture_attrs(
             apply_button_texture(frame, value, |bd, src| bd.disabled_texture = Some(src))
         }
         _ => {}
+    }
+}
+
+fn apply_texture_file(
+    frame: &mut Frame,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    check_path(validated_paths, missing_paths, "texture_file", value);
+    let source = TextureSource::File(value.to_string());
+    apply_texture_source(frame, source);
+}
+
+fn apply_texture_fdid(
+    frame: &mut Frame,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    let Ok(v) = value.parse::<f32>() else { return };
+    let fdid = v as u32;
+    let path = format!("data/textures/{fdid}.blp");
+    check_path(validated_paths, missing_paths, "texture_fdid", &path);
+    apply_texture_source(frame, TextureSource::FileDataId(fdid));
+}
+
+fn apply_texture_atlas(frame: &mut Frame, value: &str) {
+    if atlas::get_region(value).is_none() {
+        eprintln!("[UI] texture_atlas not found: {value}");
+    }
+    apply_texture_source(frame, TextureSource::Atlas(value.to_string()));
+}
+
+fn apply_texture_source(frame: &mut Frame, source: TextureSource) {
+    match &mut frame.widget_data {
+        Some(WidgetData::Texture(td)) => td.source = source,
+        Some(WidgetData::Slider(slider)) => slider.thumb_texture = Some(source),
+        Some(WidgetData::StatusBar(sb)) => sb.texture = Some(source),
+        _ => {}
+    }
+}
+
+fn apply_slider_attrs(
+    frame: &mut Frame,
+    name: &str,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    match name {
+        "value" => apply_slider_numeric_attr(frame, value, |slider, v| slider.value = v, |sb, v| sb.value = v),
+        "min" => apply_slider_numeric_attr(frame, value, |slider, v| slider.min = v, |sb, v| sb.min = v),
+        "max" => apply_slider_numeric_attr(frame, value, |slider, v| slider.max = v, |sb, v| sb.max = v),
+        "orientation" => apply_orientation_attr(frame, value),
+        "thumb_texture" => apply_thumb_texture(frame, value, validated_paths, missing_paths),
+        "statusbar_color" => apply_statusbar_color(frame, value),
+        "fill_style" => apply_fill_style(frame, value),
+        "reverse_fill" => apply_reverse_fill(frame, value),
+        _ => {}
+    }
+}
+
+fn apply_slider_numeric_attr(
+    frame: &mut Frame,
+    value: &str,
+    slider_apply: impl FnOnce(&mut crate::widgets::slider::SliderData, f64),
+    statusbar_apply: impl FnOnce(&mut crate::widgets::slider::StatusBarData, f64),
+) {
+    let Ok(v) = value.parse::<f64>() else { return };
+    match &mut frame.widget_data {
+        Some(WidgetData::Slider(slider)) => slider_apply(slider, v),
+        Some(WidgetData::StatusBar(sb)) => statusbar_apply(sb, v),
+        _ => {}
+    }
+}
+
+fn apply_orientation_attr(frame: &mut Frame, value: &str) {
+    let orientation = match value {
+        "vertical" | "VERTICAL" | "Vertical" => Some(Orientation::Vertical),
+        "horizontal" | "HORIZONTAL" | "Horizontal" => Some(Orientation::Horizontal),
+        _ => None,
+    };
+    let Some(orientation) = orientation else { return };
+    match &mut frame.widget_data {
+        Some(WidgetData::Slider(slider)) => slider.orientation = orientation,
+        Some(WidgetData::StatusBar(sb)) => sb.orientation = orientation,
+        _ => {}
+    }
+}
+
+fn apply_thumb_texture(
+    frame: &mut Frame,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    check_path(validated_paths, missing_paths, "thumb_texture", value);
+    if let Some(WidgetData::Slider(slider)) = &mut frame.widget_data {
+        slider.thumb_texture = Some(TextureSource::File(value.to_string()));
+    }
+}
+
+fn apply_statusbar_color(frame: &mut Frame, value: &str) {
+    if let Some(color) = parse_color(value)
+        && let Some(WidgetData::StatusBar(sb)) = &mut frame.widget_data
+    {
+        sb.color = color;
+    }
+}
+
+fn apply_fill_style(frame: &mut Frame, value: &str) {
+    if let Some(WidgetData::StatusBar(sb)) = &mut frame.widget_data {
+        sb.fill_style = match value {
+            "center" | "CENTER" | "Center" => FillStyle::Center,
+            _ => FillStyle::Standard,
+        };
+    }
+}
+
+fn apply_reverse_fill(frame: &mut Frame, value: &str) {
+    if let Some(WidgetData::StatusBar(sb)) = &mut frame.widget_data {
+        set_bool(&mut sb.reverse_fill, value);
     }
 }
 

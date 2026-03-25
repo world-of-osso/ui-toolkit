@@ -1,3 +1,5 @@
+extern crate self as ui_toolkit;
+
 pub mod anchor;
 pub mod anchor_resolve;
 pub mod animation;

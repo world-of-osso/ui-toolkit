@@ -350,7 +350,15 @@ fn frame_visual(
     missing_file_textures: &mut HashSet<String>,
     blp_loader: Option<&BlpLoaderRes>,
 ) -> (Color, Handle<Image>, Option<Rect>) {
-    if let Some(v) = statusbar_visual(frame) {
+    if let Some(v) = statusbar_visual(
+        frame,
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    ) {
         return v;
     }
     if let Some(WidgetData::Button(btn)) = &frame.widget_data {
@@ -381,11 +389,35 @@ fn frame_visual(
     (frame_color(frame), Handle::default(), None)
 }
 
-fn statusbar_visual(frame: &crate::frame::Frame) -> Option<(Color, Handle<Image>, Option<Rect>)> {
+fn statusbar_visual(
+    frame: &crate::frame::Frame,
+    images: &mut Option<ResMut<Assets<Image>>>,
+    texture_cache: &mut HashMap<u32, Handle<Image>>,
+    file_texture_cache: &mut HashMap<String, Handle<Image>>,
+    missing_textures: &mut HashSet<u32>,
+    missing_file_textures: &mut HashSet<String>,
+    blp_loader: Option<&BlpLoaderRes>,
+) -> Option<(Color, Handle<Image>, Option<Rect>)> {
     let WidgetData::StatusBar(sb) = frame.widget_data.as_ref()? else {
         return None;
     };
     let [r, g, b, a] = sb.color;
+    if let Some(source) = &sb.texture {
+        return Some((
+            Color::srgba(r, g, b, a * frame.effective_alpha),
+            load_texture_source(
+                source,
+                images,
+                texture_cache,
+                file_texture_cache,
+                missing_textures,
+                missing_file_textures,
+                blp_loader,
+            )?
+            .handle,
+            None,
+        ));
+    }
     Some((
         Color::srgba(r, g, b, a * frame.effective_alpha),
         Handle::default(),

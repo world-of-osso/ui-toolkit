@@ -6,6 +6,7 @@ use crate::widget_def::{WidgetChild, WidgetDef};
 use crate::widgets::button::ButtonData;
 use crate::widgets::edit_box::EditBoxData;
 use crate::widgets::font_string::FontStringData;
+use crate::widgets::slider::{SliderData, StatusBarData};
 use crate::widgets::texture::TextureData;
 
 pub struct DiffContext {
@@ -285,6 +286,8 @@ fn default_widget_data(widget_type: WidgetType) -> Option<WidgetData> {
         WidgetType::Button => Some(WidgetData::Button(ButtonData::default())),
         WidgetType::EditBox => Some(WidgetData::EditBox(EditBoxData::default())),
         WidgetType::FontString => Some(WidgetData::FontString(FontStringData::default())),
+        WidgetType::Slider => Some(WidgetData::Slider(SliderData::default())),
+        WidgetType::StatusBar => Some(WidgetData::StatusBar(StatusBarData::default())),
         WidgetType::Texture => Some(WidgetData::Texture(TextureData::default())),
         _ => None,
     }

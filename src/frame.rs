@@ -4,7 +4,7 @@ use crate::strata::{DrawLayer, FrameStrata};
 use crate::widgets::button::ButtonData;
 use crate::widgets::edit_box::EditBoxData;
 use crate::widgets::font_string::FontStringData;
-use crate::widgets::slider::StatusBarData;
+use crate::widgets::slider::{SliderData, StatusBarData};
 use crate::widgets::texture::{TextureData, TextureSource};
 
 /// Per-widget-type data attached to a frame.
@@ -14,6 +14,7 @@ pub enum WidgetData {
     EditBox(EditBoxData),
     Button(ButtonData),
     Texture(TextureData),
+    Slider(SliderData),
     StatusBar(StatusBarData),
 }
 
