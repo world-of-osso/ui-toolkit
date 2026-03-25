@@ -414,10 +414,7 @@ mod tests {
         id
     }
 
-    fn wrapped_text_components(
-        app: &mut App,
-        id: u64,
-    ) -> Option<(TextLayout, TextBounds)> {
+    fn wrapped_text_components(app: &mut App, id: u64) -> Option<(TextLayout, TextBounds)> {
         let mut q = app
             .world_mut()
             .query_filtered::<(&UiText, &TextLayout, &TextBounds), Without<UiTextShadow>>();
@@ -495,8 +492,8 @@ mod tests {
             120.0,
             20.0,
             FontStringData {
-            text: "Hello".into(),
-            ..Default::default()
+                text: "Hello".into(),
+                ..Default::default()
             },
         );
 

@@ -22,7 +22,11 @@ const DEFAULT_BUTTON_HIGHLIGHT: &str = "defaultbutton-nineslice-highlight";
 const DEFAULT_BUTTON_PRESSED: &str = "defaultbutton-nineslice-pressed";
 const DEFAULT_BUTTON_DISABLED: &str = "defaultbutton-nineslice-disabled";
 
-fn button_nine_slice_metrics(tex: &TextureSource, frame_w: f32, frame_h: f32) -> ([f32; 4], [f32; 4]) {
+fn button_nine_slice_metrics(
+    tex: &TextureSource,
+    frame_w: f32,
+    frame_h: f32,
+) -> ([f32; 4], [f32; 4]) {
     let TextureSource::Atlas(name) = tex else {
         let e = BUTTON_NINE_SLICE_EDGE;
         return ([e, e, e, e], [e, e, e, e]);

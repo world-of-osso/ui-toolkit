@@ -36,10 +36,8 @@ fn update_hover(ui: &mut UiState, cursor: Option<(f32, f32)>) {
         .collect();
     for id in button_ids {
         let hovered = topmost == Some(id);
-        if let Some(WidgetData::Button(bd)) = ui
-            .registry
-            .get_mut(id)
-            .and_then(|f| f.widget_data.as_mut())
+        if let Some(WidgetData::Button(bd)) =
+            ui.registry.get_mut(id).and_then(|f| f.widget_data.as_mut())
         {
             bd.hovered = hovered;
         }
@@ -73,11 +71,7 @@ fn update_pressed(ui: &mut UiState, mouse: &ButtonInput<MouseButton>, cursor: Op
     }
 }
 
-fn set_button_state(
-    registry: &mut crate::registry::FrameRegistry,
-    id: u64,
-    state: ButtonState,
-) {
+fn set_button_state(registry: &mut crate::registry::FrameRegistry, id: u64, state: ButtonState) {
     if let Some(WidgetData::Button(bd)) = registry.get_mut(id).and_then(|f| f.widget_data.as_mut())
     {
         if bd.state != ButtonState::Disabled {
@@ -102,7 +96,12 @@ mod tests {
         f.height = Dimension::Fixed(40.0);
         f.mouse_enabled = true;
         f.widget_data = Some(WidgetData::Button(ButtonData::default()));
-        f.layout_rect = Some(LayoutRect { x, y, width: 100.0, height: 40.0 });
+        f.layout_rect = Some(LayoutRect {
+            x,
+            y,
+            width: 100.0,
+            height: 40.0,
+        });
         id
     }
 

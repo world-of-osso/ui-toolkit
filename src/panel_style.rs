@@ -63,11 +63,14 @@ mod tests {
     #[test]
     fn register_and_apply_panel_style() {
         let mut reg = FrameRegistry::new(1920.0, 1080.0);
-        reg.register_panel_style("gold", NineSlice {
-            edge_size: 12.0,
-            texture: Some(TextureSource::File("panel.png".to_string())),
-            ..Default::default()
-        });
+        reg.register_panel_style(
+            "gold",
+            NineSlice {
+                edge_size: 12.0,
+                texture: Some(TextureSource::File("panel.png".to_string())),
+                ..Default::default()
+            },
+        );
         let id = reg.create_frame("TestPanel", None);
         reg.apply_panel_style(id, "gold");
         let frame = reg.get(id).unwrap();
@@ -81,7 +84,10 @@ mod tests {
         let id = reg.create_frame("TestPanel", None);
         reg.apply_default_panel_style(id);
         let frame = reg.get(id).unwrap();
-        assert!(frame.nine_slice.is_none(), "no nine_slice until style is registered");
+        assert!(
+            frame.nine_slice.is_none(),
+            "no nine_slice until style is registered"
+        );
         assert_eq!(frame.panel_style.as_deref(), Some("default"));
     }
 

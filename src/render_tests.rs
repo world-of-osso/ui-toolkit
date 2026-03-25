@@ -232,7 +232,10 @@ fn nested_texture_inside_button_creates_child_frame_and_quad() {
         Attr::new_static("height", "42".into()),
         Attr::new_static("text", "".into()),
         Attr::new_static("button_atlas_up", "defaultbutton-nineslice-up".into()),
-        Attr::new_static("button_atlas_pressed", "defaultbutton-nineslice-pressed".into()),
+        Attr::new_static(
+            "button_atlas_pressed",
+            "defaultbutton-nineslice-pressed".into(),
+        ),
         Attr::new_static(
             "button_atlas_highlight",
             "defaultbutton-nineslice-highlight".into(),
@@ -433,7 +436,10 @@ fn nested_texture_quad_renders_above_button_nine_slice_even_with_visible_text() 
         Attr::new_static("height", "42".into()),
         Attr::new_static("text", "".into()),
         Attr::new_static("button_atlas_up", "defaultbutton-nineslice-up".into()),
-        Attr::new_static("button_atlas_pressed", "defaultbutton-nineslice-pressed".into()),
+        Attr::new_static(
+            "button_atlas_pressed",
+            "defaultbutton-nineslice-pressed".into(),
+        ),
         Attr::new_static(
             "button_atlas_highlight",
             "defaultbutton-nineslice-highlight".into(),
@@ -502,10 +508,16 @@ fn create_dynamic_texture(app: &mut App, name: &str, handle: Handle<Image>) -> u
 #[test]
 fn dynamic_texture_spawns_quad() {
     let mut app = setup_app();
-    let handle = app.world_mut().resource_mut::<Assets<Image>>().add(Image::default());
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::default());
     let id = create_dynamic_texture(&mut app, "DynTex", handle);
     app.update();
-    assert!(quad_z(app.world_mut(), id).is_some(), "Dynamic texture should spawn a UiQuad");
+    assert!(
+        quad_z(app.world_mut(), id).is_some(),
+        "Dynamic texture should spawn a UiQuad"
+    );
 }
 
 fn quad_rotation_z(world: &mut World, frame_id: u64) -> Option<f32> {
@@ -519,7 +531,10 @@ fn quad_rotation_z(world: &mut World, frame_id: u64) -> Option<f32> {
 #[test]
 fn texture_rotation_applies_to_transform() {
     let mut app = setup_app();
-    let handle = app.world_mut().resource_mut::<Assets<Image>>().add(Image::default());
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::default());
     let id = create_dynamic_texture(&mut app, "RotTex", handle);
     {
         let mut ui = app.world_mut().resource_mut::<UiState>();
@@ -530,15 +545,24 @@ fn texture_rotation_applies_to_transform() {
     }
     app.update();
     let rot = quad_rotation_z(app.world_mut(), id).expect("quad should exist");
-    assert!((rot - std::f32::consts::FRAC_PI_4).abs() < 0.01, "rotation should be pi/4, got {rot}");
+    assert!(
+        (rot - std::f32::consts::FRAC_PI_4).abs() < 0.01,
+        "rotation should be pi/4, got {rot}"
+    );
 }
 
 #[test]
 fn texture_zero_rotation_no_transform_rotation() {
     let mut app = setup_app();
-    let handle = app.world_mut().resource_mut::<Assets<Image>>().add(Image::default());
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::default());
     let id = create_dynamic_texture(&mut app, "NoRot", handle);
     app.update();
     let rot = quad_rotation_z(app.world_mut(), id).expect("quad should exist");
-    assert!(rot.abs() < 0.001, "zero rotation should produce no Z rotation, got {rot}");
+    assert!(
+        rot.abs() < 0.001,
+        "zero rotation should produce no Z rotation, got {rot}"
+    );
 }

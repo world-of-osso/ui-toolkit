@@ -568,7 +568,12 @@ fn column_flex_auto_height() {
     let root = reg.get_mut(root_id).unwrap();
     root.width = Dimension::Fixed(200.0);
     root.height = Dimension::Fixed(0.0); // auto-height
-    root.layout_rect = Some(LayoutRect { x: 100.0, y: 50.0, width: 200.0, height: 0.0 });
+    root.layout_rect = Some(LayoutRect {
+        x: 100.0,
+        y: 50.0,
+        width: 200.0,
+        height: 0.0,
+    });
     root.flex_layout = Some(FlexLayout {
         direction: FlexDirection::Column,
         gap: 10.0,
@@ -606,7 +611,12 @@ fn auto_height_center_anchor_settles_in_one_pass() {
     let screen = reg.get_mut(screen_id).unwrap();
     screen.width = Dimension::Fixed(800.0);
     screen.height = Dimension::Fixed(600.0);
-    screen.layout_rect = Some(LayoutRect { x: 0.0, y: 0.0, width: 800.0, height: 600.0 });
+    screen.layout_rect = Some(LayoutRect {
+        x: 0.0,
+        y: 0.0,
+        width: 800.0,
+        height: 600.0,
+    });
 
     // Auto-height panel centered in screen
     let panel_id = reg.create_frame("Panel", Some(screen_id));

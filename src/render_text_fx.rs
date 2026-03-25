@@ -48,8 +48,17 @@ pub fn sync_ui_text_shadows(
         .collect();
     let mut existing: HashSet<u64> = HashSet::new();
 
-    for (entity, shadow, mut text, mut layout, mut bounds, mut font, mut color, mut transform, mut anchor) in
-        shadows.iter_mut()
+    for (
+        entity,
+        shadow,
+        mut text,
+        mut layout,
+        mut bounds,
+        mut font,
+        mut color,
+        mut transform,
+        mut anchor,
+    ) in shadows.iter_mut()
     {
         let Some(props) = extract_shadow(state.registry.get(shadow.0)) else {
             commands.entity(entity).despawn();
