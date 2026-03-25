@@ -80,6 +80,7 @@ pub(crate) fn apply_anchor_resolved(registry: &mut FrameRegistry, frame_id: u64,
     if let Some(frame) = registry.get_mut(frame_id) {
         frame.anchors.push(anchor);
     }
+    registry.rect_dirty.insert(frame_id);
 }
 
 pub(crate) fn apply_anchor_from_def(

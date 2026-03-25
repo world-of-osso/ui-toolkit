@@ -298,9 +298,21 @@ mod tests {
     use super::*;
     use crate::frame::Dimension;
     use crate::widget_def::*;
+    use crate::widgets::texture::TextureSource;
 
     fn make_registry() -> FrameRegistry {
         FrameRegistry::new(1024.0, 768.0)
+    }
+
+    fn slider_def(name: &str, thumb_texture: &str) -> WidgetChild {
+        WidgetChild::Widget(WidgetDef {
+            tag: "Slider",
+            tag_owned: None,
+            name: Some(name.to_string()),
+            attrs: vec![Attr::new_static("thumb_texture", thumb_texture.to_string())],
+            anchors: vec![],
+            children: vec![],
+        })
     }
 
     #[test]
@@ -361,6 +373,32 @@ mod tests {
         // Same frame ID, updated width
         assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(200.0));
         assert_eq!(ctx.created_frames.len(), 1); // no new frames
+    }
+
+    #[test]
+    fn patch_by_name_can_clear_slider_thumb_texture() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        ctx.diff_roots(
+            &[slider_def("MySlider", "data/textures/ui/old_thumb.png")],
+            None,
+            &mut reg,
+        );
+
+        let fid = reg.get_by_name("MySlider").expect("slider frame");
+        let before = reg.get(fid).expect("slider frame");
+        let Some(WidgetData::Slider(slider)) = &before.widget_data else {
+            panic!("expected slider widget data");
+        };
+        assert!(matches!(slider.thumb_texture, Some(TextureSource::File(_))));
+
+        ctx.patch_by_name(&[slider_def("MySlider", "none")], &mut reg);
+
+        let after = reg.get(fid).expect("slider frame");
+        let Some(WidgetData::Slider(slider)) = &after.widget_data else {
+            panic!("expected slider widget data");
+        };
+        assert!(slider.thumb_texture.is_none());
     }
 
     #[test]

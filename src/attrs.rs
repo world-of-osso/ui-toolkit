@@ -178,7 +178,9 @@ fn apply_registry_attr(
         "name" => registry.set_name(frame_id, value.to_string()),
         "hidden" => set_bool_via(value, |v| registry.set_hidden(frame_id, v)),
         "alpha" => {
-            if let Ok(v) = value.parse::<f32>() { registry.set_alpha(frame_id, v); }
+            if let Ok(v) = value.parse::<f32>() {
+                registry.set_alpha(frame_id, v);
+            }
         }
         "disabled" => apply_disabled_attr(registry, frame_id, value),
         _ => return false,
@@ -226,10 +228,22 @@ fn apply_flex_attr(frame: &mut Frame, name: &str, value: &str) {
                 _ => FlexDirection::Column,
             };
         }
-        "gap" => { if let Ok(v) = value.parse::<f32>() { flex!(frame).gap = v; } }
-        "justify" => { flex!(frame).justify = parse_flex_justify(value); }
-        "align" => { flex!(frame).align = parse_flex_align(value); }
-        "padding" => { if let Ok(v) = value.parse::<f32>() { flex!(frame).padding = v; } }
+        "gap" => {
+            if let Ok(v) = value.parse::<f32>() {
+                flex!(frame).gap = v;
+            }
+        }
+        "justify" => {
+            flex!(frame).justify = parse_flex_justify(value);
+        }
+        "align" => {
+            flex!(frame).align = parse_flex_align(value);
+        }
+        "padding" => {
+            if let Ok(v) = value.parse::<f32>() {
+                flex!(frame).padding = v;
+            }
+        }
         _ => {}
     }
 }
@@ -259,13 +273,17 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "mouse_enabled" => set_bool(&mut frame.mouse_enabled, value),
         "movable" => set_bool(&mut frame.movable, value),
         "frame_level" => {
-            if let Ok(v) = value.parse::<f32>() { frame.frame_level = v as i32; }
+            if let Ok(v) = value.parse::<f32>() {
+                frame.frame_level = v as i32;
+            }
         }
         "strata" => frame.strata = FrameStrata::from_str(value).unwrap_or_default(),
         "draw_layer" => frame.draw_layer = DrawLayer::from_str(value).unwrap_or_default(),
         "background_color" => frame.background_color = parse_color(value),
         "nine_slice" => {
-            if let Some(ns) = parse_nine_slice(value) { frame.nine_slice = Some(ns); }
+            if let Some(ns) = parse_nine_slice(value) {
+                frame.nine_slice = Some(ns);
+            }
         }
         "border" => frame.border = parse_border(value),
         "onclick" => {
@@ -457,9 +475,18 @@ fn apply_slider_attrs(
     missing_paths: &mut HashSet<String>,
 ) {
     match name {
-        "value" => apply_slider_numeric_attr(frame, value, |slider, v| slider.value = v, |sb, v| sb.value = v),
-        "min" => apply_slider_numeric_attr(frame, value, |slider, v| slider.min = v, |sb, v| sb.min = v),
-        "max" => apply_slider_numeric_attr(frame, value, |slider, v| slider.max = v, |sb, v| sb.max = v),
+        "value" => apply_slider_numeric_attr(
+            frame,
+            value,
+            |slider, v| slider.value = v,
+            |sb, v| sb.value = v,
+        ),
+        "min" => {
+            apply_slider_numeric_attr(frame, value, |slider, v| slider.min = v, |sb, v| sb.min = v)
+        }
+        "max" => {
+            apply_slider_numeric_attr(frame, value, |slider, v| slider.max = v, |sb, v| sb.max = v)
+        }
         "orientation" => apply_orientation_attr(frame, value),
         "thumb_texture" => apply_thumb_texture(frame, value, validated_paths, missing_paths),
         "statusbar_color" => apply_statusbar_color(frame, value),
@@ -489,7 +516,9 @@ fn apply_orientation_attr(frame: &mut Frame, value: &str) {
         "horizontal" | "HORIZONTAL" | "Horizontal" => Some(Orientation::Horizontal),
         _ => None,
     };
-    let Some(orientation) = orientation else { return };
+    let Some(orientation) = orientation else {
+        return;
+    };
     match &mut frame.widget_data {
         Some(WidgetData::Slider(slider)) => slider.orientation = orientation,
         Some(WidgetData::StatusBar(sb)) => sb.orientation = orientation,
@@ -503,6 +532,12 @@ fn apply_thumb_texture(
     validated_paths: &mut HashSet<String>,
     missing_paths: &mut HashSet<String>,
 ) {
+    if value.is_empty() || value.eq_ignore_ascii_case("none") {
+        if let Some(WidgetData::Slider(slider)) = &mut frame.widget_data {
+            slider.thumb_texture = None;
+        }
+        return;
+    }
     check_path(validated_paths, missing_paths, "thumb_texture", value);
     if let Some(WidgetData::Slider(slider)) = &mut frame.widget_data {
         slider.thumb_texture = Some(TextureSource::File(value.to_string()));
