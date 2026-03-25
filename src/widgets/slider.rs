@@ -97,26 +97,27 @@ pub struct SliderWidget<'a> {
     pub x: &'a str,
 }
 
-const DEFAULT_HORIZONTAL_THUMB_TEXTURE: &str = "data/ui/sliderbar-button-horizontal.png";
-const DECORATED_TRACK_BACKGROUND_TEXTURE: &str = "data/ui/sliderbar-background.png";
-const DECORATED_TRACK_POST_TEXTURE: &str = "data/ui/sliderbar-post.png";
-const DECORATED_TRACK_RIGHT_ORNAMENT_TEXTURE: &str = "data/ui/sliderbar-ornament-right.png";
-const DECORATED_TRACK_LEFT_WIDTH: f32 = 16.0;
-const DECORATED_TRACK_RIGHT_WIDTH: f32 = 32.0;
-const THUMB_FRAME_COLOR: &str = "0.08,0.06,0.03,0.82";
-const THUMB_PLATE_COLOR: &str = "0.40,0.30,0.12,0.20";
-const THUMB_HIGHLIGHT_COLOR: &str = "1.0,0.95,0.84,0.20";
-const THUMB_GRIP_COLOR: &str = "0.20,0.14,0.04,0.20";
+const DEFAULT_HORIZONTAL_HANDLE_TEXTURE: &str = "data/ui/sliderbar-handle.png";
+const TRACK_LEFT: &str = "data/ui/sliderbar-track-left.png";
+const TRACK_CENTER: &str = "data/ui/sliderbar-track-center.png";
+const TRACK_RIGHT: &str = "data/ui/sliderbar-track-right.png";
+const FILL_LEFT: &str = "data/ui/sliderbar-track-filled-left.png";
+const FILL_CENTER: &str = "data/ui/sliderbar-track-filled-center.png";
+const CAP_WIDTH: f32 = 8.0;
 
 pub fn slider_widget(spec: SliderWidget<'_>) -> Element {
     let pct = normalize(spec.value, spec.min, spec.max).clamp(0.0, 1.0);
-    let thumb_x = ((spec.width - spec.thumb_width) * pct).to_string();
+    let thumb_x_val = (spec.width - spec.thumb_width) * pct;
+    let thumb_x = thumb_x_val.to_string();
     let track_name = DynName(format!("{}Track", spec.name));
     let thumb_texture = spec
         .thumb_texture
-        .unwrap_or(DEFAULT_HORIZONTAL_THUMB_TEXTURE);
-    let center_width =
-        (spec.width - DECORATED_TRACK_LEFT_WIDTH - DECORATED_TRACK_RIGHT_WIDTH).max(0.0);
+        .unwrap_or(DEFAULT_HORIZONTAL_HANDLE_TEXTURE);
+    let track_center_w = (spec.width - CAP_WIDTH * 2.0).max(0.0);
+    let track_center_x = CAP_WIDTH.to_string();
+    let fill_center_w = (thumb_x_val + spec.thumb_width * 0.5 - CAP_WIDTH).max(0.0);
+    let fill_center_x = CAP_WIDTH.to_string();
+    let show_fill = pct > 0.001;
     rsx! {
         slider {
             name: {DynName(spec.name.to_string())},
@@ -137,109 +138,93 @@ pub fn slider_widget(spec: SliderWidget<'_>) -> Element {
                 name: {&track_name},
                 width: {spec.width},
                 height: {spec.track_height},
-                background_color: spec.track_color,
                 anchor {
                     point: AnchorPoint::Center,
                     relative_point: AnchorPoint::Center,
                 }
+                // Empty track: left cap + center + right cap
                 texture {
-                    name: {DynName(format!("{}TrackLeft", spec.name))},
-                    width: DECORATED_TRACK_LEFT_WIDTH,
+                    name: {DynName(format!("{}TrackL", spec.name))},
+                    width: CAP_WIDTH,
                     height: {spec.track_height},
-                    texture_file: DECORATED_TRACK_POST_TEXTURE,
+                    texture_file: TRACK_LEFT,
                     anchor {
                         point: AnchorPoint::Left,
                         relative_point: AnchorPoint::Left,
                     }
                 }
                 texture {
-                    name: {DynName(format!("{}TrackCenter", spec.name))},
-                    width: {center_width},
+                    name: {DynName(format!("{}TrackC", spec.name))},
+                    width: {track_center_w},
                     height: {spec.track_height},
-                    texture_file: DECORATED_TRACK_BACKGROUND_TEXTURE,
+                    texture_file: TRACK_CENTER,
                     anchor {
                         point: AnchorPoint::Left,
                         relative_point: AnchorPoint::Left,
-                        x: {DECORATED_TRACK_LEFT_WIDTH.to_string()},
+                        x: {track_center_x},
                     }
                 }
                 texture {
-                    name: {DynName(format!("{}TrackRightOrnament", spec.name))},
-                    width: DECORATED_TRACK_RIGHT_WIDTH,
+                    name: {DynName(format!("{}TrackR", spec.name))},
+                    width: CAP_WIDTH,
                     height: {spec.track_height},
-                    texture_file: DECORATED_TRACK_RIGHT_ORNAMENT_TEXTURE,
+                    texture_file: TRACK_RIGHT,
                     anchor {
                         point: AnchorPoint::Right,
                         relative_point: AnchorPoint::Right,
                     }
                 }
-            }
-            statusbar {
-                name: {DynName(format!("{}Fill", spec.name))},
-                width: {spec.width},
-                height: {spec.track_height},
-                value: {pct},
-                min: 0.0,
-                max: 1.0,
-                statusbar_color: spec.fill_color,
-                anchor {
-                    point: AnchorPoint::Left,
-                    relative_to: {&track_name},
-                    relative_point: AnchorPoint::Left,
-                }
-            }
-            r#frame {
-                name: {DynName(format!("{}ThumbFrame", spec.name))},
-                width: {spec.thumb_width},
-                height: {spec.thumb_height},
-                background_color: THUMB_FRAME_COLOR,
-                anchor {
-                    point: AnchorPoint::Left,
-                    relative_to: {&track_name},
-                    relative_point: AnchorPoint::Left,
-                    x: {thumb_x},
-                }
-                r#frame {
-                    name: {DynName(format!("{}ThumbPlate", spec.name))},
-                    width: {spec.thumb_width - 4.0},
-                    height: {spec.thumb_height - 4.0},
-                    background_color: THUMB_PLATE_COLOR,
+                // Filled track: left cap + center (no right cap — ends at handle)
+                {fill_left_cap(spec.name, spec.track_height, show_fill)}
+                {fill_center(spec.name, fill_center_w, spec.track_height, &fill_center_x, show_fill)}
+                texture {
+                    name: {DynName(format!("{}Handle", spec.name))},
+                    width: {spec.thumb_width},
+                    height: {spec.thumb_height},
+                    texture_file: thumb_texture,
                     anchor {
-                        point: AnchorPoint::Center,
-                        relative_point: AnchorPoint::Center,
-                    }
-                    texture {
-                        name: {DynName(format!("{}ThumbTexture", spec.name))},
-                        width: {spec.thumb_width - 2.0},
-                        height: {spec.thumb_height - 2.0},
-                        texture_file: thumb_texture,
-                        anchor {
-                            point: AnchorPoint::Center,
-                            relative_point: AnchorPoint::Center,
-                        }
-                    }
-                    r#frame {
-                        name: {DynName(format!("{}ThumbHighlight", spec.name))},
-                        width: {spec.thumb_width - 8.0},
-                        height: 2.0,
-                        background_color: THUMB_HIGHLIGHT_COLOR,
-                        anchor {
-                            point: AnchorPoint::Top,
-                            relative_point: AnchorPoint::Top,
-                            y: "2",
-                        }
-                    }
-                    r#frame {
-                        name: {DynName(format!("{}ThumbGrip", spec.name))},
-                        width: 3.0,
-                        height: {spec.thumb_height - 10.0},
-                        background_color: THUMB_GRIP_COLOR,
-                        anchor {
-                            point: AnchorPoint::Center,
-                            relative_point: AnchorPoint::Center,
-                        }
+                        point: AnchorPoint::Left,
+                        relative_point: AnchorPoint::Left,
+                        x: {thumb_x},
                     }
                 }
+            }
+        }
+    }
+}
+
+fn fill_left_cap(name: &str, height: f32, show: bool) -> Element {
+    if !show {
+        return vec![];
+    }
+    rsx! {
+        texture {
+            name: {DynName(format!("{name}FillL"))},
+            width: CAP_WIDTH,
+            height: {height},
+            texture_file: FILL_LEFT,
+            anchor {
+                point: AnchorPoint::Left,
+                relative_point: AnchorPoint::Left,
+            }
+        }
+    }
+}
+
+fn fill_center(name: &str, width: f32, height: f32, x: &str, show: bool) -> Element {
+    if !show || width <= 0.0 {
+        return vec![];
+    }
+    rsx! {
+        texture {
+            name: {DynName(format!("{name}FillC"))},
+            width: {width},
+            height: {height},
+            texture_file: FILL_CENTER,
+            anchor {
+                point: AnchorPoint::Left,
+                relative_point: AnchorPoint::Left,
+                x: {x},
             }
         }
     }
@@ -339,7 +324,7 @@ mod tests {
                 .iter()
                 .find(|attr| attr.effective_name() == "thumb_texture")
                 .map(|attr| attr.value_str()),
-            Some(DEFAULT_HORIZONTAL_THUMB_TEXTURE)
+            Some(DEFAULT_HORIZONTAL_HANDLE_TEXTURE)
         );
     }
 }
