@@ -97,12 +97,12 @@ pub struct SliderWidget<'a> {
     pub x: &'a str,
 }
 
-const DEFAULT_HORIZONTAL_HANDLE_TEXTURE: &str = "data/ui/sliderbar-handle.png";
-const TRACK_LEFT: &str = "data/ui/sliderbar-track-left.png";
-const TRACK_CENTER: &str = "data/ui/sliderbar-track-center.png";
-const TRACK_RIGHT: &str = "data/ui/sliderbar-track-right.png";
-const FILL_LEFT: &str = "data/ui/sliderbar-track-filled-left.png";
-const FILL_CENTER: &str = "data/ui/sliderbar-track-filled-center.png";
+const DEFAULT_HORIZONTAL_HANDLE_TEXTURE: &str = "data/ui/sliderbar-handle.ktx2";
+const TRACK_LEFT: &str = "data/ui/sliderbar-track-left.ktx2";
+const TRACK_CENTER: &str = "data/ui/sliderbar-track-center.ktx2";
+const TRACK_RIGHT: &str = "data/ui/sliderbar-track-right.ktx2";
+const FILL_LEFT: &str = "data/ui/sliderbar-track-filled-left.ktx2";
+const FILL_CENTER: &str = "data/ui/sliderbar-track-filled-center.ktx2";
 const CAP_WIDTH: f32 = 8.0;
 const FILL_BORDER: f32 = 2.0;
 
