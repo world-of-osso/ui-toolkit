@@ -104,6 +104,7 @@ const TRACK_RIGHT: &str = "data/ui/sliderbar-track-right.png";
 const FILL_LEFT: &str = "data/ui/sliderbar-track-filled-left.png";
 const FILL_CENTER: &str = "data/ui/sliderbar-track-filled-center.png";
 const CAP_WIDTH: f32 = 8.0;
+const FILL_BORDER: f32 = 2.0;
 
 pub fn slider_widget(spec: SliderWidget<'_>) -> Element {
     let pct = normalize(spec.value, spec.min, spec.max).clamp(0.0, 1.0);
@@ -117,6 +118,7 @@ pub fn slider_widget(spec: SliderWidget<'_>) -> Element {
     let track_center_x = CAP_WIDTH.to_string();
     let fill_center_w = (thumb_x_val + spec.thumb_width * 0.5 - CAP_WIDTH).max(0.0);
     let fill_center_x = CAP_WIDTH.to_string();
+    let fill_height = spec.track_height - FILL_BORDER * 2.0;
     let show_fill = pct > 0.001;
     rsx! {
         slider {
@@ -175,8 +177,8 @@ pub fn slider_widget(spec: SliderWidget<'_>) -> Element {
                     }
                 }
                 // Filled track: left cap + center (no right cap — ends at handle)
-                {fill_left_cap(spec.name, spec.track_height, show_fill)}
-                {fill_center(spec.name, fill_center_w, spec.track_height, &fill_center_x, show_fill)}
+                {fill_left_cap(spec.name, fill_height, show_fill)}
+                {fill_center(spec.name, fill_center_w, fill_height, &fill_center_x, show_fill)}
                 texture {
                     name: {DynName(format!("{}Handle", spec.name))},
                     width: {spec.thumb_width},
