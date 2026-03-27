@@ -176,7 +176,7 @@ fn effective_size(f: &crate::frame::Frame) -> (f32, f32) {
 }
 
 fn is_renderable(f: &crate::frame::Frame) -> bool {
-    if f.nine_slice.is_some() {
+    if f.nine_slice.is_some() || f.three_slice.is_some() {
         return false;
     }
     let (w, h) = effective_size(f);
@@ -350,43 +350,28 @@ fn frame_visual(
     missing_file_textures: &mut HashSet<String>,
     blp_loader: Option<&BlpLoaderRes>,
 ) -> (Color, Handle<Image>, Option<Rect>) {
-    if let Some(v) = statusbar_visual(
-        frame,
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
-    ) {
-        return v;
-    }
-    if let Some(WidgetData::Button(btn)) = &frame.widget_data {
-        if let Some(v) = button_texture(
-            btn,
-            frame.effective_alpha,
-            images,
-            texture_cache,
-            file_texture_cache,
-            missing_textures,
-            missing_file_textures,
-            blp_loader,
-        ) {
-            return v;
-        }
-    }
-    if let Some(v) = texture_visual(
-        frame,
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
-    ) {
-        return v;
-    }
-    (frame_color(frame), Handle::default(), None)
+    let args = (images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader);
+    let (images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader) = args;
+    statusbar_visual(frame, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader)
+        .or_else(|| frame_button_visual(frame, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader))
+        .or_else(|| texture_visual(frame, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader))
+        .unwrap_or_else(|| (frame_color(frame), Handle::default(), None))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn frame_button_visual(
+    frame: &crate::frame::Frame,
+    images: &mut Option<ResMut<Assets<Image>>>,
+    texture_cache: &mut HashMap<u32, Handle<Image>>,
+    file_texture_cache: &mut HashMap<String, Handle<Image>>,
+    missing_textures: &mut HashSet<u32>,
+    missing_file_textures: &mut HashSet<String>,
+    blp_loader: Option<&BlpLoaderRes>,
+) -> Option<(Color, Handle<Image>, Option<Rect>)> {
+    let WidgetData::Button(btn) = frame.widget_data.as_ref()? else {
+        return None;
+    };
+    button_texture(btn, frame.effective_alpha, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader)
 }
 
 fn statusbar_visual(

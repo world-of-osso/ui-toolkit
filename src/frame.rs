@@ -66,6 +66,28 @@ pub struct NineSlice {
     pub uv_rects: Option<[[f32; 4]; 9]>,
 }
 
+/// Horizontal three-slice frame rendering (left cap, center stretch, right cap).
+#[derive(Debug, Clone)]
+pub struct ThreeSlice {
+    pub cap_width: f32,
+    pub left: TextureSource,
+    pub center: TextureSource,
+    pub right: TextureSource,
+    pub color: [f32; 4],
+}
+
+impl Default for ThreeSlice {
+    fn default() -> Self {
+        Self {
+            cap_width: 8.0,
+            left: TextureSource::None,
+            center: TextureSource::None,
+            right: TextureSource::None,
+            color: [1.0, 1.0, 1.0, 1.0],
+        }
+    }
+}
+
 impl Default for NineSlice {
     fn default() -> Self {
         Self {
@@ -221,9 +243,12 @@ pub struct Frame {
     pub background_color: Option<[f32; 4]>,
     pub backdrop: Option<Backdrop>,
     pub nine_slice: Option<NineSlice>,
+    pub three_slice: Option<ThreeSlice>,
     pub border: Option<Border>,
     /// Panel style name (for Panel widget type). Resolved via FrameRegistry::panel_styles.
     pub panel_style: Option<String>,
+    /// Three-slice style name. Resolved via FrameRegistry::three_slice_styles.
+    pub three_slice_style: Option<String>,
 
     // Behavior
     pub clamped_to_screen: bool,

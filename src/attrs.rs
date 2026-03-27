@@ -77,6 +77,7 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
         },
         "alpha" => Some(format!("{}", frame.alpha)),
         "style" => frame.panel_style.clone(),
+        "three_slice_style" => frame.three_slice_style.clone(),
         _ => None,
     }
 }
@@ -154,6 +155,10 @@ pub(crate) fn apply_attribute(
     }
     if name == "style" {
         registry.apply_panel_style(frame_id, value);
+        return None;
+    }
+    if name == "three_slice_style" {
+        registry.apply_three_slice_style(frame_id, value);
         return None;
     }
     let Some(frame) = registry.get_mut(frame_id) else {

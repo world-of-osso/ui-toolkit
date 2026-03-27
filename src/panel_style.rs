@@ -1,4 +1,4 @@
-use crate::frame::NineSlice;
+use crate::frame::{NineSlice, ThreeSlice};
 use crate::registry::FrameRegistry;
 
 impl FrameRegistry {
@@ -48,6 +48,38 @@ impl FrameRegistry {
             if let Some(ns) = self.panel_styles.get(&style_name).cloned() {
                 if let Some(frame) = self.get_mut(id) {
                     frame.nine_slice = Some(ns);
+                }
+            }
+        }
+        self.refresh_three_slice_styles();
+    }
+
+    /// Register a named three-slice style.
+    pub fn register_three_slice_style(&mut self, name: impl Into<String>, three_slice: ThreeSlice) {
+        self.three_slice_styles.insert(name.into(), three_slice);
+    }
+
+    /// Apply a named three-slice style to a frame.
+    pub fn apply_three_slice_style(&mut self, frame_id: u64, style_name: &str) {
+        let ts = self.three_slice_styles.get(style_name).cloned();
+        if let Some(frame) = self.get_mut(frame_id) {
+            frame.three_slice_style = Some(style_name.to_string());
+            if let Some(ts) = ts {
+                frame.three_slice = Some(ts);
+            }
+        }
+    }
+
+    /// Re-apply three-slice styles to all frames that reference them.
+    fn refresh_three_slice_styles(&mut self) {
+        let ids: Vec<(u64, String)> = self
+            .frames_iter()
+            .filter_map(|f| f.three_slice_style.as_ref().map(|s| (f.id, s.clone())))
+            .collect();
+        for (id, style_name) in ids {
+            if let Some(ts) = self.three_slice_styles.get(&style_name).cloned() {
+                if let Some(frame) = self.get_mut(id) {
+                    frame.three_slice = Some(ts);
                 }
             }
         }
