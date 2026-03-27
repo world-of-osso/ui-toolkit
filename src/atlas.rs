@@ -456,6 +456,90 @@ pub fn get_region(name: &str) -> Option<AtlasRegion> {
             tiles_vertically: false,
             nine_slice_edge: None,
         }),
+        "ui-hud-actionbar-iconframe" => Some(AtlasRegion {
+            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
+            left: 0.707031,
+            right: 0.886719,
+            top: 0.248047,
+            bottom: 0.291992,
+            width: 46.0,
+            height: 45.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
+        }),
+        "ui-hud-actionbar-iconframe-addrow" => Some(AtlasRegion {
+            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
+            left: 0.707031,
+            right: 0.906250,
+            top: 0.297852,
+            bottom: 0.347656,
+            width: 51.0,
+            height: 51.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
+        }),
+        "ui-hud-actionbar-iconframe-down" => Some(AtlasRegion {
+            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
+            left: 0.707031,
+            right: 0.886719,
+            top: 0.508789,
+            bottom: 0.552734,
+            width: 46.0,
+            height: 45.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
+        }),
+        "ui-hud-actionbar-iconframe-addrow-down" => Some(AtlasRegion {
+            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
+            left: 0.707031,
+            right: 0.906250,
+            top: 0.349609,
+            bottom: 0.399414,
+            width: 51.0,
+            height: 51.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
+        }),
+        "ui-hud-actionbar-iconframe-mouseover" => Some(AtlasRegion {
+            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
+            left: 0.707031,
+            right: 0.886719,
+            top: 0.627930,
+            bottom: 0.671875,
+            width: 46.0,
+            height: 45.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
+        }),
+        "ui-hud-actionbar-iconframe-border" => Some(AtlasRegion {
+            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
+            left: 0.707031,
+            right: 0.886719,
+            top: 0.462891,
+            bottom: 0.506836,
+            width: 46.0,
+            height: 45.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
+        }),
+        "ui-hud-actionbar-iconframe-flash" => Some(AtlasRegion {
+            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
+            left: 0.707031,
+            right: 0.886719,
+            top: 0.554688,
+            bottom: 0.598633,
+            width: 46.0,
+            height: 45.0,
+            tiles_horizontally: false,
+            tiles_vertically: false,
+            nine_slice_edge: None,
+        }),
         _ => None,
     }
 }
@@ -500,5 +584,13 @@ mod tests {
             nine_slice_margins("glues-characterselect-card-all-bg"),
             Some([14.0, 11.0, 14.0, 17.0])
         );
+    }
+
+    #[test]
+    fn wow_action_bar_regions_exist() {
+        let region = get_region("ui-hud-actionbar-iconframe-addrow-down").expect("atlas region");
+        assert_eq!(region.path, "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP");
+        assert_eq!(region.width, 51.0);
+        assert_eq!(region.height, 51.0);
     }
 }
