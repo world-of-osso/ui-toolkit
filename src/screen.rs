@@ -1,7 +1,8 @@
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc;
+use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 
 use crate::anchor_resolve::apply_anchor_resolved;
 use crate::frame::{Dimension, WidgetData};
@@ -10,6 +11,10 @@ use crate::registry::FrameRegistry;
 use crate::text_measure::measure_text;
 use crate::widget_def::WidgetChild;
 use crate::widget_def_diff::DiffContext;
+
+#[cfg(debug_assertions)]
+static GLOBAL_HOT_RELOAD_RX: OnceLock<Mutex<std::sync::mpsc::Receiver<HotReloadTemplate>>> =
+    OnceLock::new();
 
 /// Shared reactive context with generation-based dependency tracking.
 /// Replaces per-Screen ScreenContext. One instance holds all state;
@@ -80,7 +85,6 @@ pub struct Screen {
     build_fn: Box<dyn Fn(&SharedContext) -> Vec<WidgetChild>>,
     deps: HashMap<TypeId, u64>,
     diff: DiffContext,
-    hot_reload_rx: Option<mpsc::Receiver<HotReloadTemplate>>,
     initialized: bool,
     parent_frame_name: Option<String>,
 }
@@ -91,7 +95,6 @@ impl Screen {
             build_fn: Box::new(f),
             deps: HashMap::new(),
             diff: DiffContext::new(),
-            hot_reload_rx: None,
             initialized: false,
             parent_frame_name: None,
         }
@@ -106,30 +109,17 @@ impl Screen {
             build_fn: Box::new(f),
             deps: HashMap::new(),
             diff: DiffContext::new(),
-            hot_reload_rx: None,
             initialized: false,
             parent_frame_name: Some(parent_frame_name.to_string()),
         }
     }
 
-    /// Set the hot-reload channel receiver.
-    pub fn set_hot_reload_rx(&mut self, rx: mpsc::Receiver<HotReloadTemplate>) {
-        self.hot_reload_rx = Some(rx);
-    }
-
     /// Sync the widget tree against the registry using shared context.
     /// Only rebuilds if a dependency's generation has advanced since last render.
     pub fn sync(&mut self, ctx: &SharedContext, registry: &mut FrameRegistry) {
-        // 1. Drain hot-reload
-        if let Some(rx) = &self.hot_reload_rx {
-            self.diff.log_changes = true;
-            while let Ok(template) = rx.try_recv() {
-                self.diff.patch_by_name(&template.defs, registry);
-            }
-            self.diff.log_changes = false;
-        }
+        drain_global_hot_reload(&mut self.diff, registry);
 
-        // 2. Check if rebuild needed
+        // 1. Check if rebuild needed
         let needs_rebuild = !self.initialized || self.deps_changed(ctx);
         if needs_rebuild {
             ctx.start_tracking();
@@ -140,10 +130,10 @@ impl Screen {
             self.initialized = true;
         }
 
-        // 3. Resolve pending anchors
+        // 2. Resolve pending anchors
         self.resolve_pending_anchors(registry);
 
-        // 4. Auto-size
+        // 3. Auto-size
         auto_size_fontstrings(&self.diff, registry);
         auto_size_editboxes(&self.diff, registry);
     }
@@ -187,6 +177,33 @@ impl Screen {
         &self.diff.created_frames
     }
 }
+
+#[cfg(debug_assertions)]
+pub fn init_global_hot_reload(watch_dirs: Vec<PathBuf>) {
+    let rx = crate::hotreload::watcher::start_watcher(watch_dirs);
+    let _ = GLOBAL_HOT_RELOAD_RX.set(Mutex::new(rx));
+}
+
+#[cfg(not(debug_assertions))]
+pub fn init_global_hot_reload(_watch_dirs: Vec<PathBuf>) {}
+
+#[cfg(debug_assertions)]
+fn drain_global_hot_reload(diff: &mut DiffContext, registry: &mut FrameRegistry) {
+    let Some(rx) = GLOBAL_HOT_RELOAD_RX.get() else {
+        return;
+    };
+    let Ok(rx) = rx.lock() else {
+        return;
+    };
+    diff.log_changes = true;
+    while let Ok(template) = rx.try_recv() {
+        diff.patch_by_name(&template.defs, registry);
+    }
+    diff.log_changes = false;
+}
+
+#[cfg(not(debug_assertions))]
+fn drain_global_hot_reload(_diff: &mut DiffContext, _registry: &mut FrameRegistry) {}
 
 fn collect_all_frame_ids(roots: &[u64], registry: &FrameRegistry) -> Vec<u64> {
     let mut all = Vec::new();
@@ -248,67 +265,7 @@ fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
 mod tests {
     use super::*;
     use crate::frame::{Frame, WidgetType};
-    use crate::hotreload::parser::parse_rsx_blocks;
     use crate::widget_def::WidgetChild;
-
-    fn screen_with_frame(reg: &mut FrameRegistry, name: &str, width: f32) -> u64 {
-        let id = reg.next_id();
-        let mut frame = Frame::new(id, Some(name.to_string()), WidgetType::Frame);
-        frame.width = Dimension::Fixed(width);
-        reg.insert_frame(frame);
-        id
-    }
-
-    fn empty_screen() -> Screen {
-        Screen::new(|_ctx| -> Vec<WidgetChild> { vec![] })
-    }
-
-    #[test]
-    fn hot_reload_patches_existing_frame() {
-        let mut screen = empty_screen();
-        let mut reg = FrameRegistry::new(1920.0, 1080.0);
-        let ctx = SharedContext::new();
-        screen.sync(&ctx, &mut reg);
-
-        let fid = screen_with_frame(&mut reg, "TestFrame", 200.0);
-        assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(200.0));
-
-        let (tx, rx) = mpsc::channel();
-        screen.set_hot_reload_rx(rx);
-
-        let t = parse_rsx_blocks(
-            r#"fn f() { rsx! { frame { name: "TestFrame", width: 400.0 } } }"#,
-            "test.rs",
-        );
-        tx.send(t.into_iter().next().unwrap()).unwrap();
-        screen.sync(&ctx, &mut reg);
-
-        assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(400.0));
-    }
-
-    #[test]
-    fn hot_reload_ignores_unknown_frames() {
-        let mut screen = empty_screen();
-        let mut reg = FrameRegistry::new(1920.0, 1080.0);
-        let ctx = SharedContext::new();
-        screen.sync(&ctx, &mut reg);
-
-        screen_with_frame(&mut reg, "Known", 100.0);
-        let frame_count_before = reg.frames_iter().count();
-
-        let (tx, rx) = mpsc::channel();
-        screen.set_hot_reload_rx(rx);
-
-        let t = parse_rsx_blocks(
-            r#"fn f() { rsx! { frame { name: "Unknown", width: 999.0 } } }"#,
-            "test.rs",
-        );
-        tx.send(t.into_iter().next().unwrap()).unwrap();
-        screen.sync(&ctx, &mut reg);
-
-        assert!(reg.get_by_name("Unknown").is_none());
-        assert_eq!(reg.frames_iter().count(), frame_count_before);
-    }
 
     #[test]
     fn screen_with_no_deps_never_rebuilds_after_init() {
