@@ -9,7 +9,7 @@ use crate::frame::{
 use crate::registry::FrameRegistry;
 use crate::strata::{DrawLayer, FrameStrata};
 use crate::widgets::button::{ButtonData, ButtonState};
-use crate::widgets::font_string::{GameFont, JustifyH};
+use crate::widgets::font_string::{GameFont, JustifyH, Outline};
 use crate::widgets::slider::{FillStyle, Orientation};
 use crate::widgets::texture::TextureSource;
 
@@ -90,9 +90,31 @@ fn read_widget_text_attr(frame: &Frame, name: &str) -> Option<String> {
             Some(WidgetData::EditBox(eb)) => Some(eb.text.clone()),
             _ => None,
         },
+        "font" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(fs.font.to_string()),
+            Some(WidgetData::EditBox(eb)) => Some(eb.font.to_string()),
+            _ => None,
+        },
         "font_size" => match &frame.widget_data {
             Some(WidgetData::FontString(fs)) => Some(format!("{}", fs.font_size)),
             Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.font_size)),
+            _ => None,
+        },
+        "font_color" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(format_color(fs.color)),
+            Some(WidgetData::EditBox(eb)) => Some(format_color(eb.text_color)),
+            _ => None,
+        },
+        "shadow_color" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => fs.shadow_color.map(format_color),
+            _ => None,
+        },
+        "shadow_offset" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(format_vec2(fs.shadow_offset)),
+            _ => None,
+        },
+        "outline" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(format_outline(fs.outline)),
             _ => None,
         },
         "value" => read_slider_numeric_attr(frame, |slider| slider.value, |sb| sb.value),
@@ -350,6 +372,25 @@ fn apply_widget_text_attrs(
             let jh = parse_justify_h(value);
             if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
                 fs.justify_h = jh;
+            }
+        }
+        "shadow_color" => {
+            if let Some(color) = parse_color(value) {
+                if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
+                    fs.shadow_color = Some(color);
+                }
+            }
+        }
+        "shadow_offset" => {
+            if let Some(offset) = parse_vec2(value) {
+                if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
+                    fs.shadow_offset = offset;
+                }
+            }
+        }
+        "outline" => {
+            if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
+                fs.outline = parse_outline(value);
             }
         }
         "password" => match value {
@@ -615,6 +656,16 @@ fn parse_justify_h(s: &str) -> JustifyH {
     }
 }
 
+fn parse_outline(s: &str) -> Outline {
+    match s {
+        "OUTLINE" | "Outline" | "outline" | "NORMAL" | "Normal" | "normal" => Outline::Outline,
+        "THICKOUTLINE" | "ThickOutline" | "thick_outline" | "THICK" | "thick" => {
+            Outline::ThickOutline
+        }
+        _ => Outline::None,
+    }
+}
+
 fn parse_border(s: &str) -> Option<Border> {
     let parts: Vec<&str> = s.split_whitespace().collect();
     if parts.len() < 3 {
@@ -650,4 +701,29 @@ pub(crate) fn parse_color(s: &str) -> Option<[f32; 4]> {
         color[i] = part.parse().ok()?;
     }
     Some(color)
+}
+
+fn parse_vec2(s: &str) -> Option<[f32; 2]> {
+    let parts: Vec<_> = s.split(',').map(str::trim).collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    Some([parts[0].parse().ok()?, parts[1].parse().ok()?])
+}
+
+fn format_color(color: [f32; 4]) -> String {
+    format!("{},{},{},{}", color[0], color[1], color[2], color[3])
+}
+
+fn format_vec2(offset: [f32; 2]) -> String {
+    format!("{},{}", offset[0], offset[1])
+}
+
+fn format_outline(outline: Outline) -> String {
+    match outline {
+        Outline::None => "NONE",
+        Outline::Outline => "OUTLINE",
+        Outline::ThickOutline => "THICKOUTLINE",
+    }
+    .to_string()
 }
