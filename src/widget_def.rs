@@ -14,6 +14,8 @@ pub struct WidgetDef {
     pub attrs: Vec<Attr>,
     /// Anchor pseudo-elements (positioning, NOT children).
     pub anchors: Vec<AnchorDef>,
+    /// Nine-slice backdrop definition (pseudo-element, NOT a child).
+    pub nine_slice: Option<NineSliceDef>,
     /// Child widgets.
     pub children: Vec<WidgetChild>,
 }
@@ -55,6 +57,16 @@ pub struct AnchorDef {
     pub y: String,
 }
 
+/// Declarative nine-slice definition for RSX (converted to `NineSlice` at frame create).
+#[derive(Debug, Clone)]
+pub struct NineSliceDef {
+    pub edge_size: f32,
+    pub bg_color: [f32; 4],
+    pub border_color: [f32; 4],
+    /// Per-part texture paths in TL,T,TR,L,M,R,BL,B,BR order.
+    pub textures: Option<[String; 9]>,
+}
+
 /// Return type alias for RSX functions.
 pub type Element = Vec<WidgetChild>;
 
@@ -66,6 +78,7 @@ impl WidgetDef {
             name: None,
             attrs: Vec::new(),
             anchors: Vec::new(),
+            nine_slice: None,
             children: Vec::new(),
         }
     }

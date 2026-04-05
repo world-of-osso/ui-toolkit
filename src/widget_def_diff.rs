@@ -311,6 +311,7 @@ mod tests {
             name: Some(name.to_string()),
             attrs: vec![Attr::new_static("thumb_texture", thumb_texture.to_string())],
             anchors: vec![],
+            nine_slice: None,
             children: vec![],
         })
     }
@@ -333,6 +334,7 @@ mod tests {
             name: Some("TestFrame".to_string()),
             attrs: vec![Attr::new_static("width", "100".to_string())],
             anchors: vec![],
+            nine_slice: None,
             children: vec![],
         })];
         ctx.diff_roots(&children, None, &mut reg);
@@ -354,6 +356,7 @@ mod tests {
             name: Some("MyFrame".to_string()),
             attrs: vec![Attr::new_static("width", "100".to_string())],
             anchors: vec![],
+            nine_slice: None,
             children: vec![],
         })];
         ctx.diff_roots(&children, None, &mut reg);
@@ -367,6 +370,7 @@ mod tests {
             name: Some("MyFrame".to_string()),
             attrs: vec![Attr::new_static("width", "200".to_string())],
             anchors: vec![],
+            nine_slice: None,
             children: vec![],
         })];
         ctx.diff_roots(&children2, None, &mut reg);
@@ -411,6 +415,7 @@ mod tests {
             name: Some("HiddenButton".to_string()),
             attrs: vec![Attr::new_static("hidden", "true".to_string())],
             anchors: vec![],
+            nine_slice: None,
             children: vec![],
         })];
 
@@ -433,6 +438,7 @@ mod tests {
             name: Some("FadedFrame".to_string()),
             attrs: vec![Attr::new_static("alpha", "0.25".to_string())],
             anchors: vec![],
+            nine_slice: None,
             children: vec![],
         })];
 

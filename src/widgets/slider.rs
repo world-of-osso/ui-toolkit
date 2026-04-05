@@ -244,20 +244,6 @@ fn normalize(value: f32, min: f32, max: f32) -> f32 {
 mod tests {
     use super::*;
 
-    fn find_statusbar_child(
-        children: &[crate::widget_def::WidgetChild],
-    ) -> Option<&crate::widget_def::WidgetDef> {
-        children.iter().find_map(|child| match child {
-            crate::widget_def::WidgetChild::Widget(widget)
-                if widget.effective_tag() == "StatusBar" =>
-            {
-                Some(widget)
-            }
-            crate::widget_def::WidgetChild::Fragment(children) => find_statusbar_child(children),
-            _ => None,
-        })
-    }
-
     #[test]
     fn default_slider_data() {
         let s = SliderData::default();
@@ -274,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn slider_widget_emits_slider_root_and_statusbar_fill() {
+    fn slider_widget_emits_slider_root_with_track_frame() {
         let el = slider_widget(SliderWidget {
             name: "MasterVolume",
             action: "options_slider:master_volume",
@@ -295,9 +281,8 @@ mod tests {
             panic!("expected root widget")
         };
         assert_eq!(root.effective_tag(), "Slider");
-        assert_eq!(root.children.len(), 3);
-        let fill = find_statusbar_child(&root.children).expect("expected fill widget");
-        assert_eq!(fill.effective_tag(), "StatusBar");
+        // Root slider contains one track frame child.
+        assert_eq!(root.children.len(), 1);
     }
 
     #[test]

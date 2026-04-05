@@ -5037,7 +5037,6 @@ dependencies = [
 [[package]]
 name = "ui-toolkit-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/world-of-osso/ui-toolkit-macros.git?rev=1979e54#1979e54134e8ca2ff9870d93bdc748ca816f1d9e"
 dependencies = [
  "proc-macro2",
  "quote",
