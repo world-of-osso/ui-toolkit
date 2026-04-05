@@ -130,3 +130,72 @@ impl Default for AnchorDef {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ui_toolkit_macros::rsx;
+
+    struct DynName(String);
+
+    #[test]
+    fn rsx_nine_slice_block_sets_fields() {
+        let el = rsx! {
+            r#frame {
+                name: {DynName("TestFrame".to_string())},
+                nine_slice {
+                    edge_size: 12,
+                    bg_color: "0.1,0.2,0.3,0.8",
+                    border_color: "1,1,1,1",
+                }
+            }
+        };
+        let WidgetChild::Widget(w) = &el[0] else {
+            panic!("expected widget");
+        };
+        let ns = w.nine_slice.as_ref().expect("nine_slice should be set");
+        assert!((ns.edge_size - 12.0).abs() < f32::EPSILON);
+        assert!((ns.bg_color[0] - 0.1).abs() < 0.001);
+        assert!((ns.bg_color[3] - 0.8).abs() < 0.001);
+        assert!(ns.textures.is_none());
+    }
+
+    #[test]
+    fn rsx_nine_slice_with_textures() {
+        let paths = [
+            "tl.blp", "t.blp", "tr.blp", "l.blp", "m.blp", "r.blp", "bl.blp", "b.blp",
+            "br.blp",
+        ];
+        let el = rsx! {
+            r#frame {
+                name: {DynName("TexFrame".to_string())},
+                nine_slice {
+                    edge_size: 8,
+                    bg_color: "0,0,0,0.5",
+                    border_color: "1,1,1,1",
+                    textures: {paths},
+                }
+            }
+        };
+        let WidgetChild::Widget(w) = &el[0] else {
+            panic!("expected widget");
+        };
+        let ns = w.nine_slice.as_ref().expect("nine_slice should be set");
+        let textures = ns.textures.as_ref().expect("textures should be set");
+        assert_eq!(textures[0], "tl.blp");
+        assert_eq!(textures[8], "br.blp");
+    }
+
+    #[test]
+    fn rsx_without_nine_slice_is_none() {
+        let el = rsx! {
+            r#frame {
+                name: {DynName("PlainFrame".to_string())},
+            }
+        };
+        let WidgetChild::Widget(w) = &el[0] else {
+            panic!("expected widget");
+        };
+        assert!(w.nine_slice.is_none());
+    }
+}
