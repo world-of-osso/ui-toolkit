@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
-use crate::frame::{Frame, WidgetData, WidgetType};
+use crate::frame::{Frame, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
-use crate::widget_def::{WidgetChild, WidgetDef};
+use crate::widget_def::{NineSliceDef, WidgetChild, WidgetDef};
+use crate::widgets::texture::TextureSource;
 use crate::widgets::button::ButtonData;
 use crate::widgets::edit_box::EditBoxData;
 use crate::widgets::font_string::FontStringData;
@@ -110,6 +111,12 @@ impl DiffContext {
                 &mut self.validated_paths,
                 &mut self.missing_paths,
             );
+        }
+        // Apply nine-slice backdrop
+        if let Some(ns_def) = &def.nine_slice {
+            if let Some(frame) = registry.get_mut(frame_id) {
+                frame.nine_slice = Some(nine_slice_from_def(ns_def));
+            }
         }
         // Apply anchors
         for anchor in &def.anchors {
@@ -279,6 +286,19 @@ fn values_equal(old: &str, new: &str) -> bool {
         return (a - b).abs() < f32::EPSILON;
     }
     false
+}
+
+fn nine_slice_from_def(def: &NineSliceDef) -> NineSlice {
+    let part_textures = def.textures.as_ref().map(|paths| {
+        std::array::from_fn(|i| TextureSource::File(paths[i].clone()))
+    });
+    NineSlice {
+        edge_size: def.edge_size,
+        bg_color: def.bg_color,
+        border_color: def.border_color,
+        part_textures,
+        ..NineSlice::default()
+    }
 }
 
 fn default_widget_data(widget_type: WidgetType) -> Option<WidgetData> {
@@ -465,5 +485,33 @@ mod tests {
         let children2 = vec![WidgetChild::Widget(WidgetDef::new("Frame"))];
         ctx.diff_roots(&children2, None, &mut reg);
         assert_eq!(ctx.created_frames.len(), 1);
+    }
+
+    #[test]
+    fn diff_applies_nine_slice_def() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        let children = vec![WidgetChild::Widget(WidgetDef {
+            tag: "Frame",
+            tag_owned: None,
+            name: Some("NsFrame".to_string()),
+            attrs: vec![],
+            anchors: vec![],
+            nine_slice: Some(NineSliceDef {
+                edge_size: 16.0,
+                bg_color: [0.1, 0.2, 0.3, 0.9],
+                border_color: [1.0, 0.0, 0.0, 1.0],
+                textures: None,
+            }),
+            children: vec![],
+        })];
+        ctx.diff_roots(&children, None, &mut reg);
+        let fid = ctx.created_frames[0];
+        let frame = reg.get(fid).unwrap();
+        let ns = frame.nine_slice.as_ref().expect("nine_slice should be set");
+        assert!((ns.edge_size - 16.0).abs() < f32::EPSILON);
+        assert!((ns.bg_color[0] - 0.1).abs() < 0.001);
+        assert!((ns.border_color[0] - 1.0).abs() < f32::EPSILON);
+        assert!(ns.part_textures.is_none());
     }
 }
