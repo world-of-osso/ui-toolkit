@@ -337,6 +337,8 @@ fn apply_flex_to_children(
             child.layout_rect = Some(rect);
         }
         resolved.insert(cid);
+        // Recurse into nested flex containers so their children get positioned
+        apply_flex_to_children(registry, cid, visiting, resolved);
     }
 }
 
