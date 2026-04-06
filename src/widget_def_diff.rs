@@ -86,6 +86,13 @@ impl DiffContext {
         // Clear existing anchors (will be re-applied)
         if let Some(frame) = registry.get_mut(frame_id) {
             frame.anchors.clear();
+            if !def
+                .attrs
+                .iter()
+                .any(|attr| attr.effective_name() == "background_color")
+            {
+                frame.background_color = None;
+            }
         }
         // Apply name
         if let Some(name) = &def.name {
@@ -469,6 +476,42 @@ mod tests {
         let frame = reg.get(fid).unwrap();
         assert!((frame.alpha - 0.25).abs() < f32::EPSILON);
         assert!((frame.effective_alpha - 0.25).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn diff_clears_background_color_when_attr_removed() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        let with_bg = vec![WidgetChild::Widget(WidgetDef {
+            tag: "Frame",
+            tag_owned: None,
+            name: Some("BgFrame".to_string()),
+            attrs: vec![Attr::new_static("background_color", "0.1,0.2,0.3,1.0".to_string())],
+            anchors: vec![],
+            nine_slice: None,
+            children: vec![],
+        })];
+
+        ctx.diff_roots(&with_bg, None, &mut reg);
+
+        let without_bg = vec![WidgetChild::Widget(WidgetDef {
+            tag: "Frame",
+            tag_owned: None,
+            name: Some("BgFrame".to_string()),
+            attrs: vec![],
+            anchors: vec![],
+            nine_slice: None,
+            children: vec![],
+        })];
+
+        ctx.diff_roots(&without_bg, None, &mut reg);
+
+        let fid = reg.get_by_name("BgFrame").expect("frame should exist");
+        let frame = reg.get(fid).expect("frame should exist");
+        assert!(
+            frame.background_color.is_none(),
+            "background_color should be cleared when the attr is removed"
+        );
     }
 
     #[test]

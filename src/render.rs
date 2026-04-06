@@ -16,6 +16,11 @@ pub struct UiCamera;
 #[derive(Component)]
 pub struct UiQuad(pub u64);
 
+/// Links a Bevy sprite entity to a nine-slice-aware background part.
+/// Parts: 0=Top, 1=Left, 2=Center, 3=Right, 4=Bottom
+#[derive(Component)]
+pub struct UiBackdropQuad(pub u64, pub u8);
+
 /// Links a Bevy Text2d entity to a UI frame by its ID.
 #[derive(Component)]
 pub struct UiText(pub u64);
@@ -49,6 +54,7 @@ pub fn sync_ui_quads(
     mut commands: Commands,
     mut images: Option<ResMut<Assets<Image>>>,
     quads: Query<(Entity, &UiQuad)>,
+    backdrop_quads: Query<(Entity, &UiBackdropQuad)>,
     mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
     mut file_texture_cache: Local<HashMap<String, Handle<Image>>>,
     mut missing_textures: Local<HashSet<u32>>,
@@ -59,10 +65,21 @@ pub fn sync_ui_quads(
     let screen_h = state.registry.screen_height;
 
     let visible_sorted_ids = build_sorted_visible_frame_ids(&state);
-    let sorted_ids: Vec<u64> = visible_sorted_ids
+    let sorted_quad_ids: Vec<u64> = visible_sorted_ids
         .iter()
         .copied()
         .filter(|id| state.registry.get(*id).is_some_and(is_renderable))
+        .filter(|id| {
+            state
+                .registry
+                .get(*id)
+                .is_some_and(|frame| !uses_backdrop_parts(frame))
+        })
+        .collect();
+    let sorted_backdrop_ids: Vec<u64> = visible_sorted_ids
+        .iter()
+        .copied()
+        .filter(|id| state.registry.get(*id).is_some_and(uses_backdrop_parts))
         .collect();
     let sort_map: HashMap<u64, usize> = visible_sorted_ids
         .iter()
@@ -85,11 +102,19 @@ pub fn sync_ui_quads(
         &quads,
         blp_loader.as_deref(),
     );
+    update_or_despawn_backdrop_quads(
+        &state,
+        &sort_map,
+        screen_w,
+        screen_h,
+        &mut commands,
+        &backdrop_quads,
+    );
 
     let existing: HashSet<u64> = quads.iter().map(|(_, q)| q.0).collect();
     spawn_new_quads(
         &state,
-        &sorted_ids,
+        &sorted_quad_ids,
         &sort_map,
         &existing,
         screen_w,
@@ -101,6 +126,17 @@ pub fn sync_ui_quads(
         &mut missing_textures,
         &mut missing_file_textures,
         blp_loader.as_deref(),
+    );
+    let existing_backdrop_parts: HashSet<(u64, u8)> =
+        backdrop_quads.iter().map(|(_, q)| (q.0, q.1)).collect();
+    spawn_new_backdrop_quads(
+        &state,
+        &sorted_backdrop_ids,
+        &sort_map,
+        &existing_backdrop_parts,
+        screen_w,
+        screen_h,
+        &mut commands,
     );
 
     state.registry.render_dirty.clear();
@@ -144,6 +180,8 @@ fn update_or_despawn_quads(
 }
 
 // --- Quad helpers ---
+
+const BACKDROP_PART_COUNT: u8 = 5;
 
 fn sort_frame_ids<'a>(frames: impl Iterator<Item = &'a crate::frame::Frame>) -> Vec<u64> {
     let mut frames: Vec<_> = frames
@@ -190,6 +228,10 @@ pub(crate) fn is_renderable(f: &crate::frame::Frame) -> bool {
             || frame_has_button_texture(f)
             || f.backdrop.as_ref().is_some_and(|b| b.bg_color.is_some())
             || matches!(f.widget_data, Some(WidgetData::StatusBar(_))))
+}
+
+fn uses_backdrop_parts(f: &crate::frame::Frame) -> bool {
+    f.nine_slice.is_some() && f.background_color.is_some()
 }
 
 fn frame_has_button_texture(f: &crate::frame::Frame) -> bool {
@@ -292,6 +334,36 @@ fn update_quad(
     ));
 }
 
+fn update_or_despawn_backdrop_quads(
+    state: &UiState,
+    sort_map: &HashMap<u64, usize>,
+    screen_w: f32,
+    screen_h: f32,
+    commands: &mut Commands,
+    backdrop_quads: &Query<(Entity, &UiBackdropQuad)>,
+) {
+    for (entity, backdrop_part) in backdrop_quads {
+        if should_keep_backdrop_part(state, backdrop_part) {
+            let Some(&sort_idx) = sort_map.get(&backdrop_part.0) else {
+                commands.entity(entity).despawn();
+                continue;
+            };
+            let (transform, size, color) =
+                backdrop_part_geometry_for_id(state, backdrop_part, sort_idx, screen_w, screen_h);
+            commands.entity(entity).insert((
+                transform,
+                Sprite {
+                    color,
+                    custom_size: Some(size),
+                    ..default()
+                },
+            ));
+        } else {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 fn spawn_new_quads(
     state: &UiState,
     sorted_ids: &[u64],
@@ -343,6 +415,43 @@ fn spawn_new_quads(
     }
 }
 
+fn spawn_new_backdrop_quads(
+    state: &UiState,
+    sorted_ids: &[u64],
+    sort_map: &HashMap<u64, usize>,
+    existing: &HashSet<(u64, u8)>,
+    screen_w: f32,
+    screen_h: f32,
+    commands: &mut Commands,
+) {
+    for &frame_id in sorted_ids {
+        let Some(&sort_idx) = sort_map.get(&frame_id) else {
+            continue;
+        };
+        for part in 0..BACKDROP_PART_COUNT {
+            if existing.contains(&(frame_id, part)) {
+                continue;
+            }
+            let backdrop_part = UiBackdropQuad(frame_id, part);
+            if !should_keep_backdrop_part(state, &backdrop_part) {
+                continue;
+            }
+            let (transform, size, color) =
+                backdrop_part_geometry_for_id(state, &backdrop_part, sort_idx, screen_w, screen_h);
+            commands.spawn((
+                Sprite {
+                    color,
+                    custom_size: Some(size),
+                    ..default()
+                },
+                transform,
+                RenderLayers::layer(UI_RENDER_LAYER),
+                backdrop_part,
+            ));
+        }
+    }
+}
+
 fn frame_visual(
     frame: &crate::frame::Frame,
     images: &mut Option<ResMut<Assets<Image>>>,
@@ -352,12 +461,179 @@ fn frame_visual(
     missing_file_textures: &mut HashSet<String>,
     blp_loader: Option<&BlpLoaderRes>,
 ) -> (Color, Handle<Image>, Option<Rect>) {
-    let args = (images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader);
-    let (images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader) = args;
-    statusbar_visual(frame, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader)
-        .or_else(|| frame_button_visual(frame, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader))
-        .or_else(|| texture_visual(frame, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader))
-        .unwrap_or_else(|| (frame_color(frame), Handle::default(), None))
+    let args = (
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    );
+    let (
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    ) = args;
+    statusbar_visual(
+        frame,
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    )
+    .or_else(|| {
+        frame_button_visual(
+            frame,
+            images,
+            texture_cache,
+            file_texture_cache,
+            missing_textures,
+            missing_file_textures,
+            blp_loader,
+        )
+    })
+    .or_else(|| {
+        texture_visual(
+            frame,
+            images,
+            texture_cache,
+            file_texture_cache,
+            missing_textures,
+            missing_file_textures,
+            blp_loader,
+        )
+    })
+    .unwrap_or_else(|| (frame_color(frame), Handle::default(), None))
+}
+
+fn should_keep_backdrop_part(state: &UiState, backdrop_part: &UiBackdropQuad) -> bool {
+    let Some(frame) = state.registry.get(backdrop_part.0) else {
+        return false;
+    };
+    if !uses_backdrop_parts(frame) {
+        return false;
+    }
+    let size = backdrop_part_geometry(
+        frame,
+        backdrop_part.1,
+        0,
+        state.registry.screen_width,
+        state.registry.screen_height,
+    )
+    .1;
+    size.x > 0.0 && size.y > 0.0
+}
+
+fn backdrop_part_geometry_for_id(
+    state: &UiState,
+    backdrop_part: &UiBackdropQuad,
+    sort_idx: usize,
+    screen_w: f32,
+    screen_h: f32,
+) -> (Transform, Vec2, Color) {
+    let frame = state
+        .registry
+        .get(backdrop_part.0)
+        .expect("backdrop part should have a frame");
+    backdrop_part_geometry(frame, backdrop_part.1, sort_idx, screen_w, screen_h)
+}
+
+fn backdrop_part_geometry(
+    frame: &crate::frame::Frame,
+    part: u8,
+    sort_idx: usize,
+    screen_w: f32,
+    screen_h: f32,
+) -> (Transform, Vec2, Color) {
+    let (left, top, right, bottom) = frame
+        .nine_slice
+        .as_ref()
+        .map(nine_slice_layout_edges)
+        .unwrap_or_default();
+    let rect = frame.layout_rect.as_ref();
+    let fx = rect.map_or(0.0, |r| r.x);
+    let fy = rect.map_or(0.0, |r| r.y);
+    let interior_width = (frame.resolved_width() - left - right).max(0.0);
+    let interior_height = (frame.resolved_height() - top - bottom).max(0.0);
+    let (cx, cy, width, height) = backdrop_part_layout(
+        part,
+        fx,
+        fy,
+        left,
+        top,
+        right,
+        bottom,
+        interior_width,
+        interior_height,
+    );
+    let bx = cx - screen_w * 0.5;
+    let by = screen_h * 0.5 - cy;
+    let z = sort_idx as f32 * 0.001 - 0.0002;
+    (
+        Transform::from_xyz(bx, by, z),
+        Vec2::new(width, height),
+        frame_color(frame),
+    )
+}
+
+fn backdrop_part_layout(
+    part: u8,
+    fx: f32,
+    fy: f32,
+    left: f32,
+    top: f32,
+    right: f32,
+    bottom: f32,
+    interior_width: f32,
+    interior_height: f32,
+) -> (f32, f32, f32, f32) {
+    match part {
+        0 => (
+            fx + left + interior_width * 0.5,
+            fy + top * 0.5,
+            interior_width,
+            top,
+        ),
+        1 => (
+            fx + left * 0.5,
+            fy + top + interior_height * 0.5,
+            left,
+            interior_height,
+        ),
+        2 => (
+            fx + left + interior_width * 0.5,
+            fy + top + interior_height * 0.5,
+            interior_width,
+            interior_height,
+        ),
+        3 => (
+            fx + left + interior_width + right * 0.5,
+            fy + top + interior_height * 0.5,
+            right,
+            interior_height,
+        ),
+        _ => (
+            fx + left + interior_width * 0.5,
+            fy + top + interior_height + bottom * 0.5,
+            interior_width,
+            bottom,
+        ),
+    }
+}
+
+fn nine_slice_layout_edges(ns: &crate::frame::NineSlice) -> (f32, f32, f32, f32) {
+    if let Some([left, top, right, bottom]) = ns.edge_sizes {
+        (left, top, right, bottom)
+    } else {
+        let horizontal = ns.edge_size;
+        let vertical = ns.edge_size_v.unwrap_or(horizontal);
+        (horizontal, vertical, horizontal, vertical)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -373,7 +649,16 @@ fn frame_button_visual(
     let WidgetData::Button(btn) = frame.widget_data.as_ref()? else {
         return None;
     };
-    button_texture(btn, frame.effective_alpha, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader)
+    button_texture(
+        btn,
+        frame.effective_alpha,
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    )
 }
 
 fn statusbar_visual(
@@ -670,5 +955,77 @@ mod tests {
             panic!("expected srgba")
         };
         assert!(srgba.red < 0.6, "disabled should be grey");
+    }
+
+    #[test]
+    fn nine_slice_background_uses_cross_shaped_backdrop_parts() {
+        use crate::frame::NineSlice;
+        use crate::layout::LayoutRect;
+
+        let mut frame = crate::frame::Frame::new(1, None, crate::frame::WidgetType::Frame);
+        frame.width = Dimension::Fixed(200.0);
+        frame.height = Dimension::Fixed(40.0);
+        frame.background_color = Some([0.15, 0.12, 0.09, 1.0]);
+        frame.layout_rect = Some(LayoutRect {
+            x: 10.0,
+            y: 20.0,
+            width: 200.0,
+            height: 40.0,
+        });
+        frame.nine_slice = Some(NineSlice {
+            edge_size: 8.0,
+            ..Default::default()
+        });
+
+        let (_, top_size, _) = backdrop_part_geometry(&frame, 0, 0, 1920.0, 1080.0);
+        assert_eq!(top_size, Vec2::new(184.0, 8.0));
+
+        let (_, left_size, _) = backdrop_part_geometry(&frame, 1, 0, 1920.0, 1080.0);
+        assert_eq!(left_size, Vec2::new(8.0, 24.0));
+
+        let (_, center_size, _) = backdrop_part_geometry(&frame, 2, 0, 1920.0, 1080.0);
+        assert_eq!(center_size, Vec2::new(184.0, 24.0));
+
+        let (_, right_size, _) = backdrop_part_geometry(&frame, 3, 0, 1920.0, 1080.0);
+        assert_eq!(right_size, Vec2::new(8.0, 24.0));
+
+        let (_, bottom_size, _) = backdrop_part_geometry(&frame, 4, 0, 1920.0, 1080.0);
+        assert_eq!(bottom_size, Vec2::new(184.0, 8.0));
+    }
+
+    #[test]
+    fn nine_slice_background_spawns_backdrop_parts_instead_of_full_quad() {
+        use crate::frame::NineSlice;
+
+        let mut app = test_app();
+        app.update();
+        {
+            let mut ui = app.world_mut().resource_mut::<UiState>();
+            let id = ui.registry.create_frame("NineSliceBackdrop", None);
+            let frame = ui.registry.get_mut(id).unwrap();
+            frame.width = Dimension::Fixed(200.0);
+            frame.height = Dimension::Fixed(40.0);
+            frame.background_color = Some([0.15, 0.12, 0.09, 1.0]);
+            frame.nine_slice = Some(NineSlice {
+                edge_size: 8.0,
+                ..Default::default()
+            });
+        }
+
+        app.update();
+
+        let backdrop_count = app
+            .world_mut()
+            .query_filtered::<(), With<UiBackdropQuad>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(backdrop_count, 5);
+
+        let quad_count = app
+            .world_mut()
+            .query_filtered::<(), With<UiQuad>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(quad_count, 0);
     }
 }
