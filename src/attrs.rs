@@ -124,6 +124,13 @@ fn read_widget_text_attr(frame: &Frame, name: &str) -> Option<String> {
             Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.password)),
             _ => None,
         },
+        "text_insets" => match &frame.widget_data {
+            Some(WidgetData::EditBox(eb)) => {
+                let [l, t, r, b] = eb.text_insets;
+                Some(format!("{l},{t},{r},{b}"))
+            }
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -391,6 +398,15 @@ fn apply_widget_text_attrs(
         "outline" => {
             if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
                 fs.outline = parse_outline(value);
+            }
+        }
+        "text_insets" => {
+            if let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data {
+                let parts: Vec<f32> =
+                    value.split(',').filter_map(|p| p.trim().parse().ok()).collect();
+                if parts.len() == 4 {
+                    eb.text_insets = [parts[0], parts[1], parts[2], parts[3]];
+                }
             }
         }
         "password" => match value {

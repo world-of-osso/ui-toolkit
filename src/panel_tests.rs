@@ -539,3 +539,17 @@ fn nine_slice_border_color_applied_to_edge_parts() {
         "center alpha = bg_alpha * effective_alpha"
     );
 }
+
+#[test]
+fn read_attribute_returns_editbox_text_insets() {
+    let mut reg = test_registry();
+    let eb = create_editbox(&mut reg, "TestEditBox", None, 320.0, 42.0);
+    if let Some(frame) = reg.get_mut(eb)
+        && let Some(WidgetData::EditBox(eb_data)) = &mut frame.widget_data
+    {
+        eb_data.text_insets = [12.0, 5.0, 8.0, 8.0];
+    }
+
+    let result = crate::attrs::read_attribute(&reg, eb, "text_insets");
+    assert_eq!(result.as_deref(), Some("12,5,8,8"));
+}
