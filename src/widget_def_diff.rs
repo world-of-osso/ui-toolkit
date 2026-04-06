@@ -3,12 +3,12 @@ use std::collections::HashSet;
 use crate::frame::{Frame, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
 use crate::widget_def::{NineSliceDef, WidgetChild, WidgetDef};
-use crate::widgets::texture::TextureSource;
 use crate::widgets::button::ButtonData;
 use crate::widgets::edit_box::EditBoxData;
 use crate::widgets::font_string::FontStringData;
 use crate::widgets::slider::{SliderData, StatusBarData};
 use crate::widgets::texture::TextureData;
+use crate::widgets::texture::TextureSource;
 
 pub struct DiffContext {
     /// All frame IDs created by this context.
@@ -289,9 +289,10 @@ fn values_equal(old: &str, new: &str) -> bool {
 }
 
 fn nine_slice_from_def(def: &NineSliceDef) -> NineSlice {
-    let part_textures = def.textures.as_ref().map(|paths| {
-        std::array::from_fn(|i| TextureSource::File(paths[i].clone()))
-    });
+    let part_textures = def
+        .textures
+        .as_ref()
+        .map(|paths| std::array::from_fn(|i| TextureSource::File(paths[i].clone())));
     NineSlice {
         edge_size: def.edge_size,
         bg_color: def.bg_color,
