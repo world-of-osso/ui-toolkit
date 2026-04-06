@@ -175,9 +175,11 @@ fn effective_size(f: &crate::frame::Frame) -> (f32, f32) {
         .unwrap_or((f.resolved_width(), f.resolved_height()))
 }
 
-fn is_renderable(f: &crate::frame::Frame) -> bool {
+pub(crate) fn is_renderable(f: &crate::frame::Frame) -> bool {
     if f.nine_slice.is_some() || f.three_slice.is_some() {
-        return false;
+        // nine_slice/three_slice frames are rendered by their own systems,
+        // but allow a background_color quad behind them (WoW backdropColor).
+        return f.background_color.is_some();
     }
     let (w, h) = effective_size(f);
     f.visible

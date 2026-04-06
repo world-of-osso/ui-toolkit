@@ -507,4 +507,119 @@ mod tests {
             other => panic!("unexpected texture source: {other:?}"),
         }
     }
+
+    #[test]
+    fn border_color_tints_border_parts_and_bg_color_tints_center() {
+        use crate::layout::LayoutRect;
+
+        let ns = NineSlice {
+            edge_size: 8.0,
+            bg_color: [0.09, 0.09, 0.09, 1.0],
+            border_color: [1.0, 0.78, 0.0, 1.0],
+            ..Default::default()
+        };
+        let mut frame = crate::frame::Frame::default();
+        frame.width = Dimension::Fixed(200.0);
+        frame.height = Dimension::Fixed(40.0);
+        frame.layout_rect = Some(LayoutRect {
+            x: 0.0,
+            y: 0.0,
+            width: 200.0,
+            height: 40.0,
+        });
+        frame.nine_slice = Some(ns.clone());
+
+        // Part 4 = center → uses bg_color
+        let (_, _, center_color) = part_geometry(&frame, &ns, 4, 1920.0, 1080.0, 0.0);
+        let center_srgba = center_color.to_srgba();
+        assert!(
+            (center_srgba.red - 0.09).abs() < 0.01,
+            "center should use bg_color, got red={:.3}",
+            center_srgba.red
+        );
+
+        // Part 1 = top border → uses border_color
+        let (_, _, border_color) = part_geometry(&frame, &ns, 1, 1920.0, 1080.0, 0.0);
+        let border_srgba = border_color.to_srgba();
+        assert!(
+            (border_srgba.red - 1.0).abs() < 0.01,
+            "border should use border_color, got red={:.3}",
+            border_srgba.red
+        );
+        assert!(
+            (border_srgba.green - 0.78).abs() < 0.01,
+            "border should use border_color, got green={:.3}",
+            border_srgba.green
+        );
+        assert!(
+            border_srgba.blue < 0.01,
+            "border should use border_color, got blue={:.3}",
+            border_srgba.blue
+        );
+    }
+
+    #[test]
+    fn background_color_renders_behind_nine_slice_as_backdrop() {
+        // When a frame has both nine_slice and background_color, the main
+        // render path spawns a solid quad (backdropColor) behind the 9 parts.
+        let mut frame = crate::frame::Frame::default();
+        frame.width = Dimension::Fixed(200.0);
+        frame.height = Dimension::Fixed(40.0);
+        frame.background_color = Some([0.15, 0.12, 0.09, 1.0]);
+        frame.nine_slice = Some(NineSlice::default());
+
+        assert!(
+            super::super::render::is_renderable(&frame),
+            "frame with nine_slice + background_color should be renderable"
+        );
+
+        // Without background_color, nine_slice frames are not renderable by main path
+        frame.background_color = None;
+        assert!(
+            !super::super::render::is_renderable(&frame),
+            "frame with nine_slice but no background_color should not be renderable"
+        );
+    }
+
+    #[test]
+    fn background_color_quad_is_full_size_behind_nine_slice() {
+        use crate::layout::LayoutRect;
+
+        let mut frame = crate::frame::Frame::default();
+        frame.width = Dimension::Fixed(200.0);
+        frame.height = Dimension::Fixed(40.0);
+        frame.layout_rect = Some(LayoutRect {
+            x: 10.0,
+            y: 20.0,
+            width: 200.0,
+            height: 40.0,
+        });
+        frame.background_color = Some([0.15, 0.12, 0.09, 1.0]);
+        frame.nine_slice = Some(NineSlice {
+            edge_size: 8.0,
+            ..Default::default()
+        });
+
+        // The background quad renders at full frame size — the nine_slice
+        // corner textures layer on top and occlude it where opaque.
+        let (size, _offset) = super::super::render::frame_sprite_params(&frame);
+        assert_eq!(size.x, 200.0, "width should match full frame");
+        assert_eq!(size.y, 40.0, "height should match full frame");
+    }
+
+    #[test]
+    fn nine_slice_part_color_ignores_frame_background_color() {
+        // part_color reads from NineSlice, not from frame.background_color
+        let ns = NineSlice {
+            bg_color: [0.0, 0.0, 0.0, 0.8],
+            ..Default::default()
+        };
+        let center_color = part_color(&ns, false, 1.0);
+        let srgba = center_color.to_srgba();
+        assert!(
+            srgba.red < 0.01,
+            "center color should come from nine_slice bg_color, got red={:.3}",
+            srgba.red
+        );
+    }
 }
