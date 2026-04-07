@@ -38,6 +38,35 @@ impl Default for SliderData {
     }
 }
 
+impl SliderData {
+    /// Increment value by one step (or 0.1 if step is zero). Clamped to max.
+    pub fn increment(&mut self) {
+        let step = if self.step > 0.0 { self.step } else { 0.1 };
+        self.value = (self.value + step).min(self.max);
+    }
+
+    /// Decrement value by one step (or 0.1 if step is zero). Clamped to min.
+    pub fn decrement(&mut self) {
+        let step = if self.step > 0.0 { self.step } else { 0.1 };
+        self.value = (self.value - step).max(self.min);
+    }
+
+    /// Set value with clamping to [min, max].
+    pub fn set_clamped(&mut self, value: f64) {
+        self.value = value.clamp(self.min, self.max);
+    }
+
+    /// Whether the slider is at its minimum value.
+    pub fn is_at_min(&self) -> bool {
+        self.value <= self.min
+    }
+
+    /// Whether the slider is at its maximum value.
+    pub fn is_at_max(&self) -> bool {
+        self.value >= self.max
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillStyle {
     Standard,
@@ -257,6 +286,135 @@ mod tests {
         let sb = StatusBarData::default();
         assert_eq!(sb.fill_style, FillStyle::Standard);
         assert!(!sb.reverse_fill);
+    }
+
+    // --- Stepper: increment/decrement with bounds clamping ---
+
+    #[test]
+    fn increment_advances_by_step() {
+        let mut s = SliderData {
+            value: 0.5,
+            step: 0.1,
+            ..Default::default()
+        };
+        s.increment();
+        assert!((s.value - 0.6).abs() < 0.001);
+    }
+
+    #[test]
+    fn decrement_retreats_by_step() {
+        let mut s = SliderData {
+            value: 0.5,
+            step: 0.1,
+            ..Default::default()
+        };
+        s.decrement();
+        assert!((s.value - 0.4).abs() < 0.001);
+    }
+
+    #[test]
+    fn increment_clamped_at_max() {
+        let mut s = SliderData {
+            value: 0.95,
+            step: 0.1,
+            ..Default::default()
+        };
+        s.increment();
+        assert_eq!(s.value, 1.0);
+        assert!(s.is_at_max());
+    }
+
+    #[test]
+    fn decrement_clamped_at_min() {
+        let mut s = SliderData {
+            value: 0.05,
+            step: 0.1,
+            ..Default::default()
+        };
+        s.decrement();
+        assert_eq!(s.value, 0.0);
+        assert!(s.is_at_min());
+    }
+
+    #[test]
+    fn increment_at_max_stays_at_max() {
+        let mut s = SliderData {
+            value: 1.0,
+            step: 0.1,
+            ..Default::default()
+        };
+        s.increment();
+        assert_eq!(s.value, 1.0);
+    }
+
+    #[test]
+    fn decrement_at_min_stays_at_min() {
+        let mut s = SliderData {
+            value: 0.0,
+            step: 0.1,
+            ..Default::default()
+        };
+        s.decrement();
+        assert_eq!(s.value, 0.0);
+    }
+
+    #[test]
+    fn increment_uses_default_step_when_zero() {
+        let mut s = SliderData::default(); // step = 0.0
+        s.increment();
+        assert!((s.value - 0.1).abs() < 0.001);
+    }
+
+    #[test]
+    fn set_clamped_within_range() {
+        let mut s = SliderData::default();
+        s.set_clamped(0.5);
+        assert_eq!(s.value, 0.5);
+    }
+
+    #[test]
+    fn set_clamped_above_max() {
+        let mut s = SliderData::default();
+        s.set_clamped(5.0);
+        assert_eq!(s.value, 1.0);
+    }
+
+    #[test]
+    fn set_clamped_below_min() {
+        let mut s = SliderData::default();
+        s.set_clamped(-1.0);
+        assert_eq!(s.value, 0.0);
+    }
+
+    #[test]
+    fn is_at_min_and_max() {
+        let min = SliderData::default();
+        assert!(min.is_at_min());
+        assert!(!min.is_at_max());
+        let max = SliderData {
+            value: 1.0,
+            ..Default::default()
+        };
+        assert!(!max.is_at_min());
+        assert!(max.is_at_max());
+    }
+
+    #[test]
+    fn custom_range_increment() {
+        let mut s = SliderData {
+            value: 50.0,
+            min: 0.0,
+            max: 100.0,
+            step: 10.0,
+            ..Default::default()
+        };
+        s.increment();
+        assert!((s.value - 60.0).abs() < 0.001);
+        s.increment();
+        s.increment();
+        s.increment();
+        s.increment();
+        assert_eq!(s.value, 100.0); // clamped
     }
 
     #[test]
