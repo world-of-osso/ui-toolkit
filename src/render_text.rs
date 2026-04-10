@@ -551,13 +551,19 @@ mod tests {
             &UiText,
             &TextLayout,
             &bevy::sprite::Anchor,
+            &Transform,
         ), (Without<crate::render_text_fx::UiTextShadow>, Without<crate::render_text_fx::UiTextOutline>)>();
-        let (_, layout, anchor) = q
+        let (_, layout, anchor, transform) = q
             .iter(app.world())
-            .find(|(t, _, _)| t.0 == id)
+            .find(|(t, _, _, _)| t.0 == id)
             .expect("button text entity");
         assert_eq!(layout.justify, Justify::Center);
         assert_eq!(*anchor, bevy::sprite::Anchor::CENTER);
+        // screen is 0x0 in test, frame at (0,0) 200x40
+        // x = fx + width/2 - screen_w/2 = 0 + 100 - 0 = 100
+        // y = screen_h/2 - (top+bottom)/2 = 0 - 20 = -20
+        assert_eq!(transform.translation.x, 100.0);
+        assert_eq!(transform.translation.y, -20.0);
     }
 
     #[test]
