@@ -525,6 +525,42 @@ mod tests {
     }
 
     #[test]
+    fn button_text_is_centered_by_default() {
+        let mut app = make_test_app();
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        let id = ui.registry.create_frame("TestButton", None);
+        let frame = ui.registry.get_mut(id).unwrap();
+        frame.width = Dimension::Fixed(200.0);
+        frame.height = Dimension::Fixed(40.0);
+        frame.widget_type = WidgetType::Button;
+        frame.layout_rect = Some(LayoutRect {
+            x: 0.0,
+            y: 0.0,
+            width: 200.0,
+            height: 40.0,
+        });
+        frame.widget_data = Some(WidgetData::Button(crate::widgets::button::ButtonData {
+            text: "Click Me".into(),
+            ..Default::default()
+        }));
+        drop(ui);
+
+        app.update();
+
+        let mut q = app.world_mut().query_filtered::<(
+            &UiText,
+            &TextLayout,
+            &bevy::sprite::Anchor,
+        ), (Without<crate::render_text_fx::UiTextShadow>, Without<crate::render_text_fx::UiTextOutline>)>();
+        let (_, layout, anchor) = q
+            .iter(app.world())
+            .find(|(t, _, _)| t.0 == id)
+            .expect("button text entity");
+        assert_eq!(layout.justify, Justify::Center);
+        assert_eq!(*anchor, bevy::sprite::Anchor::CENTER);
+    }
+
+    #[test]
     fn max_lines_caps_text_height() {
         let mut app = make_test_app();
         let id = insert_fontstring_frame(

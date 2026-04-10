@@ -457,6 +457,30 @@ mod tests {
     }
 
     #[test]
+    fn diff_button_disabled_false_stays_normal() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        let children = vec![WidgetChild::Widget(WidgetDef {
+            tag: "Button",
+            tag_owned: None,
+            name: Some("TestButton".to_string()),
+            attrs: vec![Attr::new_static("disabled", "false".to_string())],
+            anchors: vec![],
+            nine_slice: None,
+            children: vec![],
+        })];
+
+        ctx.diff_roots(&children, None, &mut reg);
+
+        let fid = ctx.created_frames[0];
+        let frame = reg.get(fid).unwrap();
+        let Some(WidgetData::Button(bd)) = &frame.widget_data else {
+            panic!("expected button widget data");
+        };
+        assert_eq!(bd.state, crate::widgets::button::ButtonState::Normal);
+    }
+
+    #[test]
     fn diff_applies_alpha_via_registry_effective_alpha() {
         let mut reg = make_registry();
         let mut ctx = DiffContext::new();
@@ -486,7 +510,10 @@ mod tests {
             tag: "Frame",
             tag_owned: None,
             name: Some("BgFrame".to_string()),
-            attrs: vec![Attr::new_static("background_color", "0.1,0.2,0.3,1.0".to_string())],
+            attrs: vec![Attr::new_static(
+                "background_color",
+                "0.1,0.2,0.3,1.0".to_string(),
+            )],
             anchors: vec![],
             nine_slice: None,
             children: vec![],
