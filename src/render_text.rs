@@ -556,14 +556,30 @@ mod tests {
         let mut q = app.world_mut().query_filtered::<(
             &UiText,
             &TextLayout,
+            &TextBounds,
             &bevy::sprite::Anchor,
             &Transform,
         ), (Without<crate::render_text_fx::UiTextShadow>, Without<crate::render_text_fx::UiTextOutline>)>();
-        let (_, layout, anchor, transform) = q
+        let (_, layout, bounds, anchor, transform) = q
             .iter(app.world())
-            .find(|(t, _, _, _)| t.0 == id)
+            .find(|(t, _, _, _, _)| t.0 == id)
             .expect("button text entity");
         assert_eq!(layout.justify, Justify::Center);
+        // LineBreak::WordBoundary is required for Justify::Center to take effect
+        // in cosmic-text. With NoWrap, the justify is silently ignored and text
+        // renders left-aligned regardless of the Justify value.
+        assert_eq!(
+            layout.linebreak,
+            LineBreak::WordBoundary,
+            "centering requires WordBoundary; NoWrap causes cosmic-text to ignore Justify::Center"
+        );
+        // TextBounds.width must match the frame width so cosmic-text has a
+        // region to center within.
+        assert_eq!(
+            bounds.width,
+            Some(200.0),
+            "text bounds width must equal frame width for centering to work"
+        );
         assert_eq!(*anchor, bevy::sprite::Anchor::TOP_LEFT);
         // screen is 0x0 in test, frame at (0,0) 200x40, button font_size=14
         // x = fx + insets[0] - screen_w/2 = 0 + 0 - 0 = 0
