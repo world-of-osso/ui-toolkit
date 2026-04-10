@@ -115,11 +115,13 @@ fn spawn_missing_text(
             props.justify_v,
             sort_map[&frame.id],
         );
+        let bounds = text_bounds(frame);
+        let layout = text_layout(frame);
         let font = font_registry.get(props.font, font_assets);
         commands.spawn((
             Text2d::new(props.content),
-            text_layout(frame),
-            text_bounds(frame),
+            layout,
+            bounds,
             TextFont {
                 font,
                 font_size: props.font_size,
@@ -235,7 +237,7 @@ pub fn text_transform(
     frame: &crate::frame::Frame,
     screen_w: f32,
     screen_h: f32,
-    justify_h: JustifyH,
+    _justify_h: JustifyH,
     justify_v: JustifyV,
     sort_idx: usize,
 ) -> Transform {
@@ -243,33 +245,26 @@ pub fn text_transform(
     let fx = rect.map_or(0.0, |r| r.x);
     let fy = rect.map_or(0.0, |r| r.y);
     let insets = text_insets(frame);
-    let x = match justify_h {
-        JustifyH::Left => fx + insets[0] - screen_w * 0.5,
-        JustifyH::Center => fx + frame.resolved_width() * 0.5 - screen_w * 0.5,
-        JustifyH::Right => fx + frame.resolved_width() - insets[1] - screen_w * 0.5,
-    };
+    // With TextBounds.width set, Bevy handles horizontal alignment via Justify
+    // within the bounded region. Position at the left edge and use TOP_LEFT anchor
+    // so the text bounds exactly cover the frame area.
+    let x = fx + insets[0] - screen_w * 0.5;
     let top = fy + insets[2];
     let bottom = fy + frame.resolved_height() - insets[3];
+    let font_height = text_font_height(frame);
     let y = match justify_v {
         JustifyV::Top => screen_h * 0.5 - top,
-        JustifyV::Middle => screen_h * 0.5 - (top + bottom) * 0.5,
-        JustifyV::Bottom => screen_h * 0.5 - bottom,
+        JustifyV::Middle => screen_h * 0.5 - (top + bottom) * 0.5 + font_height * 0.5,
+        JustifyV::Bottom => screen_h * 0.5 - bottom + font_height,
     };
     Transform::from_xyz(x, y, sort_idx as f32 * 0.001 + 0.0007)
 }
 
-fn text_anchor(justify_h: JustifyH, justify_v: JustifyV) -> Anchor {
-    match (justify_h, justify_v) {
-        (JustifyH::Left, JustifyV::Top) => Anchor::TOP_LEFT,
-        (JustifyH::Center, JustifyV::Top) => Anchor::TOP_CENTER,
-        (JustifyH::Right, JustifyV::Top) => Anchor::TOP_RIGHT,
-        (JustifyH::Left, JustifyV::Middle) => Anchor::CENTER_LEFT,
-        (JustifyH::Center, JustifyV::Middle) => Anchor::CENTER,
-        (JustifyH::Right, JustifyV::Middle) => Anchor::CENTER_RIGHT,
-        (JustifyH::Left, JustifyV::Bottom) => Anchor::BOTTOM_LEFT,
-        (JustifyH::Center, JustifyV::Bottom) => Anchor::BOTTOM_CENTER,
-        (JustifyH::Right, JustifyV::Bottom) => Anchor::BOTTOM_RIGHT,
-    }
+fn text_anchor(_justify_h: JustifyH, _justify_v: JustifyV) -> Anchor {
+    // Always TOP_LEFT: transform is at the frame's top-left corner,
+    // TextBounds.width covers the frame, and Bevy's Justify handles
+    // horizontal alignment within the bounds.
+    Anchor::TOP_LEFT
 }
 
 pub(crate) fn text_layout(frame: &crate::frame::Frame) -> TextLayout {
@@ -296,11 +291,9 @@ fn text_justify(frame: &crate::frame::Frame) -> Justify {
 }
 
 fn text_linebreak(frame: &crate::frame::Frame) -> LineBreak {
-    if text_wraps(frame) {
-        LineBreak::WordBoundary
-    } else {
-        LineBreak::NoWrap
-    }
+    // Use WordBoundary for all bounded text so cosmic-text respects Justify
+    // alignment within the bounds. Single-line text that fits won't actually wrap.
+    LineBreak::WordBoundary
 }
 
 fn text_wraps(frame: &crate::frame::Frame) -> bool {
@@ -320,6 +313,15 @@ fn text_max_height(frame: &crate::frame::Frame) -> Option<f32> {
         (true, None) => Some(frame_height),
         (false, Some(limit)) => Some(limit),
         (false, None) => None,
+    }
+}
+
+fn text_font_height(frame: &crate::frame::Frame) -> f32 {
+    match &frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.font_size * fs.text_scale,
+        Some(WidgetData::EditBox(eb)) => eb.font_size,
+        Some(WidgetData::Button(btn)) => btn.font_size,
+        _ => 12.0,
     }
 }
 
@@ -422,8 +424,10 @@ mod tests {
     fn text_transform_centers_edit_box_text_between_vertical_insets() {
         let frame = make_edit_box(300.0, 30.0, [12.0, 5.0, 0.0, 5.0]);
         let transform = text_transform(&frame, 800.0, 600.0, JustifyH::Left, JustifyV::Middle, 0);
+        // x = fx + insets[0] - screen_w/2 = 0 + 12 - 400 = -388
         assert_eq!(transform.translation.x, -388.0);
-        assert_eq!(transform.translation.y, 287.5);
+        // y = screen_h/2 - (top+bottom)/2 + font_h/2 = 300 - 12.5 + 8 = 295.5
+        assert_eq!(transform.translation.y, 295.5);
         assert_eq!(transform.translation.z, 0.0007);
     }
 
@@ -439,15 +443,17 @@ mod tests {
     }
 
     #[test]
-    fn text_anchor_combines_horizontal_and_vertical_justify() {
+    fn text_anchor_is_always_top_left() {
+        // All text uses TOP_LEFT anchor; horizontal alignment is handled by
+        // Justify within TextBounds, vertical by transform y offset.
         assert_eq!(text_anchor(JustifyH::Left, JustifyV::Top), Anchor::TOP_LEFT);
         assert_eq!(
             text_anchor(JustifyH::Center, JustifyV::Middle),
-            Anchor::CENTER
+            Anchor::TOP_LEFT
         );
         assert_eq!(
             text_anchor(JustifyH::Right, JustifyV::Bottom),
-            Anchor::BOTTOM_RIGHT
+            Anchor::TOP_LEFT
         );
     }
 
@@ -558,12 +564,12 @@ mod tests {
             .find(|(t, _, _, _)| t.0 == id)
             .expect("button text entity");
         assert_eq!(layout.justify, Justify::Center);
-        assert_eq!(*anchor, bevy::sprite::Anchor::CENTER);
-        // screen is 0x0 in test, frame at (0,0) 200x40
-        // x = fx + width/2 - screen_w/2 = 0 + 100 - 0 = 100
-        // y = screen_h/2 - (top+bottom)/2 = 0 - 20 = -20
-        assert_eq!(transform.translation.x, 100.0);
-        assert_eq!(transform.translation.y, -20.0);
+        assert_eq!(*anchor, bevy::sprite::Anchor::TOP_LEFT);
+        // screen is 0x0 in test, frame at (0,0) 200x40, button font_size=14
+        // x = fx + insets[0] - screen_w/2 = 0 + 0 - 0 = 0
+        // y = screen_h/2 - (top+bottom)/2 + font_h/2 = 0 - 20 + 7 = -13
+        assert_eq!(transform.translation.x, 0.0);
+        assert_eq!(transform.translation.y, -13.0);
     }
 
     #[test]
