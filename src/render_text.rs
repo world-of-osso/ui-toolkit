@@ -277,13 +277,8 @@ pub(crate) fn text_layout(frame: &crate::frame::Frame) -> TextLayout {
 }
 
 pub(crate) fn text_bounds(frame: &crate::frame::Frame) -> TextBounds {
-    let width = if text_wraps(frame) {
-        Some(frame.resolved_width())
-    } else {
-        None
-    };
     TextBounds {
-        width,
+        width: Some(frame.resolved_width()),
         height: text_max_height(frame),
     }
 }
