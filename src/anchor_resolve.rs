@@ -11,20 +11,16 @@ pub(crate) struct AnchorState {
     relative_point: String,
     x: String,
     y: String,
-    /// Number of dynamic attrs still expected before we can apply.
-    #[allow(dead_code)]
-    pub(crate) remaining_dynamic: usize,
 }
 
 impl AnchorState {
-    pub(crate) fn new(remaining_dynamic: usize) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             point: "CENTER".to_string(),
             relative_to: "$parent".to_string(),
             relative_point: "CENTER".to_string(),
             x: "0".to_string(),
             y: "0".to_string(),
-            remaining_dynamic,
         }
     }
 
@@ -88,7 +84,7 @@ pub(crate) fn apply_anchor_from_def(
     parent_frame_id: u64,
     registry: &mut FrameRegistry,
 ) -> Option<(u64, String)> {
-    let mut state = AnchorState::new(0);
+    let mut state = AnchorState::new();
     state.set("point", &def.point);
     state.set("relative_to", &def.relative_to);
     state.set("relative_point", &def.relative_point);
