@@ -145,38 +145,66 @@ fn parse_children(input: &str, consts: &[(String, String)]) -> Vec<WidgetChild> 
     let mut pos = 0;
     let bytes = input.as_bytes();
     while pos < input.len() {
-        while pos < input.len() && is_ws_or_comma(bytes[pos]) {
-            pos += 1;
-        }
+        pos = skip_child_delimiters(input, pos, bytes);
         if pos >= input.len() {
             break;
         }
-        if input[pos..].starts_with("if ") || bytes[pos] == b'{' {
-            let (new_pos, child) = parse_dynamic_block(input, pos);
-            pos = new_pos;
+        let (new_pos, child) = parse_child_at(input, pos, consts, bytes);
+        pos = new_pos;
+        if let Some(child) = child {
             children.push(child);
-            continue;
-        }
-        let (new_pos, ident) = read_ident(input, pos);
-        if new_pos == pos {
-            pos += 1;
-            continue;
-        }
-        pos = skip_whitespace(input, new_pos);
-        if pos < input.len() && bytes[pos] == b'{' {
-            let Some(block) = extract_braced_block(&input[pos..]) else {
-                pos += 1;
-                continue;
-            };
-            let consumed = block.len() + 2;
-            let child = dispatch_element(ident, block.trim(), consts);
-            pos += consumed;
-            children.push(child);
-        } else if pos < input.len() && bytes[pos] == b':' {
-            pos = skip_attr_value_line(input, pos);
         }
     }
     children
+}
+
+fn skip_child_delimiters(input: &str, mut pos: usize, bytes: &[u8]) -> usize {
+    while pos < input.len() && is_ws_or_comma(bytes[pos]) {
+        pos += 1;
+    }
+    pos
+}
+
+fn parse_child_at(
+    input: &str,
+    pos: usize,
+    consts: &[(String, String)],
+    bytes: &[u8],
+) -> (usize, Option<WidgetChild>) {
+    if input[pos..].starts_with("if ") || bytes[pos] == b'{' {
+        let (new_pos, child) = parse_dynamic_block(input, pos);
+        return (new_pos, Some(child));
+    }
+
+    let (new_pos, ident) = read_ident(input, pos);
+    if new_pos == pos {
+        return (pos + 1, None);
+    }
+
+    let attr_pos = skip_whitespace(input, new_pos);
+    if attr_pos < input.len() && bytes[attr_pos] == b':' {
+        return (skip_attr_value_line(input, attr_pos), None);
+    }
+
+    parse_named_child(input, attr_pos, ident, consts, bytes)
+}
+
+fn parse_named_child(
+    input: &str,
+    pos: usize,
+    ident: &str,
+    consts: &[(String, String)],
+    bytes: &[u8],
+) -> (usize, Option<WidgetChild>) {
+    if pos >= input.len() || bytes[pos] != b'{' {
+        return (pos, None);
+    }
+    let Some(block) = extract_braced_block(&input[pos..]) else {
+        return (pos + 1, None);
+    };
+    let consumed = block.len() + 2;
+    let child = dispatch_element(ident, block.trim(), consts);
+    (pos + consumed, Some(child))
 }
 
 fn skip_attr_value_line(input: &str, pos: usize) -> usize {
