@@ -221,6 +221,7 @@ pub fn load_file_texture(
         return Some(handle.clone());
     }
     if missing_file_textures.contains(path) {
+        eprintln!("[UI] Skipping blacklisted texture: {path}");
         return None;
     }
     let assets = images.as_mut().map(|images| &mut **images)?;

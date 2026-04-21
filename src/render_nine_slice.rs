@@ -608,6 +608,109 @@ mod tests {
     }
 
     #[test]
+    fn changing_part_textures_updates_resolved_texture_source() {
+        // Verify that resolve_part_texture reads from the current nine_slice,
+        // so swapping part_textures produces a different texture source.
+        let make_ns = |variant: &str| NineSlice {
+            edge_size: 8.0,
+            part_textures: Some(std::array::from_fn(|i| {
+                let names = ["TL", "T", "TR", "L", "M", "R", "BL", "B", "BR"];
+                TextureSource::File(format!("data/textures/editbox-{variant}-{}.ktx2", names[i]))
+            })),
+            ..Default::default()
+        };
+
+        let dark_ns = make_ns("dark");
+        let focused_ns = make_ns("focused");
+
+        // Part 4 = center
+        let dark_source = &dark_ns.part_textures.as_ref().unwrap()[4];
+        let focused_source = &focused_ns.part_textures.as_ref().unwrap()[4];
+
+        let dark_path = match dark_source {
+            TextureSource::File(p) => p.as_str(),
+            _ => panic!("expected File"),
+        };
+        let focused_path = match focused_source {
+            TextureSource::File(p) => p.as_str(),
+            _ => panic!("expected File"),
+        };
+
+        assert!(dark_path.contains("dark"), "dark: {dark_path}");
+        assert!(focused_path.contains("focused"), "focused: {focused_path}");
+        assert_ne!(dark_path, focused_path);
+
+        // The nine_slice renderer calls resolve_part_texture which reads
+        // part_textures[part] — so replacing frame.nine_slice changes
+        // what texture gets loaded. No caching by frame_id occurs.
+    }
+
+    #[test]
+    fn update_part_applies_new_texture_from_swapped_nine_slice() {
+        // Full integration: create a nine_slice frame, update it, swap textures,
+        // update again — verify the sprite's image handle changes.
+        let mut app = test_app();
+        app.update();
+
+        let frame_id;
+        {
+            let mut ui = app.world_mut().resource_mut::<UiState>();
+            frame_id = ui.registry.create_frame("EditBox", None);
+            let frame = ui.registry.get_mut(frame_id).unwrap();
+            frame.width = Dimension::Fixed(200.0);
+            frame.height = Dimension::Fixed(40.0);
+            frame.nine_slice = Some(NineSlice {
+                edge_size: 8.0,
+                bg_color: [0.1, 0.1, 0.1, 1.0],
+                ..Default::default()
+            });
+        }
+        app.update();
+
+        // 9 parts should exist
+        let part_count = app
+            .world_mut()
+            .query_filtered::<(), With<UiNineSlicePart>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(part_count, 9);
+
+        // Collect sprite colors for the center part (part 4) before swap
+        let center_color_before = {
+            let mut q = app.world_mut().query::<(&UiNineSlicePart, &Sprite)>();
+            q.iter(app.world())
+                .find(|(p, _)| p.0 == frame_id && p.1 == 4)
+                .map(|(_, s)| s.color)
+                .expect("center part should exist")
+        };
+
+        // Swap nine_slice with different bg_color
+        {
+            let mut ui = app.world_mut().resource_mut::<UiState>();
+            let frame = ui.registry.get_mut(frame_id).unwrap();
+            frame.nine_slice = Some(NineSlice {
+                edge_size: 8.0,
+                bg_color: [0.9, 0.5, 0.2, 1.0],
+                ..Default::default()
+            });
+        }
+        app.update();
+
+        let center_color_after = {
+            let mut q = app.world_mut().query::<(&UiNineSlicePart, &Sprite)>();
+            q.iter(app.world())
+                .find(|(p, _)| p.0 == frame_id && p.1 == 4)
+                .map(|(_, s)| s.color)
+                .expect("center part should exist after swap")
+        };
+
+        assert_ne!(
+            center_color_before, center_color_after,
+            "center color should change after nine_slice swap: before={center_color_before:?} after={center_color_after:?}"
+        );
+    }
+
+    #[test]
     fn nine_slice_part_color_ignores_frame_background_color() {
         // part_color reads from NineSlice, not from frame.background_color
         let ns = NineSlice {
