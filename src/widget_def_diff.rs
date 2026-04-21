@@ -83,33 +83,39 @@ impl DiffContext {
     }
 
     fn apply_def(&mut self, def: &WidgetDef, frame_id: u64, registry: &mut FrameRegistry) {
-        // Clear existing anchors (will be re-applied)
-        if let Some(frame) = registry.get_mut(frame_id) {
-            frame.anchors.clear();
-            if !def
-                .attrs
-                .iter()
-                .any(|attr| attr.effective_name() == "background_color")
-            {
-                frame.background_color = None;
-            }
+        self.clear_reapplied_frame_state(def, frame_id, registry);
+        self.apply_def_name(def, frame_id, registry);
+        self.apply_def_attrs(def, frame_id, registry);
+        self.apply_def_nine_slice(def, frame_id, registry);
+        self.apply_def_anchors(def, frame_id, registry);
+    }
+
+    fn clear_reapplied_frame_state(
+        &self,
+        def: &WidgetDef,
+        frame_id: u64,
+        registry: &mut FrameRegistry,
+    ) {
+        let Some(frame) = registry.get_mut(frame_id) else {
+            return;
+        };
+        frame.anchors.clear();
+        if !has_background_color_attr(def) {
+            frame.background_color = None;
         }
-        // Apply name
+    }
+
+    fn apply_def_name(&self, def: &WidgetDef, frame_id: u64, registry: &mut FrameRegistry) {
         if let Some(name) = &def.name {
             registry.set_name(frame_id, name.clone());
         }
-        // Apply attrs
+    }
+
+    fn apply_def_attrs(&mut self, def: &WidgetDef, frame_id: u64, registry: &mut FrameRegistry) {
         for attr in &def.attrs {
             let attr_name = attr.effective_name();
             let value = attr.value_str();
-            if self.log_changes {
-                log::info!(
-                    "hot-reload: set {}.{} = {}",
-                    frame_label(frame_id, registry),
-                    attr_name,
-                    value
-                );
-            }
+            self.log_attr_change(frame_id, attr_name, value, registry);
             crate::attrs::apply_attribute(
                 registry,
                 frame_id,
@@ -119,19 +125,40 @@ impl DiffContext {
                 &mut self.missing_paths,
             );
         }
-        // Apply nine-slice backdrop
-        if let Some(ns_def) = &def.nine_slice {
-            if let Some(frame) = registry.get_mut(frame_id) {
-                frame.nine_slice = Some(nine_slice_from_def(ns_def));
-            }
+    }
+
+    fn apply_def_nine_slice(&self, def: &WidgetDef, frame_id: u64, registry: &mut FrameRegistry) {
+        if let Some(ns_def) = &def.nine_slice
+            && let Some(frame) = registry.get_mut(frame_id)
+        {
+            frame.nine_slice = Some(nine_slice_from_def(ns_def));
         }
-        // Apply anchors
+    }
+
+    fn apply_def_anchors(&mut self, def: &WidgetDef, frame_id: u64, registry: &mut FrameRegistry) {
         for anchor in &def.anchors {
             if let Some(pending) =
                 crate::anchor_resolve::apply_anchor_from_def(anchor, frame_id, registry)
             {
                 self.pending_anchors.push(pending);
             }
+        }
+    }
+
+    fn log_attr_change(
+        &self,
+        frame_id: u64,
+        attr_name: &str,
+        value: &str,
+        registry: &FrameRegistry,
+    ) {
+        if self.log_changes {
+            log::info!(
+                "hot-reload: set {}.{} = {}",
+                frame_label(frame_id, registry),
+                attr_name,
+                value
+            );
         }
     }
 
@@ -293,6 +320,12 @@ fn values_equal(old: &str, new: &str) -> bool {
         return (a - b).abs() < f32::EPSILON;
     }
     false
+}
+
+fn has_background_color_attr(def: &WidgetDef) -> bool {
+    def.attrs
+        .iter()
+        .any(|attr| attr.effective_name() == "background_color")
 }
 
 fn nine_slice_from_def(def: &NineSliceDef) -> NineSlice {
@@ -584,5 +617,58 @@ mod tests {
         assert!((ns.bg_color[0] - 0.1).abs() < 0.001);
         assert!((ns.border_color[0] - 1.0).abs() < f32::EPSILON);
         assert!(ns.part_textures.is_none());
+    }
+
+    #[test]
+    fn diff_reapplies_anchors_without_duplication() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        let first = vec![WidgetChild::Widget(WidgetDef {
+            tag: "Frame",
+            tag_owned: None,
+            name: Some("AnchoredFrame".to_string()),
+            attrs: vec![],
+            anchors: vec![AnchorDef {
+                point: "CENTER".to_string(),
+                relative_to: "$parent".to_string(),
+                relative_point: "CENTER".to_string(),
+                x: "10".to_string(),
+                y: "0".to_string(),
+            }],
+            nine_slice: None,
+            children: vec![],
+        })];
+        ctx.diff_roots(&first, None, &mut reg);
+
+        let second = vec![WidgetChild::Widget(WidgetDef {
+            tag: "Frame",
+            tag_owned: None,
+            name: Some("AnchoredFrame".to_string()),
+            attrs: vec![],
+            anchors: vec![AnchorDef {
+                point: "CENTER".to_string(),
+                relative_to: "$parent".to_string(),
+                relative_point: "CENTER".to_string(),
+                x: "20".to_string(),
+                y: "0".to_string(),
+            }],
+            nine_slice: None,
+            children: vec![],
+        })];
+        ctx.diff_roots(&second, None, &mut reg);
+
+        let fid = reg
+            .get_by_name("AnchoredFrame")
+            .expect("frame should exist");
+        let frame = reg.get(fid).expect("frame should exist");
+        assert_eq!(
+            frame.anchors.len(),
+            1,
+            "anchors should be cleared before reapply"
+        );
+        assert!(
+            (frame.anchors[0].x_offset - 20.0).abs() < f32::EPSILON,
+            "anchor should match latest definition"
+        );
     }
 }
