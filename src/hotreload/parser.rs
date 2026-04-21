@@ -319,39 +319,76 @@ fn collect_attrs(block: &str, consts: &[(String, String)]) -> Vec<Attr> {
     let mut pos = 0;
     let bytes = block.as_bytes();
     while pos < block.len() {
-        while pos < block.len() && is_ws_or_comma(bytes[pos]) {
-            pos += 1;
-        }
+        pos = skip_attr_delimiters(block, pos, bytes);
         if pos >= block.len() {
             break;
         }
-        let (new_pos, name) = read_ident(block, pos);
-        if new_pos == pos {
-            pos += 1;
-            continue;
-        }
-        pos = skip_whitespace(block, new_pos);
-        if pos < block.len() && bytes[pos] == b'{' {
-            break;
-        }
-        if pos >= block.len() || bytes[pos] != b':' {
-            pos = skip_attr_value_line(block, pos);
-            continue;
-        }
-        pos += 1;
-        pos = skip_whitespace(block, pos);
-        if pos >= block.len() {
-            break;
-        }
-        let (value_opt, consumed) = parse_attr_value(&block[pos..], consts);
-        pos += consumed;
-        if let Some(value) = value_opt {
-            let mut attr = Attr::new_static("", value);
-            attr.name_owned = Some(name.to_string());
-            attrs.push(attr);
+        match collect_attr_step(block, pos, consts, bytes) {
+            AttrStep::Stop => break,
+            AttrStep::Continue { next_pos, attr } => {
+                pos = next_pos;
+                if let Some(attr) = attr {
+                    attrs.push(attr);
+                }
+            }
         }
     }
     attrs
+}
+
+fn skip_attr_delimiters(block: &str, mut pos: usize, bytes: &[u8]) -> usize {
+    while pos < block.len() && is_ws_or_comma(bytes[pos]) {
+        pos += 1;
+    }
+    pos
+}
+
+enum AttrStep {
+    Stop,
+    Continue { next_pos: usize, attr: Option<Attr> },
+}
+
+fn collect_attr_step(
+    block: &str,
+    pos: usize,
+    consts: &[(String, String)],
+    bytes: &[u8],
+) -> AttrStep {
+    let (name_end, name) = read_ident(block, pos);
+    if name_end == pos {
+        return AttrStep::Continue {
+            next_pos: pos + 1,
+            attr: None,
+        };
+    }
+
+    let key_pos = skip_whitespace(block, name_end);
+    if key_pos < block.len() && bytes[key_pos] == b'{' {
+        return AttrStep::Stop;
+    }
+    if key_pos >= block.len() || bytes[key_pos] != b':' {
+        return AttrStep::Continue {
+            next_pos: skip_attr_value_line(block, key_pos),
+            attr: None,
+        };
+    }
+
+    let value_pos = skip_whitespace(block, key_pos + 1);
+    if value_pos >= block.len() {
+        return AttrStep::Stop;
+    }
+
+    let (value_opt, consumed) = parse_attr_value(&block[value_pos..], consts);
+    AttrStep::Continue {
+        next_pos: value_pos + consumed,
+        attr: value_opt.map(|value| build_attr(name, value)),
+    }
+}
+
+fn build_attr(name: &str, value: String) -> Attr {
+    let mut attr = Attr::new_static("", value);
+    attr.name_owned = Some(name.to_string());
+    attr
 }
 
 fn parse_attr_value(s: &str, consts: &[(String, String)]) -> (Option<String>, usize) {
