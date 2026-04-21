@@ -4,10 +4,11 @@ use std::collections::{HashMap, HashSet};
 
 use crate::frame::WidgetData;
 use crate::plugin::UiState;
-use crate::render_texture::{BlpLoaderRes, load_texture_source};
-use crate::widgets::button::ButtonState;
+use crate::render_texture::BlpLoaderRes;
 use crate::widgets::texture::TextureSource;
 
+mod backdrop;
+mod visual;
 /// Marker component for the 2D UI overlay camera.
 #[derive(Component)]
 pub struct UiCamera;
@@ -461,23 +462,7 @@ fn frame_visual(
     missing_file_textures: &mut HashSet<String>,
     blp_loader: Option<&BlpLoaderRes>,
 ) -> (Color, Handle<Image>, Option<Rect>) {
-    let args = (
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
-    );
-    let (
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
-    ) = args;
-    statusbar_visual(
+    visual::frame_visual(
         frame,
         images,
         texture_cache,
@@ -486,47 +471,10 @@ fn frame_visual(
         missing_file_textures,
         blp_loader,
     )
-    .or_else(|| {
-        frame_button_visual(
-            frame,
-            images,
-            texture_cache,
-            file_texture_cache,
-            missing_textures,
-            missing_file_textures,
-            blp_loader,
-        )
-    })
-    .or_else(|| {
-        texture_visual(
-            frame,
-            images,
-            texture_cache,
-            file_texture_cache,
-            missing_textures,
-            missing_file_textures,
-            blp_loader,
-        )
-    })
-    .unwrap_or_else(|| (frame_color(frame), Handle::default(), None))
 }
 
 fn should_keep_backdrop_part(state: &UiState, backdrop_part: &UiBackdropQuad) -> bool {
-    let Some(frame) = state.registry.get(backdrop_part.0) else {
-        return false;
-    };
-    if !uses_backdrop_parts(frame) {
-        return false;
-    }
-    let size = backdrop_part_geometry(
-        frame,
-        backdrop_part.1,
-        0,
-        state.registry.screen_width,
-        state.registry.screen_height,
-    )
-    .1;
-    size.x > 0.0 && size.y > 0.0
+    backdrop::should_keep_backdrop_part(state, backdrop_part)
 }
 
 fn backdrop_part_geometry_for_id(
@@ -536,11 +484,7 @@ fn backdrop_part_geometry_for_id(
     screen_w: f32,
     screen_h: f32,
 ) -> (Transform, Vec2, Color) {
-    let frame = state
-        .registry
-        .get(backdrop_part.0)
-        .expect("backdrop part should have a frame");
-    backdrop_part_geometry(frame, backdrop_part.1, sort_idx, screen_w, screen_h)
+    backdrop::backdrop_part_geometry_for_id(state, backdrop_part, sort_idx, screen_w, screen_h)
 }
 
 fn backdrop_part_geometry(
@@ -550,245 +494,20 @@ fn backdrop_part_geometry(
     screen_w: f32,
     screen_h: f32,
 ) -> (Transform, Vec2, Color) {
-    let (left, top, right, bottom) = frame
-        .nine_slice
-        .as_ref()
-        .map(nine_slice_layout_edges)
-        .unwrap_or_default();
-    let rect = frame.layout_rect.as_ref();
-    let fx = rect.map_or(0.0, |r| r.x);
-    let fy = rect.map_or(0.0, |r| r.y);
-    let interior_width = (frame.resolved_width() - left - right).max(0.0);
-    let interior_height = (frame.resolved_height() - top - bottom).max(0.0);
-    let (cx, cy, width, height) = backdrop_part_layout(
-        part,
-        fx,
-        fy,
-        left,
-        top,
-        right,
-        bottom,
-        interior_width,
-        interior_height,
-    );
-    let bx = cx - screen_w * 0.5;
-    let by = screen_h * 0.5 - cy;
-    let z = sort_idx as f32 * 0.001 - 0.0002;
-    (
-        Transform::from_xyz(bx, by, z),
-        Vec2::new(width, height),
-        frame_color(frame),
-    )
-}
-
-fn backdrop_part_layout(
-    part: u8,
-    fx: f32,
-    fy: f32,
-    left: f32,
-    top: f32,
-    right: f32,
-    bottom: f32,
-    interior_width: f32,
-    interior_height: f32,
-) -> (f32, f32, f32, f32) {
-    match part {
-        0 => (
-            fx + left + interior_width * 0.5,
-            fy + top * 0.5,
-            interior_width,
-            top,
-        ),
-        1 => (
-            fx + left * 0.5,
-            fy + top + interior_height * 0.5,
-            left,
-            interior_height,
-        ),
-        2 => (
-            fx + left + interior_width * 0.5,
-            fy + top + interior_height * 0.5,
-            interior_width,
-            interior_height,
-        ),
-        3 => (
-            fx + left + interior_width + right * 0.5,
-            fy + top + interior_height * 0.5,
-            right,
-            interior_height,
-        ),
-        _ => (
-            fx + left + interior_width * 0.5,
-            fy + top + interior_height + bottom * 0.5,
-            interior_width,
-            bottom,
-        ),
-    }
-}
-
-fn nine_slice_layout_edges(ns: &crate::frame::NineSlice) -> (f32, f32, f32, f32) {
-    if let Some([left, top, right, bottom]) = ns.edge_sizes {
-        (left, top, right, bottom)
-    } else {
-        let horizontal = ns.edge_size;
-        let vertical = ns.edge_size_v.unwrap_or(horizontal);
-        (horizontal, vertical, horizontal, vertical)
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn frame_button_visual(
-    frame: &crate::frame::Frame,
-    images: &mut Option<ResMut<Assets<Image>>>,
-    texture_cache: &mut HashMap<u32, Handle<Image>>,
-    file_texture_cache: &mut HashMap<String, Handle<Image>>,
-    missing_textures: &mut HashSet<u32>,
-    missing_file_textures: &mut HashSet<String>,
-    blp_loader: Option<&BlpLoaderRes>,
-) -> Option<(Color, Handle<Image>, Option<Rect>)> {
-    let WidgetData::Button(btn) = frame.widget_data.as_ref()? else {
-        return None;
-    };
-    button_texture(
-        btn,
-        frame.effective_alpha,
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
-    )
-}
-
-fn statusbar_visual(
-    frame: &crate::frame::Frame,
-    images: &mut Option<ResMut<Assets<Image>>>,
-    texture_cache: &mut HashMap<u32, Handle<Image>>,
-    file_texture_cache: &mut HashMap<String, Handle<Image>>,
-    missing_textures: &mut HashSet<u32>,
-    missing_file_textures: &mut HashSet<String>,
-    blp_loader: Option<&BlpLoaderRes>,
-) -> Option<(Color, Handle<Image>, Option<Rect>)> {
-    let WidgetData::StatusBar(sb) = frame.widget_data.as_ref()? else {
-        return None;
-    };
-    let [r, g, b, a] = sb.color;
-    if let Some(source) = &sb.texture {
-        return Some((
-            Color::srgba(r, g, b, a * frame.effective_alpha),
-            load_texture_source(
-                source,
-                images,
-                texture_cache,
-                file_texture_cache,
-                missing_textures,
-                missing_file_textures,
-                blp_loader,
-            )?
-            .handle,
-            None,
-        ));
-    }
-    Some((
-        Color::srgba(r, g, b, a * frame.effective_alpha),
-        Handle::default(),
-        None,
-    ))
-}
-
-fn texture_visual(
-    frame: &crate::frame::Frame,
-    images: &mut Option<ResMut<Assets<Image>>>,
-    texture_cache: &mut HashMap<u32, Handle<Image>>,
-    file_texture_cache: &mut HashMap<String, Handle<Image>>,
-    missing_textures: &mut HashSet<u32>,
-    missing_file_textures: &mut HashSet<String>,
-    blp_loader: Option<&BlpLoaderRes>,
-) -> Option<(Color, Handle<Image>, Option<Rect>)> {
-    let source = frame_texture_source(frame)?;
-    // TODO: additive blend requires custom pipeline
-    let texture = load_texture_source(
-        source,
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
-    )?;
-    Some((texture_tint(frame), texture.handle, texture.rect))
-}
-
-fn button_texture(
-    btn: &crate::widgets::button::ButtonData,
-    effective_alpha: f32,
-    images: &mut Option<ResMut<Assets<Image>>>,
-    texture_cache: &mut HashMap<u32, Handle<Image>>,
-    file_texture_cache: &mut HashMap<String, Handle<Image>>,
-    missing_textures: &mut HashSet<u32>,
-    missing_file_textures: &mut HashSet<String>,
-    blp_loader: Option<&BlpLoaderRes>,
-) -> Option<(Color, Handle<Image>, Option<Rect>)> {
-    let source = select_button_texture_source(btn)?;
-    let texture = load_texture_source(
-        source,
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
-    )?;
-    Some((
-        Color::srgba(1.0, 1.0, 1.0, effective_alpha),
-        texture.handle,
-        texture.rect,
-    ))
-}
-
-fn select_button_texture_source(
-    btn: &crate::widgets::button::ButtonData,
-) -> Option<&TextureSource> {
-    let source = match btn.state {
-        ButtonState::Disabled => btn
-            .disabled_texture
-            .as_ref()
-            .or(btn.normal_texture.as_ref()),
-        ButtonState::Pushed => btn.pushed_texture.as_ref().or(btn.normal_texture.as_ref()),
-        ButtonState::Normal if btn.hovered => btn
-            .highlight_texture
-            .as_ref()
-            .or(btn.normal_texture.as_ref()),
-        ButtonState::Normal => btn.normal_texture.as_ref(),
-    }?;
-    if matches!(source, TextureSource::None) {
-        return None;
-    }
-    Some(source)
+    backdrop::backdrop_part_geometry(frame, part, sort_idx, screen_w, screen_h)
 }
 
 /// Apply vertex_color tinting and effective_alpha to textured frames.
 /// If the texture is desaturated, compute luminance and use grey.
 pub fn texture_tint(frame: &crate::frame::Frame) -> Color {
-    let (vertex_color, desaturated) = match &frame.widget_data {
-        Some(WidgetData::Texture(tex)) => (tex.vertex_color, tex.desaturated),
-        _ => ([1.0, 1.0, 1.0, 1.0], false),
-    };
-    let [r, g, b, a] = vertex_color;
-    if desaturated {
-        let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        Color::srgba(lum, lum, lum, a * frame.effective_alpha)
-    } else {
-        Color::srgba(r, g, b, a * frame.effective_alpha)
-    }
+    visual::texture_tint(frame)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::frame::Dimension;
     use crate::plugin::UiPlugin;
+    use crate::widgets::button::ButtonState;
 
     fn test_app() -> App {
         let mut app = App::new();
