@@ -43,19 +43,25 @@ pub fn toggle_widget(spec: ToggleWidget<'_>) -> Element {
                 relative_point: AnchorPoint::Right,
                 x: {spec.x},
             }
-            r#frame {
-                name: {DynName(format!("{}Active", spec.name))},
-                width: {segment_width(spec.width)},
-                height: {spec.height},
-                background_color: spec.active_color,
-                anchor {
-                    point: AnchorPoint::Left,
-                    relative_point: AnchorPoint::Left,
-                    x: {active_x},
-                }
-            }
+            {toggle_active_panel(&spec, &active_x)}
             {toggle_segment(&spec, "Left", spec.left_label, !spec.right_selected)}
             {toggle_segment(&spec, "Right", spec.right_label, spec.right_selected)}
+        }
+    }
+}
+
+fn toggle_active_panel(spec: &ToggleWidget<'_>, active_x: &str) -> Element {
+    rsx! {
+        r#frame {
+            name: {DynName(format!("{}Active", spec.name))},
+            width: {segment_width(spec.width)},
+            height: {spec.height},
+            background_color: spec.active_color,
+            anchor {
+                point: AnchorPoint::Left,
+                relative_point: AnchorPoint::Left,
+                x: {active_x},
+            }
         }
     }
 }
