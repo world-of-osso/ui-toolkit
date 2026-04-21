@@ -291,27 +291,43 @@ fn spawn_outlines(
     let font = font_registry.get(fs.font, font_assets);
 
     for &(dx, dy) in outline_offsets(fs.outline) {
-        let mut transform = base;
-        transform.translation.x += dx;
-        transform.translation.y += dy;
-        transform.translation.z = sort_idx as f32 * 0.001 + 0.0005;
-        commands.spawn((
-            Text2d::new(&fs.text),
-            super::render_text::text_layout(frame),
-            super::render_text::text_bounds(frame),
-            TextFont {
-                font: font.clone(),
-                font_size: fs.font_size,
-                ..default()
-            },
-            TextColor(Color::srgba(0.0, 0.0, 0.0, alpha)),
-            super::render_text::text_anchor_for_frame(frame),
-            transform,
-            RenderLayers::layer(UI_RENDER_LAYER),
-            UiText(frame.id),
-            UiTextOutline(frame.id),
-        ));
+        let transform = outline_transform(base, dx, dy, sort_idx);
+        spawn_outline_entity(commands, frame, fs, &font, alpha, transform);
     }
+}
+
+fn outline_transform(base: Transform, dx: f32, dy: f32, sort_idx: usize) -> Transform {
+    let mut transform = base;
+    transform.translation.x += dx;
+    transform.translation.y += dy;
+    transform.translation.z = sort_idx as f32 * 0.001 + 0.0005;
+    transform
+}
+
+fn spawn_outline_entity(
+    commands: &mut Commands,
+    frame: &crate::frame::Frame,
+    fs: &crate::widgets::font_string::FontStringData,
+    font: &Handle<Font>,
+    alpha: f32,
+    transform: Transform,
+) {
+    commands.spawn((
+        Text2d::new(&fs.text),
+        super::render_text::text_layout(frame),
+        super::render_text::text_bounds(frame),
+        TextFont {
+            font: font.clone(),
+            font_size: fs.font_size,
+            ..default()
+        },
+        TextColor(Color::srgba(0.0, 0.0, 0.0, alpha)),
+        super::render_text::text_anchor_for_frame(frame),
+        transform,
+        RenderLayers::layer(UI_RENDER_LAYER),
+        UiText(frame.id),
+        UiTextOutline(frame.id),
+    ));
 }
 
 fn outline_offsets(outline: Outline) -> &'static [(f32, f32)] {
