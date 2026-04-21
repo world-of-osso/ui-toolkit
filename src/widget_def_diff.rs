@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::frame::{Frame, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
-use crate::widget_def::{NineSliceDef, WidgetChild, WidgetDef};
+use crate::widget_def::{Attr, NineSliceDef, WidgetChild, WidgetDef};
 use crate::widgets::button::ButtonData;
 use crate::widgets::edit_box::EditBoxData;
 use crate::widgets::font_string::FontStringData;
@@ -220,34 +220,79 @@ impl DiffContext {
     }
 
     fn patch_widget(&mut self, def: &WidgetDef, registry: &mut FrameRegistry) {
-        let Some(name) = &def.name else { return };
-        let Some(frame_id) = registry.get_by_name(name) else {
+        let Some((name, frame_id)) = self.patch_target(def, registry) else {
             return;
         };
-        for attr in &def.attrs {
-            let attr_name = attr.effective_name();
-            let value = attr.value_str();
-            let old = if self.log_changes {
-                crate::attrs::read_attribute(registry, frame_id, attr_name)
-            } else {
-                None
-            };
-            crate::attrs::apply_attribute(
-                registry,
-                frame_id,
-                attr_name,
-                value,
-                &mut self.validated_paths,
-                &mut self.missing_paths,
-            );
-            if self.log_changes {
-                if let Some(old) = &old {
-                    if !values_equal(old, value) {
-                        log::info!("hot-reload: {}.{}: {} → {}", name, attr_name, old, value);
-                    }
-                }
-            }
+        self.patch_widget_attrs(name, frame_id, &def.attrs, registry);
+        self.patch_widget_children(def, registry);
+    }
+
+    fn patch_target<'a>(
+        &self,
+        def: &'a WidgetDef,
+        registry: &FrameRegistry,
+    ) -> Option<(&'a str, u64)> {
+        let name = def.name.as_deref()?;
+        let frame_id = registry.get_by_name(name)?;
+        Some((name, frame_id))
+    }
+
+    fn patch_widget_attrs(
+        &mut self,
+        name: &str,
+        frame_id: u64,
+        attrs: &[Attr],
+        registry: &mut FrameRegistry,
+    ) {
+        for attr in attrs {
+            self.patch_widget_attr(name, frame_id, attr, registry);
         }
+    }
+
+    fn patch_widget_attr(
+        &mut self,
+        name: &str,
+        frame_id: u64,
+        attr: &Attr,
+        registry: &mut FrameRegistry,
+    ) {
+        let attr_name = attr.effective_name();
+        let value = attr.value_str();
+        let old = self.patch_old_value(registry, frame_id, attr_name);
+        crate::attrs::apply_attribute(
+            registry,
+            frame_id,
+            attr_name,
+            value,
+            &mut self.validated_paths,
+            &mut self.missing_paths,
+        );
+        self.log_patch_attr_change(name, attr_name, value, old.as_deref());
+    }
+
+    fn patch_old_value(
+        &self,
+        registry: &FrameRegistry,
+        frame_id: u64,
+        attr_name: &str,
+    ) -> Option<String> {
+        if !self.log_changes {
+            return None;
+        }
+        crate::attrs::read_attribute(registry, frame_id, attr_name)
+    }
+
+    fn log_patch_attr_change(&self, name: &str, attr_name: &str, value: &str, old: Option<&str>) {
+        let Some(old) = old else {
+            return;
+        };
+        if values_equal(old, value) {
+            return;
+        }
+        log::info!("hot-reload: {}.{}: {} → {}", name, attr_name, old, value);
+    }
+
+    fn patch_widget_children(&mut self, def: &WidgetDef, registry: &mut FrameRegistry) {
         for child_def in flatten(&def.children) {
             self.patch_widget(child_def, registry);
         }
