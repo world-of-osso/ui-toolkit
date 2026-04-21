@@ -83,6 +83,13 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
 }
 
 fn read_widget_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    read_basic_text_attr(frame, name)
+        .or_else(|| read_font_string_text_attr(frame, name))
+        .or_else(|| read_slider_text_attr(frame, name))
+        .or_else(|| read_edit_box_text_attr(frame, name))
+}
+
+fn read_basic_text_attr(frame: &Frame, name: &str) -> Option<String> {
     match name {
         "text" => match &frame.widget_data {
             Some(WidgetData::FontString(fs)) => Some(fs.text.clone()),
@@ -105,6 +112,12 @@ fn read_widget_text_attr(frame: &Frame, name: &str) -> Option<String> {
             Some(WidgetData::EditBox(eb)) => Some(format_color(eb.text_color)),
             _ => None,
         },
+        _ => None,
+    }
+}
+
+fn read_font_string_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
         "shadow_color" => match &frame.widget_data {
             Some(WidgetData::FontString(fs)) => fs.shadow_color.map(format_color),
             _ => None,
@@ -117,9 +130,21 @@ fn read_widget_text_attr(frame: &Frame, name: &str) -> Option<String> {
             Some(WidgetData::FontString(fs)) => Some(format_outline(fs.outline)),
             _ => None,
         },
+        _ => None,
+    }
+}
+
+fn read_slider_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
         "value" => read_slider_numeric_attr(frame, |slider| slider.value, |sb| sb.value),
         "min" => read_slider_numeric_attr(frame, |slider| slider.min, |sb| sb.min),
         "max" => read_slider_numeric_attr(frame, |slider| slider.max, |sb| sb.max),
+        _ => None,
+    }
+}
+
+fn read_edit_box_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
         "password" => match &frame.widget_data {
             Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.password)),
             _ => None,
@@ -402,8 +427,10 @@ fn apply_widget_text_attrs(
         }
         "text_insets" => {
             if let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data {
-                let parts: Vec<f32> =
-                    value.split(',').filter_map(|p| p.trim().parse().ok()).collect();
+                let parts: Vec<f32> = value
+                    .split(',')
+                    .filter_map(|p| p.trim().parse().ok())
+                    .collect();
                 if parts.len() == 4 {
                     eb.text_insets = [parts[0], parts[1], parts[2], parts[3]];
                 }
