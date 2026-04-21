@@ -329,31 +329,44 @@ fn flatten<'a>(children: &'a [WidgetChild]) -> Vec<&'a WidgetDef> {
 /// Matching prefers name-based lookup, then tag/widget_type.
 fn consume_match(
     def: &WidgetDef,
-    remaining: &mut Vec<Option<u64>>,
+    remaining: &mut [Option<u64>],
     registry: &FrameRegistry,
 ) -> Option<u64> {
-    if let Some(name) = &def.name {
-        if let Some(fid) = registry.get_by_name(name) {
-            if let Some(slot) = remaining.iter_mut().find(|s| **s == Some(fid)) {
-                *slot = None;
-                return Some(fid);
-            }
-        }
-    }
+    consume_name_match(def, remaining, registry)
+        .or_else(|| consume_type_match(def, remaining, registry))
+}
 
+fn consume_name_match(
+    def: &WidgetDef,
+    remaining: &mut [Option<u64>],
+    registry: &FrameRegistry,
+) -> Option<u64> {
+    let name = def.name.as_deref()?;
+    let fid = registry.get_by_name(name)?;
+    consume_frame_id(remaining, fid)
+}
+
+fn consume_type_match(
+    def: &WidgetDef,
+    remaining: &mut [Option<u64>],
+    registry: &FrameRegistry,
+) -> Option<u64> {
     let wanted_type =
         crate::attrs::tag_to_widget_type(def.effective_tag()).unwrap_or(WidgetType::Frame);
-    for slot in remaining.iter_mut() {
-        if let Some(fid) = *slot {
-            if let Some(frame) = registry.get(fid) {
-                if frame.widget_type == wanted_type {
-                    *slot = None;
-                    return Some(fid);
-                }
-            }
-        }
-    }
-    None
+    let index = remaining.iter().position(|slot| {
+        let Some(fid) = *slot else {
+            return false;
+        };
+        registry
+            .get(fid)
+            .is_some_and(|frame| frame.widget_type == wanted_type)
+    })?;
+    remaining[index].take()
+}
+
+fn consume_frame_id(remaining: &mut [Option<u64>], fid: u64) -> Option<u64> {
+    let slot = remaining.iter_mut().find(|slot| **slot == Some(fid))?;
+    slot.take()
 }
 
 /// Compare attribute values, treating numeric equivalents as equal (e.g. "320" == "320.0").
