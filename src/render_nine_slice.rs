@@ -30,46 +30,30 @@ pub fn sync_ui_nine_slices(
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
     let z_map = build_z_map(&state);
+    let mut sync = NineSliceSyncContext {
+        screen_w,
+        screen_h,
+        commands: &mut commands,
+        images: &mut images,
+        texture_cache: &mut texture_cache,
+        file_texture_cache: &mut file_texture_cache,
+        missing_textures: &mut missing_textures,
+        missing_file_textures: &mut missing_file_textures,
+        blp_loader: blp_loader.as_deref(),
+    };
 
     let mut existing: HashSet<(u64, u8)> = HashSet::new();
     for (entity, part) in &parts {
         if should_keep_part(&state, part) {
             existing.insert((part.0, part.1));
             let z = z_map.get(&part.0).copied().unwrap_or(0.0);
-            update_part(
-                &state,
-                entity,
-                part,
-                screen_w,
-                screen_h,
-                z,
-                &mut commands,
-                &mut images,
-                &mut texture_cache,
-                &mut file_texture_cache,
-                &mut missing_textures,
-                &mut missing_file_textures,
-                blp_loader.as_deref(),
-            );
+            update_part(&state, entity, part, z, &mut sync);
         } else {
-            commands.entity(entity).despawn();
+            sync.commands.entity(entity).despawn();
         }
     }
 
-    spawn_missing_parts(
-        &state,
-        &existing,
-        &z_map,
-        screen_w,
-        screen_h,
-        &mut commands,
-        &mut images,
-        &mut texture_cache,
-        &mut file_texture_cache,
-        &mut missing_textures,
-        &mut missing_file_textures,
-        blp_loader.as_deref(),
-    );
+    spawn_missing_parts(&state, &existing, &z_map, &mut sync);
 }
 
 /// Build z-order map: frame_id → z value, matching the strata sort used by UiQuad.
@@ -89,21 +73,24 @@ fn should_keep_part(state: &UiState, part: &UiNineSlicePart) -> bool {
         .is_some_and(|f| f.visible && f.nine_slice.is_some())
 }
 
-#[allow(clippy::too_many_arguments)]
+struct NineSliceSyncContext<'a, 'w, 's, 'i> {
+    screen_w: f32,
+    screen_h: f32,
+    commands: &'a mut Commands<'w, 's>,
+    images: &'a mut Option<ResMut<'i, Assets<Image>>>,
+    texture_cache: &'a mut HashMap<u32, Handle<Image>>,
+    file_texture_cache: &'a mut HashMap<String, Handle<Image>>,
+    missing_textures: &'a mut HashSet<u32>,
+    missing_file_textures: &'a mut HashSet<String>,
+    blp_loader: Option<&'a BlpLoaderRes>,
+}
+
 fn update_part(
     state: &UiState,
     entity: Entity,
     part: &UiNineSlicePart,
-    screen_w: f32,
-    screen_h: f32,
     z: f32,
-    commands: &mut Commands,
-    images: &mut Option<ResMut<Assets<Image>>>,
-    texture_cache: &mut HashMap<u32, Handle<Image>>,
-    file_texture_cache: &mut HashMap<String, Handle<Image>>,
-    missing_textures: &mut HashSet<u32>,
-    missing_file_textures: &mut HashSet<String>,
-    blp_loader: Option<&BlpLoaderRes>,
+    sync: &mut NineSliceSyncContext<'_, '_, '_, '_>,
 ) {
     let Some(frame) = state.registry.get(part.0) else {
         return;
@@ -111,18 +98,16 @@ fn update_part(
     let Some(nine_slice) = &frame.nine_slice else {
         return;
     };
-    let (transform, size, color) = part_geometry(frame, nine_slice, part.1, screen_w, screen_h, z);
-    let (image, tex_rect) = resolve_part_texture(
+    let (transform, size, color) = part_geometry(
+        frame,
         nine_slice,
         part.1,
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
+        sync.screen_w,
+        sync.screen_h,
+        z,
     );
-    commands.entity(entity).insert((
+    let (image, tex_rect) = resolve_part_texture(nine_slice, part.1, sync);
+    sync.commands.entity(entity).insert((
         transform,
         Sprite {
             color,
@@ -134,20 +119,11 @@ fn update_part(
     ));
 }
 
-#[allow(clippy::too_many_arguments)]
 fn spawn_missing_parts(
     state: &UiState,
     existing: &HashSet<(u64, u8)>,
     z_map: &HashMap<u64, f32>,
-    screen_w: f32,
-    screen_h: f32,
-    commands: &mut Commands,
-    images: &mut Option<ResMut<Assets<Image>>>,
-    texture_cache: &mut HashMap<u32, Handle<Image>>,
-    file_texture_cache: &mut HashMap<String, Handle<Image>>,
-    missing_textures: &mut HashSet<u32>,
-    missing_file_textures: &mut HashSet<String>,
-    blp_loader: Option<&BlpLoaderRes>,
+    sync: &mut NineSliceSyncContext<'_, '_, '_, '_>,
 ) {
     for frame in state.registry.frames_iter() {
         if !frame.visible {
@@ -162,18 +138,9 @@ fn spawn_missing_parts(
                 continue;
             }
             let (transform, size, color) =
-                part_geometry(frame, nine_slice, p, screen_w, screen_h, z);
-            let (image, tex_rect) = resolve_part_texture(
-                nine_slice,
-                p,
-                images,
-                texture_cache,
-                file_texture_cache,
-                missing_textures,
-                missing_file_textures,
-                blp_loader,
-            );
-            commands.spawn((
+                part_geometry(frame, nine_slice, p, sync.screen_w, sync.screen_h, z);
+            let (image, tex_rect) = resolve_part_texture(nine_slice, p, sync);
+            sync.commands.spawn((
                 Sprite {
                     color,
                     custom_size: Some(size),
@@ -194,12 +161,7 @@ fn spawn_missing_parts(
 fn resolve_part_texture(
     nine_slice: &NineSlice,
     part: u8,
-    images: &mut Option<ResMut<Assets<Image>>>,
-    texture_cache: &mut HashMap<u32, Handle<Image>>,
-    file_texture_cache: &mut HashMap<String, Handle<Image>>,
-    missing_textures: &mut HashSet<u32>,
-    missing_file_textures: &mut HashSet<String>,
-    blp_loader: Option<&BlpLoaderRes>,
+    sync: &mut NineSliceSyncContext<'_, '_, '_, '_>,
 ) -> (Handle<Image>, Option<Rect>) {
     let source = if let Some(part_textures) = &nine_slice.part_textures {
         &part_textures[part as usize]
@@ -214,17 +176,17 @@ fn resolve_part_texture(
     }
     let Some(handle) = load_texture_source_pub(
         source,
-        images,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
+        sync.images,
+        sync.texture_cache,
+        sync.file_texture_cache,
+        sync.missing_textures,
+        sync.missing_file_textures,
+        sync.blp_loader,
     ) else {
         return (Handle::default(), None);
     };
 
-    let uv_rect = compute_uv_rect(nine_slice, part, &handle, images);
+    let uv_rect = compute_uv_rect(nine_slice, part, &handle, sync.images);
     (handle.handle, uv_rect)
 }
 
