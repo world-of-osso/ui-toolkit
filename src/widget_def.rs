@@ -163,8 +163,7 @@ mod tests {
     #[test]
     fn rsx_nine_slice_with_textures() {
         let paths = [
-            "tl.blp", "t.blp", "tr.blp", "l.blp", "m.blp", "r.blp", "bl.blp", "b.blp",
-            "br.blp",
+            "tl.blp", "t.blp", "tr.blp", "l.blp", "m.blp", "r.blp", "bl.blp", "b.blp", "br.blp",
         ];
         let el = rsx! {
             r#frame {

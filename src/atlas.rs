@@ -661,7 +661,10 @@ mod tests {
     #[test]
     fn wow_action_bar_regions_exist() {
         let region = get_region("ui-hud-actionbar-iconframe-addrow-down").expect("atlas region");
-        assert_eq!(region.path, "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP");
+        assert_eq!(
+            region.path,
+            "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP"
+        );
         assert_eq!(region.width, 51.0);
         assert_eq!(region.height, 51.0);
     }

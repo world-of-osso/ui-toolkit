@@ -4,6 +4,6 @@ pub mod edit_box;
 pub mod font_string;
 pub mod scroll_frame;
 pub mod slider;
-pub mod toggle;
 pub mod texture;
+pub mod toggle;
 pub mod tooltip;

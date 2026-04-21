@@ -559,7 +559,10 @@ mod tests {
             &TextBounds,
             &bevy::sprite::Anchor,
             &Transform,
-        ), (Without<crate::render_text_fx::UiTextShadow>, Without<crate::render_text_fx::UiTextOutline>)>();
+        ), (
+            Without<crate::render_text_fx::UiTextShadow>,
+            Without<crate::render_text_fx::UiTextOutline>,
+        )>();
         let (_, layout, bounds, anchor, transform) = q
             .iter(app.world())
             .find(|(t, _, _, _, _)| t.0 == id)

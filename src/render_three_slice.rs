@@ -36,13 +36,40 @@ pub fn sync_ui_three_slices(
         if should_keep(&state, part.0) {
             existing.insert((part.0, part.1));
             let z = z_map.get(&part.0).copied().unwrap_or(0.0);
-            update_part(&state, entity, part, screen_w, screen_h, z, &mut commands, &mut images, &mut texture_cache, &mut file_texture_cache, &mut missing_textures, &mut missing_file_textures, blp_loader.as_deref());
+            update_part(
+                &state,
+                entity,
+                part,
+                screen_w,
+                screen_h,
+                z,
+                &mut commands,
+                &mut images,
+                &mut texture_cache,
+                &mut file_texture_cache,
+                &mut missing_textures,
+                &mut missing_file_textures,
+                blp_loader.as_deref(),
+            );
         } else {
             commands.entity(entity).despawn();
         }
     }
 
-    spawn_missing(&state, &existing, &z_map, screen_w, screen_h, &mut commands, &mut images, &mut texture_cache, &mut file_texture_cache, &mut missing_textures, &mut missing_file_textures, blp_loader.as_deref());
+    spawn_missing(
+        &state,
+        &existing,
+        &z_map,
+        screen_w,
+        screen_h,
+        &mut commands,
+        &mut images,
+        &mut texture_cache,
+        &mut file_texture_cache,
+        &mut missing_textures,
+        &mut missing_file_textures,
+        blp_loader.as_deref(),
+    );
 }
 
 fn build_z_map(state: &UiState) -> HashMap<u64, f32> {
@@ -84,7 +111,15 @@ fn update_part(
         return;
     };
     let (transform, size, color) = part_geometry(frame, ts, part.1, screen_w, screen_h, z);
-    let image = resolve_texture(part_source(ts, part.1), images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader);
+    let image = resolve_texture(
+        part_source(ts, part.1),
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    );
     commands.entity(entity).insert((
         transform,
         Sprite {
@@ -124,7 +159,15 @@ fn spawn_missing(
                 continue;
             }
             let (transform, size, color) = part_geometry(frame, ts, p, screen_w, screen_h, z);
-            let image = resolve_texture(part_source(ts, p), images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader);
+            let image = resolve_texture(
+                part_source(ts, p),
+                images,
+                texture_cache,
+                file_texture_cache,
+                missing_textures,
+                missing_file_textures,
+                blp_loader,
+            );
             commands.spawn((
                 Sprite {
                     color,
@@ -161,9 +204,17 @@ fn resolve_texture(
     if matches!(source, TextureSource::None) {
         return Handle::default();
     }
-    load_texture_source_pub(source, images, texture_cache, file_texture_cache, missing_textures, missing_file_textures, blp_loader)
-        .map(|t| t.handle)
-        .unwrap_or_default()
+    load_texture_source_pub(
+        source,
+        images,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    )
+    .map(|t| t.handle)
+    .unwrap_or_default()
 }
 
 /// Compute transform, size, color for one three-slice part.
