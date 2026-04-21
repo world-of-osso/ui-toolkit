@@ -135,20 +135,21 @@ const FILL_CENTER: &str = "data/ui/sliderbar-track-filled-center.ktx2";
 const CAP_WIDTH: f32 = 8.0;
 const FILL_BORDER: f32 = 2.0;
 
+struct SliderVisuals {
+    thumb_x: String,
+    track_center_w: f32,
+    track_center_x: String,
+    fill_center_w: f32,
+    fill_center_x: String,
+    fill_height: f32,
+    show_fill: bool,
+}
+
 pub fn slider_widget(spec: SliderWidget<'_>) -> Element {
-    let pct = normalize(spec.value, spec.min, spec.max).clamp(0.0, 1.0);
-    let thumb_x_val = (spec.width - spec.thumb_width) * pct;
-    let thumb_x = thumb_x_val.to_string();
-    let track_name = DynName(format!("{}Track", spec.name));
+    let visuals = slider_visuals(spec);
     let thumb_texture = spec
         .thumb_texture
         .unwrap_or(DEFAULT_HORIZONTAL_HANDLE_TEXTURE);
-    let track_center_w = (spec.width - CAP_WIDTH * 2.0).max(0.0);
-    let track_center_x = CAP_WIDTH.to_string();
-    let fill_center_w = (thumb_x_val + spec.thumb_width * 0.5 - CAP_WIDTH).max(0.0);
-    let fill_center_x = CAP_WIDTH.to_string();
-    let fill_height = spec.track_height - FILL_BORDER * 2.0;
-    let show_fill = pct > 0.001;
     rsx! {
         slider {
             name: {DynName(spec.name.to_string())},
@@ -165,60 +166,106 @@ pub fn slider_widget(spec: SliderWidget<'_>) -> Element {
                 relative_point: AnchorPoint::Left,
                 x: {spec.x},
             }
-            r#frame {
-                name: {&track_name},
-                width: {spec.width},
-                height: {spec.track_height},
-                anchor {
-                    point: AnchorPoint::Center,
-                    relative_point: AnchorPoint::Center,
-                }
-                // Empty track: left cap + center + right cap
-                texture {
-                    name: {DynName(format!("{}TrackL", spec.name))},
-                    width: CAP_WIDTH,
-                    height: {spec.track_height},
-                    texture_file: TRACK_LEFT,
-                    anchor {
-                        point: AnchorPoint::Left,
-                        relative_point: AnchorPoint::Left,
-                    }
-                }
-                texture {
-                    name: {DynName(format!("{}TrackC", spec.name))},
-                    width: {track_center_w},
-                    height: {spec.track_height},
-                    texture_file: TRACK_CENTER,
-                    anchor {
-                        point: AnchorPoint::Left,
-                        relative_point: AnchorPoint::Left,
-                        x: {track_center_x},
-                    }
-                }
-                texture {
-                    name: {DynName(format!("{}TrackR", spec.name))},
-                    width: CAP_WIDTH,
-                    height: {spec.track_height},
-                    texture_file: TRACK_RIGHT,
-                    anchor {
-                        point: AnchorPoint::Right,
-                        relative_point: AnchorPoint::Right,
-                    }
-                }
-                // Filled track: left cap + center (no right cap — ends at handle)
-                {fill_left_cap(spec.name, fill_height, show_fill)}
-                {fill_center(spec.name, fill_center_w, fill_height, &fill_center_x, show_fill)}
-                texture {
-                    name: {DynName(format!("{}Handle", spec.name))},
-                    width: {spec.thumb_width},
-                    height: {spec.thumb_height},
-                    texture_file: thumb_texture,
-                    anchor {
-                        point: AnchorPoint::Left,
-                        relative_point: AnchorPoint::Left,
-                        x: {thumb_x},
-                    }
-                }
+            {slider_track_frame(spec, &visuals, thumb_texture)}
+        }
+    }
+}
+
+fn slider_visuals(spec: SliderWidget<'_>) -> SliderVisuals {
+    let pct = normalize(spec.value, spec.min, spec.max).clamp(0.0, 1.0);
+    let thumb_x_val = (spec.width - spec.thumb_width) * pct;
+    SliderVisuals {
+        thumb_x: thumb_x_val.to_string(),
+        track_center_w: (spec.width - CAP_WIDTH * 2.0).max(0.0),
+        track_center_x: CAP_WIDTH.to_string(),
+        fill_center_w: (thumb_x_val + spec.thumb_width * 0.5 - CAP_WIDTH).max(0.0),
+        fill_center_x: CAP_WIDTH.to_string(),
+        fill_height: spec.track_height - FILL_BORDER * 2.0,
+        show_fill: pct > 0.001,
+    }
+}
+
+fn slider_track_frame(
+    spec: SliderWidget<'_>,
+    visuals: &SliderVisuals,
+    thumb_texture: &str,
+) -> Element {
+    rsx! {
+        r#frame {
+            name: {DynName(format!("{}Track", spec.name))},
+            width: {spec.width},
+            height: {spec.track_height},
+            anchor {
+                point: AnchorPoint::Center,
+                relative_point: AnchorPoint::Center,
+            }
+            {track_left_cap(spec.name, spec.track_height)}
+            {track_center_span(spec.name, visuals.track_center_w, spec.track_height, &visuals.track_center_x)}
+            {track_right_cap(spec.name, spec.track_height)}
+            {fill_left_cap(spec.name, visuals.fill_height, visuals.show_fill)}
+            {fill_center(spec.name, visuals.fill_center_w, visuals.fill_height, &visuals.fill_center_x, visuals.show_fill)}
+            {slider_handle(spec.name, spec.thumb_width, spec.thumb_height, thumb_texture, &visuals.thumb_x)}
+        }
+    }
+}
+
+fn track_left_cap(name: &str, track_height: f32) -> Element {
+    rsx! {
+        texture {
+            name: {DynName(format!("{name}TrackL"))},
+            width: CAP_WIDTH,
+            height: {track_height},
+            texture_file: TRACK_LEFT,
+            anchor {
+                point: AnchorPoint::Left,
+                relative_point: AnchorPoint::Left,
+            }
+        }
+    }
+}
+
+fn track_center_span(name: &str, width: f32, track_height: f32, x: &str) -> Element {
+    rsx! {
+        texture {
+            name: {DynName(format!("{name}TrackC"))},
+            width: {width},
+            height: {track_height},
+            texture_file: TRACK_CENTER,
+            anchor {
+                point: AnchorPoint::Left,
+                relative_point: AnchorPoint::Left,
+                x: {x},
+            }
+        }
+    }
+}
+
+fn track_right_cap(name: &str, track_height: f32) -> Element {
+    rsx! {
+        texture {
+            name: {DynName(format!("{name}TrackR"))},
+            width: CAP_WIDTH,
+            height: {track_height},
+            texture_file: TRACK_RIGHT,
+            anchor {
+                point: AnchorPoint::Right,
+                relative_point: AnchorPoint::Right,
+            }
+        }
+    }
+}
+
+fn slider_handle(name: &str, width: f32, height: f32, texture: &str, x: &str) -> Element {
+    rsx! {
+        texture {
+            name: {DynName(format!("{name}Handle"))},
+            width: {width},
+            height: {height},
+            texture_file: texture,
+            anchor {
+                point: AnchorPoint::Left,
+                relative_point: AnchorPoint::Left,
+                x: {x},
             }
         }
     }
