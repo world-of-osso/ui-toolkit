@@ -378,79 +378,90 @@ fn apply_widget_text_attrs(
 ) {
     match name {
         "text" => apply_text_attr(frame, value),
-        "font" => {
-            let gf = GameFont::from_attr(value);
-            match &mut frame.widget_data {
-                Some(WidgetData::FontString(fs)) => fs.font = gf,
-                Some(WidgetData::EditBox(eb)) => eb.font = gf,
-                _ => {}
-            }
+        "font" => apply_font_attr(frame, value),
+        "font_size" => apply_font_size_attr(frame, value),
+        "font_color" => apply_font_color_attr(frame, value),
+        "justify_h" | "shadow_color" | "shadow_offset" | "outline" => {
+            apply_font_style_attr(frame, name, value)
         }
-        "font_size" => {
-            if let Ok(v) = value.parse::<f32>() {
-                apply_font_size(frame, v);
-            }
-        }
-        "font_color" => {
-            if let Some(color) = parse_color(value) {
-                match &mut frame.widget_data {
-                    Some(WidgetData::FontString(fs)) => fs.color = color,
-                    Some(WidgetData::EditBox(eb)) => eb.text_color = color,
-                    _ => {}
-                }
-            }
-        }
-        "justify_h" => {
-            let jh = parse_justify_h(value);
-            if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
-                fs.justify_h = jh;
-            }
-        }
+        "text_insets" => apply_text_insets_attr(frame, value),
+        "password" => apply_password_attr(frame, value),
+        _ => {}
+    }
+}
+
+fn apply_font_attr(frame: &mut Frame, value: &str) {
+    let gf = GameFont::from_attr(value);
+    match &mut frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.font = gf,
+        Some(WidgetData::EditBox(eb)) => eb.font = gf,
+        _ => {}
+    }
+}
+
+fn apply_font_size_attr(frame: &mut Frame, value: &str) {
+    if let Ok(v) = value.parse::<f32>() {
+        apply_font_size(frame, v);
+    }
+}
+
+fn apply_font_color_attr(frame: &mut Frame, value: &str) {
+    let Some(color) = parse_color(value) else {
+        return;
+    };
+    match &mut frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.color = color,
+        Some(WidgetData::EditBox(eb)) => eb.text_color = color,
+        _ => {}
+    }
+}
+
+fn apply_font_style_attr(frame: &mut Frame, name: &str, value: &str) {
+    let Some(WidgetData::FontString(fs)) = &mut frame.widget_data else {
+        return;
+    };
+    match name {
+        "justify_h" => fs.justify_h = parse_justify_h(value),
         "shadow_color" => {
             if let Some(color) = parse_color(value) {
-                if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
-                    fs.shadow_color = Some(color);
-                }
+                fs.shadow_color = Some(color);
             }
         }
         "shadow_offset" => {
             if let Some(offset) = parse_vec2(value) {
-                if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
-                    fs.shadow_offset = offset;
-                }
+                fs.shadow_offset = offset;
             }
         }
-        "outline" => {
-            if let Some(WidgetData::FontString(fs)) = &mut frame.widget_data {
-                fs.outline = parse_outline(value);
-            }
-        }
-        "text_insets" => {
-            if let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data {
-                let parts: Vec<f32> = value
-                    .split(',')
-                    .filter_map(|p| p.trim().parse().ok())
-                    .collect();
-                if parts.len() == 4 {
-                    eb.text_insets = [parts[0], parts[1], parts[2], parts[3]];
-                }
-            }
-        }
-        "password" => match value {
-            "true" | "TRUE" | "1" => {
-                if let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data {
-                    eb.password = true;
-                }
-            }
-            "false" | "FALSE" | "0" => {
-                if let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data {
-                    eb.password = false;
-                }
-            }
-            _ => {}
-        },
+        "outline" => fs.outline = parse_outline(value),
         _ => {}
     }
+}
+
+fn apply_text_insets_attr(frame: &mut Frame, value: &str) {
+    let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data else {
+        return;
+    };
+    let Some(insets) = parse_text_insets(value) else {
+        return;
+    };
+    eb.text_insets = insets;
+}
+
+fn apply_password_attr(frame: &mut Frame, value: &str) {
+    if let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data {
+        set_bool(&mut eb.password, value);
+    }
+}
+
+fn parse_text_insets(value: &str) -> Option<[f32; 4]> {
+    let parts: Vec<f32> = value
+        .split(',')
+        .filter_map(|part| part.trim().parse().ok())
+        .collect();
+    if parts.len() != 4 {
+        return None;
+    }
+    Some([parts[0], parts[1], parts[2], parts[3]])
 }
 
 fn check_path(
