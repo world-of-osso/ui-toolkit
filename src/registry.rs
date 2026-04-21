@@ -99,9 +99,7 @@ impl FrameRegistry {
         if let Some(pid) = parent_id
             && let Some(parent) = self.frames.get_mut(&pid)
         {
-            if !parent.children.contains(&id) {
-                parent.children.push(id);
-            }
+            parent.children.push(id);
         }
     }
 
