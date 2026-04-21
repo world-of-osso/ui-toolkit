@@ -34,587 +34,684 @@ pub fn nine_slice_margins(name: &str) -> Option<[f32; 4]> {
     }
 }
 
-pub fn get_region(name: &str) -> Option<AtlasRegion> {
-    match name.to_ascii_lowercase().as_str() {
-        "128-redbutton-up" => Some(AtlasRegion {
-            path: "data/ui/128BrownButton9Sliced.ktx2",
-            left: 0.001953,
-            right: 0.919922,
-            top: 0.509766,
-            bottom: 0.759766,
-            width: 470.0,
-            height: 128.0,
+macro_rules! atlas_region {
+    ($path:expr, $left:expr, $right:expr, $top:expr, $bottom:expr, $width:expr, $height:expr, $edge:expr) => {
+        AtlasRegion {
+            path: $path,
+            left: $left,
+            right: $right,
+            top: $top,
+            bottom: $bottom,
+            width: $width,
+            height: $height,
             tiles_horizontally: false,
             tiles_vertically: false,
-            nine_slice_edge: Some(16.0),
-        }),
-        "128-redbutton-pressed" => Some(AtlasRegion {
-            path: "data/ui/128BrownButton9Sliced.ktx2",
-            left: 0.001953,
-            right: 0.919922,
-            top: 0.255859,
-            bottom: 0.505859,
-            width: 470.0,
-            height: 128.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: Some(16.0),
-        }),
-        "128-redbutton-disable" => Some(AtlasRegion {
-            path: "data/ui/128BrownButton9Sliced.ktx2",
-            left: 0.001953,
-            right: 0.919922,
-            top: 0.001953,
-            bottom: 0.251953,
-            width: 470.0,
-            height: 128.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: Some(16.0),
-        }),
-        "128-redbutton-highlight" => Some(AtlasRegion {
-            path: "data/ui/128BrownButton.ktx2",
-            left: 0.001953,
-            right: 0.863281,
-            top: 0.190918,
-            bottom: 0.253418,
-            width: 441.0,
-            height: 128.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: Some(16.0),
-        }),
-        "glue-bigbutton-brown-up" => Some(AtlasRegion {
-            path: "data/ui/Glues-BigButton-Brown-Up.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 256.0,
-            height: 64.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glue-bigbutton-brown-down" => Some(AtlasRegion {
-            path: "data/ui/Glues-BigButton-Brown-Down.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 256.0,
-            height: 64.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glue-bigbutton-brown-highlight" => Some(AtlasRegion {
-            path: "data/ui/Glues-BigButton-Brown-Highlight.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 256.0,
-            height: 64.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glue-bigbutton-brown-disable" => Some(AtlasRegion {
-            path: "data/ui/Glues-BigButton-Brown-Up.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 256.0,
-            height: 64.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "defaultbutton-nineslice-up" => Some(AtlasRegion {
-            path: "data/ui/login-button-generated-regular-normal.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 500.0,
-            height: 132.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: Some(24.0),
-        }),
-        "defaultbutton-nineslice-pressed" => Some(AtlasRegion {
-            path: "data/ui/login-button-generated-regular-pressed.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 500.0,
-            height: 132.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: Some(24.0),
-        }),
-        "defaultbutton-nineslice-highlight" => Some(AtlasRegion {
-            path: "data/ui/login-button-generated-regular-highlight.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 500.0,
-            height: 132.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: Some(24.0),
-        }),
-        "defaultbutton-nineslice-disabled" => Some(AtlasRegion {
-            path: "data/ui/login-button-generated-regular-disabled.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 500.0,
-            height: 132.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: Some(24.0),
-        }),
-        "glues-characterselect-card-all-bg" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.932617,
-            right: 0.991211,
-            top: 0.246094,
-            bottom: 0.304688,
-            width: 60.0,
-            height: 60.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-listrealm-bg" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.659180,
-            right: 0.933594,
-            top: 0.219727,
-            bottom: 0.242188,
-            width: 281.0,
-            height: 23.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-card-empty" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.622070,
-            right: 0.930664,
-            top: 0.246094,
-            bottom: 0.338867,
-            width: 316.0,
-            height: 95.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-card-empty-hover" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.000977,
-            right: 0.309570,
-            top: 0.340820,
-            bottom: 0.433594,
-            width: 316.0,
-            height: 95.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-card-singles" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.000977,
-            right: 0.303711,
-            top: 0.435547,
-            bottom: 0.522461,
-            width: 310.0,
-            height: 89.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-card-singles-hover" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.305664,
-            right: 0.608398,
-            top: 0.435547,
-            bottom: 0.522461,
-            width: 310.0,
-            height: 89.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-card-selected" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.340820,
-            right: 0.674805,
-            top: 0.000977,
-            bottom: 0.120117,
-            width: 342.0,
-            height: 122.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "custom-nameplate-bg" => Some(AtlasRegion {
-            path: "data/ui/nameplate-bg.ktx2",
-            left: 0.0,
-            right: 1.0,
-            top: 0.0,
-            bottom: 1.0,
-            width: 300.0,
-            height: 60.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-namebg" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.187500,
-            right: 0.376953,
-            top: 0.562500,
-            bottom: 0.622070,
-            width: 194.0,
-            height: 61.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-tophud-left-bg" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.378906,
-            right: 0.585938,
-            top: 0.562500,
-            bottom: 0.612305,
-            width: 212.0,
-            height: 51.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-tophud-middle-bg" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.969727,
-            right: 0.999023,
-            top: 0.125000,
-            bottom: 0.174805,
-            width: 30.0,
-            height: 51.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-tophud-right-bg" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP",
-            left: 0.187500,
-            right: 0.394531,
-            top: 0.624023,
-            bottom: 0.673828,
-            width: 212.0,
-            height: 51.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-gs-tophud-left" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP",
-            left: 0.435547,
-            right: 0.865234,
-            top: 0.089844,
-            bottom: 0.173828,
-            width: 220.0,
-            height: 43.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-gs-tophud-middle" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP",
-            left: 0.705078,
-            right: 0.935547,
-            top: 0.441406,
-            bottom: 0.525391,
-            width: 118.0,
-            height: 43.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-gs-tophud-right" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP",
-            left: 0.001953,
-            right: 0.431641,
-            top: 0.353516,
-            bottom: 0.437500,
-            width: 220.0,
-            height: 43.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-gs-tophud-left-selected" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP",
-            left: 0.435547,
-            right: 0.865234,
-            top: 0.001953,
-            bottom: 0.085938,
-            width: 220.0,
-            height: 43.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-gs-tophud-middle-selected" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP",
-            left: 0.236328,
-            right: 0.466797,
-            top: 0.441406,
-            bottom: 0.525391,
-            width: 118.0,
-            height: 43.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "glues-characterselect-gs-tophud-right-selected" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP",
-            left: 0.001953,
-            right: 0.431641,
-            top: 0.265625,
-            bottom: 0.349609,
-            width: 220.0,
-            height: 43.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "common-dropdown-c-button" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP",
-            left: 0.001953,
-            right: 0.078125,
-            top: 0.804688,
-            bottom: 0.957031,
-            width: 39.0,
-            height: 39.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "common-dropdown-icon-back" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP",
-            left: 0.955078,
-            right: 0.988281,
-            top: 0.003906,
-            bottom: 0.070312,
-            width: 17.0,
-            height: 17.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "common-dropdown-icon-next" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP",
-            left: 0.605469,
-            right: 0.638672,
-            top: 0.113281,
-            bottom: 0.179688,
-            width: 17.0,
-            height: 17.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "charactercreate-customize-backbutton" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.841309,
-            right: 0.878418,
-            top: 0.204590,
-            bottom: 0.241699,
-            width: 38.0,
-            height: 38.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "charactercreate-customize-backbutton-down" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.918457,
-            right: 0.955566,
-            top: 0.204590,
-            bottom: 0.241699,
-            width: 38.0,
-            height: 38.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "charactercreate-customize-backbutton-disabled" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.879395,
-            right: 0.916504,
-            top: 0.204590,
-            bottom: 0.241699,
-            width: 38.0,
-            height: 38.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "charactercreate-customize-nextbutton" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.956543,
-            right: 0.993652,
-            top: 0.204590,
-            bottom: 0.241699,
-            width: 38.0,
-            height: 38.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "charactercreate-customize-nextbutton-down" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.175293,
-            right: 0.212402,
-            top: 0.918457,
-            bottom: 0.955566,
-            width: 38.0,
-            height: 38.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "charactercreate-customize-nextbutton-disabled" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.137207,
-            right: 0.174316,
-            top: 0.918457,
-            bottom: 0.955566,
-            width: 38.0,
-            height: 38.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "charactercreate-customize-palette" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.938965,
-            right: 0.979980,
-            top: 0.104004,
-            bottom: 0.113770,
-            width: 42.0,
-            height: 10.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "charactercreate-customize-palette-selected" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-            left: 0.888184,
-            right: 0.937988,
-            top: 0.104004,
-            bottom: 0.123535,
-            width: 51.0,
-            height: 20.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "ui-hud-actionbar-iconframe" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
-            left: 0.707031,
-            right: 0.886719,
-            top: 0.248047,
-            bottom: 0.291992,
-            width: 46.0,
-            height: 45.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "ui-hud-actionbar-iconframe-addrow" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
-            left: 0.707031,
-            right: 0.906250,
-            top: 0.297852,
-            bottom: 0.347656,
-            width: 51.0,
-            height: 51.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "ui-hud-actionbar-iconframe-down" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
-            left: 0.707031,
-            right: 0.886719,
-            top: 0.508789,
-            bottom: 0.552734,
-            width: 46.0,
-            height: 45.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "ui-hud-actionbar-iconframe-addrow-down" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
-            left: 0.707031,
-            right: 0.906250,
-            top: 0.349609,
-            bottom: 0.399414,
-            width: 51.0,
-            height: 51.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "ui-hud-actionbar-iconframe-mouseover" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
-            left: 0.707031,
-            right: 0.886719,
-            top: 0.627930,
-            bottom: 0.671875,
-            width: 46.0,
-            height: 45.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "ui-hud-actionbar-iconframe-border" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
-            left: 0.707031,
-            right: 0.886719,
-            top: 0.462891,
-            bottom: 0.506836,
-            width: 46.0,
-            height: 45.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        "ui-hud-actionbar-iconframe-flash" => Some(AtlasRegion {
-            path: "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP",
-            left: 0.707031,
-            right: 0.886719,
-            top: 0.554688,
-            bottom: 0.598633,
-            width: 46.0,
-            height: 45.0,
-            tiles_horizontally: false,
-            tiles_vertically: false,
-            nine_slice_edge: None,
-        }),
-        _ => None,
-    }
+            nine_slice_edge: $edge,
+        }
+    };
 }
+
+const CHARACTER_SELECT_GLUES: &str =
+    "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP";
+const CHARACTER_SELECT_GLUES_GRAYSCALE: &str =
+    "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP";
+const COMMON_DROPDOWN: &str = "/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP";
+const CHARACTER_CREATE: &str =
+    "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP";
+const ACTION_BAR: &str = "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP";
+
+pub fn get_region(name: &str) -> Option<AtlasRegion> {
+    let key = name.to_ascii_lowercase();
+    let key = key.as_str();
+    red_button_region(key)
+        .or_else(|| glue_big_button_region(key))
+        .or_else(|| default_button_nine_slice_region(key))
+        .or_else(|| char_select_region(key))
+        .or_else(|| char_select_grayscale_region(key))
+        .or_else(|| common_dropdown_region(key))
+        .or_else(|| character_create_region(key))
+        .or_else(|| action_bar_region(key))
+}
+
+fn red_button_region(name: &str) -> Option<AtlasRegion> {
+    lookup_region(name, RED_BUTTON_REGIONS)
+}
+
+fn glue_big_button_region(name: &str) -> Option<AtlasRegion> {
+    lookup_region(name, GLUE_BIG_BUTTON_REGIONS)
+}
+
+fn default_button_nine_slice_region(name: &str) -> Option<AtlasRegion> {
+    lookup_region(name, DEFAULT_BUTTON_NINE_SLICE_REGIONS)
+}
+
+fn char_select_region(name: &str) -> Option<AtlasRegion> {
+    lookup_region(name, CHAR_SELECT_REGIONS)
+}
+
+fn char_select_grayscale_region(name: &str) -> Option<AtlasRegion> {
+    lookup_region(name, CHAR_SELECT_GRAYSCALE_REGIONS)
+}
+
+fn common_dropdown_region(name: &str) -> Option<AtlasRegion> {
+    lookup_region(name, COMMON_DROPDOWN_REGIONS)
+}
+
+fn character_create_region(name: &str) -> Option<AtlasRegion> {
+    lookup_region(name, CHARACTER_CREATE_REGIONS)
+}
+
+fn action_bar_region(name: &str) -> Option<AtlasRegion> {
+    lookup_region(name, ACTION_BAR_REGIONS)
+}
+
+fn lookup_region(name: &str, regions: &[AtlasRegionEntry]) -> Option<AtlasRegion> {
+    regions
+        .iter()
+        .find(|(candidate, _)| *candidate == name)
+        .map(|(_, region)| *region)
+}
+
+type AtlasRegionEntry = (&'static str, AtlasRegion);
+
+const RED_BUTTON_REGIONS: &[AtlasRegionEntry] = &[
+    (
+        "128-redbutton-up",
+        atlas_region!(
+            "data/ui/128BrownButton9Sliced.ktx2",
+            0.001953,
+            0.919922,
+            0.509766,
+            0.759766,
+            470.0,
+            128.0,
+            Some(16.0)
+        ),
+    ),
+    (
+        "128-redbutton-pressed",
+        atlas_region!(
+            "data/ui/128BrownButton9Sliced.ktx2",
+            0.001953,
+            0.919922,
+            0.255859,
+            0.505859,
+            470.0,
+            128.0,
+            Some(16.0)
+        ),
+    ),
+    (
+        "128-redbutton-disable",
+        atlas_region!(
+            "data/ui/128BrownButton9Sliced.ktx2",
+            0.001953,
+            0.919922,
+            0.001953,
+            0.251953,
+            470.0,
+            128.0,
+            Some(16.0)
+        ),
+    ),
+    (
+        "128-redbutton-highlight",
+        atlas_region!(
+            "data/ui/128BrownButton.ktx2",
+            0.001953,
+            0.863281,
+            0.190918,
+            0.253418,
+            441.0,
+            128.0,
+            Some(16.0)
+        ),
+    ),
+];
+
+const GLUE_BIG_BUTTON_REGIONS: &[AtlasRegionEntry] = &[
+    (
+        "glue-bigbutton-brown-up",
+        atlas_region!(
+            "data/ui/Glues-BigButton-Brown-Up.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            256.0,
+            64.0,
+            None
+        ),
+    ),
+    (
+        "glue-bigbutton-brown-down",
+        atlas_region!(
+            "data/ui/Glues-BigButton-Brown-Down.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            256.0,
+            64.0,
+            None
+        ),
+    ),
+    (
+        "glue-bigbutton-brown-highlight",
+        atlas_region!(
+            "data/ui/Glues-BigButton-Brown-Highlight.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            256.0,
+            64.0,
+            None
+        ),
+    ),
+    (
+        "glue-bigbutton-brown-disable",
+        atlas_region!(
+            "data/ui/Glues-BigButton-Brown-Up.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            256.0,
+            64.0,
+            None
+        ),
+    ),
+];
+
+const DEFAULT_BUTTON_NINE_SLICE_REGIONS: &[AtlasRegionEntry] = &[
+    (
+        "defaultbutton-nineslice-up",
+        atlas_region!(
+            "data/ui/login-button-generated-regular-normal.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            500.0,
+            132.0,
+            Some(24.0)
+        ),
+    ),
+    (
+        "defaultbutton-nineslice-pressed",
+        atlas_region!(
+            "data/ui/login-button-generated-regular-pressed.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            500.0,
+            132.0,
+            Some(24.0)
+        ),
+    ),
+    (
+        "defaultbutton-nineslice-highlight",
+        atlas_region!(
+            "data/ui/login-button-generated-regular-highlight.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            500.0,
+            132.0,
+            Some(24.0)
+        ),
+    ),
+    (
+        "defaultbutton-nineslice-disabled",
+        atlas_region!(
+            "data/ui/login-button-generated-regular-disabled.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            500.0,
+            132.0,
+            Some(24.0)
+        ),
+    ),
+];
+
+const CHAR_SELECT_REGIONS: &[AtlasRegionEntry] = &[
+    (
+        "glues-characterselect-card-all-bg",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.932617,
+            0.991211,
+            0.246094,
+            0.304688,
+            60.0,
+            60.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-listrealm-bg",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.659180,
+            0.933594,
+            0.219727,
+            0.242188,
+            281.0,
+            23.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-card-empty",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.622070,
+            0.930664,
+            0.246094,
+            0.338867,
+            316.0,
+            95.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-card-empty-hover",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.000977,
+            0.309570,
+            0.340820,
+            0.433594,
+            316.0,
+            95.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-card-singles",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.000977,
+            0.303711,
+            0.435547,
+            0.522461,
+            310.0,
+            89.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-card-singles-hover",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.305664,
+            0.608398,
+            0.435547,
+            0.522461,
+            310.0,
+            89.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-card-selected",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.340820,
+            0.674805,
+            0.000977,
+            0.120117,
+            342.0,
+            122.0,
+            None
+        ),
+    ),
+    (
+        "custom-nameplate-bg",
+        atlas_region!(
+            "data/ui/nameplate-bg.ktx2",
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            300.0,
+            60.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-namebg",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.187500,
+            0.376953,
+            0.562500,
+            0.622070,
+            194.0,
+            61.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-tophud-left-bg",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.378906,
+            0.585938,
+            0.562500,
+            0.612305,
+            212.0,
+            51.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-tophud-middle-bg",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.969727,
+            0.999023,
+            0.125000,
+            0.174805,
+            30.0,
+            51.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-tophud-right-bg",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES,
+            0.187500,
+            0.394531,
+            0.624023,
+            0.673828,
+            212.0,
+            51.0,
+            None
+        ),
+    ),
+];
+
+const CHAR_SELECT_GRAYSCALE_REGIONS: &[AtlasRegionEntry] = &[
+    (
+        "glues-characterselect-gs-tophud-left",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES_GRAYSCALE,
+            0.435547,
+            0.865234,
+            0.089844,
+            0.173828,
+            220.0,
+            43.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-gs-tophud-middle",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES_GRAYSCALE,
+            0.705078,
+            0.935547,
+            0.441406,
+            0.525391,
+            118.0,
+            43.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-gs-tophud-right",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES_GRAYSCALE,
+            0.001953,
+            0.431641,
+            0.353516,
+            0.437500,
+            220.0,
+            43.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-gs-tophud-left-selected",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES_GRAYSCALE,
+            0.435547,
+            0.865234,
+            0.001953,
+            0.085938,
+            220.0,
+            43.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-gs-tophud-middle-selected",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES_GRAYSCALE,
+            0.236328,
+            0.466797,
+            0.441406,
+            0.525391,
+            118.0,
+            43.0,
+            None
+        ),
+    ),
+    (
+        "glues-characterselect-gs-tophud-right-selected",
+        atlas_region!(
+            CHARACTER_SELECT_GLUES_GRAYSCALE,
+            0.001953,
+            0.431641,
+            0.265625,
+            0.349609,
+            220.0,
+            43.0,
+            None
+        ),
+    ),
+];
+
+const COMMON_DROPDOWN_REGIONS: &[AtlasRegionEntry] = &[
+    (
+        "common-dropdown-c-button",
+        atlas_region!(
+            COMMON_DROPDOWN,
+            0.001953,
+            0.078125,
+            0.804688,
+            0.957031,
+            39.0,
+            39.0,
+            None
+        ),
+    ),
+    (
+        "common-dropdown-icon-back",
+        atlas_region!(
+            COMMON_DROPDOWN,
+            0.955078,
+            0.988281,
+            0.003906,
+            0.070312,
+            17.0,
+            17.0,
+            None
+        ),
+    ),
+    (
+        "common-dropdown-icon-next",
+        atlas_region!(
+            COMMON_DROPDOWN,
+            0.605469,
+            0.638672,
+            0.113281,
+            0.179688,
+            17.0,
+            17.0,
+            None
+        ),
+    ),
+];
+
+const CHARACTER_CREATE_REGIONS: &[AtlasRegionEntry] = &[
+    (
+        "charactercreate-customize-backbutton",
+        atlas_region!(
+            CHARACTER_CREATE,
+            0.841309,
+            0.878418,
+            0.204590,
+            0.241699,
+            38.0,
+            38.0,
+            None
+        ),
+    ),
+    (
+        "charactercreate-customize-backbutton-down",
+        atlas_region!(
+            CHARACTER_CREATE,
+            0.918457,
+            0.955566,
+            0.204590,
+            0.241699,
+            38.0,
+            38.0,
+            None
+        ),
+    ),
+    (
+        "charactercreate-customize-backbutton-disabled",
+        atlas_region!(
+            CHARACTER_CREATE,
+            0.879395,
+            0.916504,
+            0.204590,
+            0.241699,
+            38.0,
+            38.0,
+            None
+        ),
+    ),
+    (
+        "charactercreate-customize-nextbutton",
+        atlas_region!(
+            CHARACTER_CREATE,
+            0.956543,
+            0.993652,
+            0.204590,
+            0.241699,
+            38.0,
+            38.0,
+            None
+        ),
+    ),
+    (
+        "charactercreate-customize-nextbutton-down",
+        atlas_region!(
+            CHARACTER_CREATE,
+            0.175293,
+            0.212402,
+            0.918457,
+            0.955566,
+            38.0,
+            38.0,
+            None
+        ),
+    ),
+    (
+        "charactercreate-customize-nextbutton-disabled",
+        atlas_region!(
+            CHARACTER_CREATE,
+            0.137207,
+            0.174316,
+            0.918457,
+            0.955566,
+            38.0,
+            38.0,
+            None
+        ),
+    ),
+    (
+        "charactercreate-customize-palette",
+        atlas_region!(
+            CHARACTER_CREATE,
+            0.938965,
+            0.979980,
+            0.104004,
+            0.113770,
+            42.0,
+            10.0,
+            None
+        ),
+    ),
+    (
+        "charactercreate-customize-palette-selected",
+        atlas_region!(
+            CHARACTER_CREATE,
+            0.888184,
+            0.937988,
+            0.104004,
+            0.123535,
+            51.0,
+            20.0,
+            None
+        ),
+    ),
+];
+
+const ACTION_BAR_REGIONS: &[AtlasRegionEntry] = &[
+    (
+        "ui-hud-actionbar-iconframe",
+        atlas_region!(
+            ACTION_BAR, 0.707031, 0.886719, 0.248047, 0.291992, 46.0, 45.0, None
+        ),
+    ),
+    (
+        "ui-hud-actionbar-iconframe-addrow",
+        atlas_region!(
+            ACTION_BAR, 0.707031, 0.906250, 0.297852, 0.347656, 51.0, 51.0, None
+        ),
+    ),
+    (
+        "ui-hud-actionbar-iconframe-down",
+        atlas_region!(
+            ACTION_BAR, 0.707031, 0.886719, 0.508789, 0.552734, 46.0, 45.0, None
+        ),
+    ),
+    (
+        "ui-hud-actionbar-iconframe-addrow-down",
+        atlas_region!(
+            ACTION_BAR, 0.707031, 0.906250, 0.349609, 0.399414, 51.0, 51.0, None
+        ),
+    ),
+    (
+        "ui-hud-actionbar-iconframe-mouseover",
+        atlas_region!(
+            ACTION_BAR, 0.707031, 0.886719, 0.627930, 0.671875, 46.0, 45.0, None
+        ),
+    ),
+    (
+        "ui-hud-actionbar-iconframe-border",
+        atlas_region!(
+            ACTION_BAR, 0.707031, 0.886719, 0.462891, 0.506836, 46.0, 45.0, None
+        ),
+    ),
+    (
+        "ui-hud-actionbar-iconframe-flash",
+        atlas_region!(
+            ACTION_BAR, 0.707031, 0.886719, 0.554688, 0.598633, 46.0, 45.0, None
+        ),
+    ),
+];
 
 #[cfg(test)]
 mod tests {
@@ -667,5 +764,19 @@ mod tests {
         );
         assert_eq!(region.width, 51.0);
         assert_eq!(region.height, 51.0);
+    }
+
+    #[test]
+    fn atlas_lookup_is_case_insensitive() {
+        let mixed = get_region("UI-HUD-ActionBar-IconFrame-AddRow-Down").expect("atlas region");
+        let lower = get_region("ui-hud-actionbar-iconframe-addrow-down").expect("atlas region");
+        assert_eq!(mixed.path, lower.path);
+        assert_eq!(mixed.width, lower.width);
+        assert_eq!(mixed.height, lower.height);
+    }
+
+    #[test]
+    fn unknown_region_returns_none() {
+        assert!(get_region("this-atlas-does-not-exist").is_none());
     }
 }
