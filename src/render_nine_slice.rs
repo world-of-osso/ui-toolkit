@@ -98,14 +98,8 @@ fn update_part(
     let Some(nine_slice) = &frame.nine_slice else {
         return;
     };
-    let (transform, size, color) = part_geometry(
-        frame,
-        nine_slice,
-        part.1,
-        sync.screen_w,
-        sync.screen_h,
-        z,
-    );
+    let (transform, size, color) =
+        part_geometry(frame, nine_slice, part.1, sync.screen_w, sync.screen_h, z);
     let (image, tex_rect) = resolve_part_texture(nine_slice, part.1, sync);
     sync.commands.entity(entity).insert((
         transform,

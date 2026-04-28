@@ -487,6 +487,7 @@ fn backdrop_part_geometry_for_id(
     backdrop::backdrop_part_geometry_for_id(state, backdrop_part, sort_idx, screen_w, screen_h)
 }
 
+#[cfg(test)]
 fn backdrop_part_geometry(
     frame: &crate::frame::Frame,
     part: u8,
@@ -497,8 +498,7 @@ fn backdrop_part_geometry(
     backdrop::backdrop_part_geometry(frame, part, sort_idx, screen_w, screen_h)
 }
 
-/// Apply vertex_color tinting and effective_alpha to textured frames.
-/// If the texture is desaturated, compute luminance and use grey.
+/// Apply vertex_color tinting, effective_alpha, and desaturation to textured frames.
 pub fn texture_tint(frame: &crate::frame::Frame) -> Color {
     visual::texture_tint(frame)
 }

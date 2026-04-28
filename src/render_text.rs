@@ -290,14 +290,10 @@ fn text_justify(frame: &crate::frame::Frame) -> Justify {
     }
 }
 
-fn text_linebreak(frame: &crate::frame::Frame) -> LineBreak {
+fn text_linebreak(_frame: &crate::frame::Frame) -> LineBreak {
     // Use WordBoundary for all bounded text so cosmic-text respects Justify
     // alignment within the bounds. Single-line text that fits won't actually wrap.
     LineBreak::WordBoundary
-}
-
-fn text_wraps(frame: &crate::frame::Frame) -> bool {
-    matches!(&frame.widget_data, Some(WidgetData::FontString(fs)) if fs.word_wrap)
 }
 
 fn text_max_height(frame: &crate::frame::Frame) -> Option<f32> {
