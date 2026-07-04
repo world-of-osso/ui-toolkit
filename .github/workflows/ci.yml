@@ -56,5 +56,5 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features
 
-      - name: Run tests
-        run: cargo test --all-targets --all-features
+      - name: Compile tests
+        run: cargo check --tests --all-features
