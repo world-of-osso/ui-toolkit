@@ -23,6 +23,27 @@ jobs:
       - name: Link sibling path dependencies
         run: ln -sfn "$GITHUB_WORKSPACE/deps/ui-toolkit-macros" "$GITHUB_WORKSPACE/../ui-toolkit-macros"
 
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev \
+            libfontconfig1-dev \
+            libgl1-mesa-dev \
+            libudev-dev \
+            libwayland-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxinerama-dev \
+            libxkbcommon-dev \
+            libxrandr-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            pkg-config
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
