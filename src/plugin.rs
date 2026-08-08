@@ -23,6 +23,16 @@ impl Default for UiTextRenderEnabled {
     }
 }
 
+/// Enables synchronization of UI text shadows into Bevy render entities.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Resource)]
+pub struct UiTextShadowRenderEnabled(pub bool);
+
+impl Default for UiTextShadowRenderEnabled {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 /// Central UI state, accessible as a Bevy Resource.
 #[derive(Resource)]
 pub struct UiState {
@@ -44,6 +54,7 @@ impl Plugin for UiPlugin {
         app.insert_resource(state);
         app.insert_resource(UiRenderEnabled::default());
         app.insert_resource(UiTextRenderEnabled::default());
+        app.insert_resource(UiTextShadowRenderEnabled::default());
         app.init_resource::<crate::font_registry::FontRegistry>();
         register_ui_startup_systems(app);
         register_ui_update_systems(app);
@@ -74,7 +85,8 @@ fn register_ui_update_systems(app: &mut App) {
                 crate::render_three_slice::sync_ui_three_slices,
                 crate::render_tiled::sync_ui_tiled_textures,
                 (
-                    crate::render_text_fx::sync_ui_text_shadows,
+                    crate::render_text_fx::sync_ui_text_shadows
+                        .run_if(ui_text_shadow_render_enabled),
                     crate::render_text_fx::sync_ui_text_outlines,
                 )
                     .chain()
@@ -93,6 +105,10 @@ fn ui_render_enabled(enabled: Res<UiRenderEnabled>) -> bool {
 }
 
 fn ui_text_render_enabled(enabled: Res<UiTextRenderEnabled>) -> bool {
+    enabled.0
+}
+
+fn ui_text_shadow_render_enabled(enabled: Res<UiTextShadowRenderEnabled>) -> bool {
     enabled.0
 }
 
@@ -142,6 +158,10 @@ mod tests {
         app.add_plugins(UiPlugin);
         app.update();
         assert!(app.world().get_resource::<UiState>().is_some());
+        assert_eq!(
+            app.world().resource::<UiTextShadowRenderEnabled>(),
+            &UiTextShadowRenderEnabled(true)
+        );
     }
 
     #[test]
@@ -216,6 +236,70 @@ mod tests {
         app.update();
 
         assert_eq!(ui_text_count(&mut app, frame_id), 1);
+    }
+
+    #[test]
+    fn disabled_ui_text_shadows_keep_main_text_and_outlines() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::asset::AssetPlugin::default());
+        app.init_asset::<bevy::image::Image>();
+        app.init_asset::<bevy::text::Font>();
+        app.add_plugins(UiPlugin);
+
+        let frame_id = {
+            let mut ui = app.world_mut().resource_mut::<UiState>();
+            let frame_id = ui.registry.create_frame("EffectText", None);
+            let frame = ui.registry.get_mut(frame_id).unwrap();
+            frame.width = crate::frame::Dimension::Fixed(100.0);
+            frame.height = crate::frame::Dimension::Fixed(40.0);
+            frame.widget_data = Some(crate::frame::WidgetData::FontString(
+                crate::widgets::font_string::FontStringData {
+                    text: "Hello".into(),
+                    shadow_color: Some([0.0, 0.0, 0.0, 1.0]),
+                    outline: crate::widgets::font_string::Outline::Outline,
+                    ..Default::default()
+                },
+            ));
+            frame_id
+        };
+        app.world_mut()
+            .resource_mut::<UiTextShadowRenderEnabled>()
+            .0 = false;
+
+        app.update();
+
+        assert_eq!(ui_text_count(&mut app, frame_id), 1);
+        assert_eq!(ui_shadow_count(&mut app, frame_id), 0);
+        assert_eq!(ui_outline_count(&mut app, frame_id), 4);
+
+        app.world_mut()
+            .resource_mut::<UiTextShadowRenderEnabled>()
+            .0 = true;
+        app.update();
+
+        assert_eq!(ui_shadow_count(&mut app, frame_id), 1);
+        assert_eq!(ui_outline_count(&mut app, frame_id), 4);
+    }
+
+    fn ui_shadow_count(app: &mut App, frame_id: u64) -> usize {
+        let mut query = app
+            .world_mut()
+            .query::<&crate::render_text_fx::UiTextShadow>();
+        query
+            .iter(app.world())
+            .filter(|shadow| shadow.0 == frame_id)
+            .count()
+    }
+
+    fn ui_outline_count(app: &mut App, frame_id: u64) -> usize {
+        let mut query = app
+            .world_mut()
+            .query::<&crate::render_text_fx::UiTextOutline>();
+        query
+            .iter(app.world())
+            .filter(|outline| outline.0 == frame_id)
+            .count()
     }
 
     fn ui_text_count(app: &mut App, frame_id: u64) -> usize {
