@@ -13,6 +13,16 @@ impl Default for UiRenderEnabled {
     }
 }
 
+/// Enables UI registry, layout, input, and render synchronization.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Resource)]
+pub struct UiProcessingEnabled(pub bool);
+
+impl Default for UiProcessingEnabled {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 /// Enables synchronization of UI text into Bevy render entities.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Resource)]
 pub struct UiTextRenderEnabled(pub bool);
@@ -43,6 +53,7 @@ impl Plugin for UiPlugin {
         };
         app.insert_resource(state);
         app.insert_resource(UiRenderEnabled::default());
+        app.insert_resource(UiProcessingEnabled::default());
         app.insert_resource(UiTextRenderEnabled::default());
         app.init_resource::<crate::font_registry::FontRegistry>();
         register_ui_startup_systems(app);
@@ -84,8 +95,13 @@ fn register_ui_update_systems(app: &mut App) {
                 .run_if(ui_render_enabled),
             crate::button_input::sync_button_input,
         )
-            .chain(),
+            .chain()
+            .run_if(ui_processing_enabled),
     );
+}
+
+fn ui_processing_enabled(enabled: Res<UiProcessingEnabled>) -> bool {
+    enabled.0
 }
 
 fn ui_render_enabled(enabled: Res<UiRenderEnabled>) -> bool {
@@ -142,6 +158,43 @@ mod tests {
         app.add_plugins(UiPlugin);
         app.update();
         assert!(app.world().get_resource::<UiState>().is_some());
+    }
+
+    #[test]
+    fn disabled_ui_processing_pauses_update_chain_until_reenabled() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::asset::AssetPlugin::default());
+        app.init_asset::<bevy::image::Image>();
+        app.init_asset::<bevy::text::Font>();
+        app.add_plugins(UiPlugin);
+        app.world_mut().spawn((
+            Window {
+                resolution: bevy::window::WindowResolution::new(800, 600),
+                ..Default::default()
+            },
+            bevy::window::PrimaryWindow,
+        ));
+        app.update();
+
+        {
+            let mut ui = app.world_mut().resource_mut::<UiState>();
+            ui.registry.screen_width = 123.0;
+            ui.registry.screen_height = 456.0;
+        }
+        app.world_mut().resource_mut::<UiProcessingEnabled>().0 = false;
+        app.update();
+
+        let ui = app.world().resource::<UiState>();
+        assert_eq!(ui.registry.screen_width, 123.0);
+        assert_eq!(ui.registry.screen_height, 456.0);
+
+        app.world_mut().resource_mut::<UiProcessingEnabled>().0 = true;
+        app.update();
+
+        let ui = app.world().resource::<UiState>();
+        assert_eq!(ui.registry.screen_width, 800.0);
+        assert_eq!(ui.registry.screen_height, 600.0);
     }
 
     #[test]
