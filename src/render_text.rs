@@ -27,6 +27,7 @@ pub fn sync_ui_text(
             &mut TextFont,
             &mut TextColor,
             &mut Transform,
+            &mut Anchor,
         ),
         (Without<UiTextShadow>, Without<UiTextOutline>),
     >,
@@ -42,8 +43,7 @@ pub fn sync_ui_text(
         .collect();
     let mut existing: std::collections::HashSet<u64> = std::collections::HashSet::new();
 
-    for (entity, ui_text, mut text, mut layout, mut bounds, mut font, mut color, mut transform) in
-        texts.iter_mut()
+    for (entity, ui_text, text, layout, bounds, font, color, transform, anchor) in texts.iter_mut()
     {
         let Some(frame) = state.registry.get(ui_text.0) else {
             commands.entity(entity).despawn();
@@ -55,24 +55,26 @@ pub fn sync_ui_text(
         }
         let props = extract_text_props(frame);
         existing.insert(ui_text.0);
-        *text = Text2d::new(&props.content);
-        *layout = text_layout(frame);
-        *bounds = text_bounds(frame);
-        font.font_size = props.font_size;
-        font.font = font_registry.get(props.font, &mut font_assets);
-        *color = TextColor(props.color);
-        let sort_idx = sort_map[&ui_text.0];
-        *transform = text_transform(
+        let font_handle = font_registry.get(props.font, &mut font_assets);
+        let values = text_render_values(
             frame,
-            screen_w,
-            screen_h,
-            props.justify_h,
-            props.justify_v,
-            sort_idx,
+            &props,
+            Vec2::new(screen_w, screen_h),
+            sort_map[&ui_text.0],
+            font_handle,
         );
-        commands
-            .entity(entity)
-            .insert(text_anchor(props.justify_h, props.justify_v));
+        update_text_components(
+            TextRenderComponents {
+                text,
+                layout,
+                bounds,
+                font,
+                color,
+                transform,
+                anchor,
+            },
+            values,
+        );
     }
 
     spawn_missing_text(
@@ -86,6 +88,82 @@ pub fn sync_ui_text(
         &mut font_assets,
         &mut font_registry,
     );
+}
+
+struct TextRenderComponents<'a> {
+    text: Mut<'a, Text2d>,
+    layout: Mut<'a, TextLayout>,
+    bounds: Mut<'a, TextBounds>,
+    font: Mut<'a, TextFont>,
+    color: Mut<'a, TextColor>,
+    transform: Mut<'a, Transform>,
+    anchor: Mut<'a, Anchor>,
+}
+
+struct TextRenderValues<'a> {
+    content: &'a String,
+    layout: TextLayout,
+    bounds: TextBounds,
+    font: Handle<Font>,
+    font_size: f32,
+    color: TextColor,
+    transform: Transform,
+    anchor: Anchor,
+}
+
+fn text_render_values<'a>(
+    frame: &crate::frame::Frame,
+    props: &'a TextProps,
+    screen_size: Vec2,
+    sort_idx: usize,
+    font: Handle<Font>,
+) -> TextRenderValues<'a> {
+    TextRenderValues {
+        content: &props.content,
+        layout: text_layout(frame),
+        bounds: text_bounds(frame),
+        font,
+        font_size: props.font_size,
+        color: TextColor(props.color),
+        transform: text_transform(
+            frame,
+            screen_size.x,
+            screen_size.y,
+            props.justify_h,
+            props.justify_v,
+            sort_idx,
+        ),
+        anchor: text_anchor(props.justify_h, props.justify_v),
+    }
+}
+
+fn update_text_components(mut components: TextRenderComponents<'_>, values: TextRenderValues<'_>) {
+    if components.text.0.as_str() != values.content.as_str() {
+        components.text.0.clone_from(values.content);
+    }
+    if components.layout.justify != values.layout.justify
+        || components.layout.linebreak != values.layout.linebreak
+    {
+        *components.layout = values.layout;
+    }
+    if components.bounds.width != values.bounds.width
+        || components.bounds.height != values.bounds.height
+    {
+        *components.bounds = values.bounds;
+    }
+    if components.font.font != values.font || components.font.font_size != values.font_size {
+        components.font.font = values.font;
+        components.font.font_size = values.font_size;
+    }
+    if *components.color != values.color {
+        *components.color = values.color;
+    }
+    if *components.transform != values.transform {
+        *components.transform = values.transform;
+    }
+    if *components.anchor != values.anchor {
+        *components.anchor = values.anchor;
+    }
 }
 
 fn spawn_missing_text(
@@ -416,6 +494,43 @@ mod tests {
             .map(|(_, layout, bounds)| (layout.clone(), *bounds))
     }
 
+    #[derive(Default, Resource)]
+    struct TextComponentChanges {
+        text: bool,
+        layout: bool,
+        bounds: bool,
+        font: bool,
+        color: bool,
+        transform: bool,
+        anchor: bool,
+    }
+
+    fn record_text_component_changes(
+        query: Query<
+            (
+                Ref<Text2d>,
+                Ref<TextLayout>,
+                Ref<TextBounds>,
+                Ref<TextFont>,
+                Ref<TextColor>,
+                Ref<Transform>,
+                Ref<Anchor>,
+            ),
+            (Without<UiTextShadow>, Without<UiTextOutline>),
+        >,
+        mut changes: ResMut<TextComponentChanges>,
+    ) {
+        for (text, layout, bounds, font, color, transform, anchor) in &query {
+            changes.text |= text.is_changed();
+            changes.layout |= layout.is_changed();
+            changes.bounds |= bounds.is_changed();
+            changes.font |= font.is_changed();
+            changes.color |= color.is_changed();
+            changes.transform |= transform.is_changed();
+            changes.anchor |= anchor.is_changed();
+        }
+    }
+
     #[test]
     fn text_transform_centers_edit_box_text_between_vertical_insets() {
         let frame = make_edit_box(300.0, 30.0, [12.0, 5.0, 0.0, 5.0]);
@@ -500,6 +615,45 @@ mod tests {
             .world_mut()
             .query_filtered::<&UiText, Without<crate::render_text_fx::UiTextShadow>>();
         assert!(q.iter(app.world()).any(|t| t.0 == id));
+    }
+
+    #[test]
+    fn unchanged_text_frame_does_not_mark_render_components_changed() {
+        let mut app = make_test_app();
+        app.insert_resource(TextComponentChanges::default());
+        app.add_systems(Last, record_text_component_changes);
+        insert_fontstring_frame(
+            &mut app,
+            "StableText",
+            120.0,
+            20.0,
+            FontStringData {
+                text: "Hello".into(),
+                ..Default::default()
+            },
+        );
+
+        app.update();
+        *app.world_mut().resource_mut::<TextComponentChanges>() = TextComponentChanges::default();
+        app.update();
+
+        let changes = app.world().resource::<TextComponentChanges>();
+        assert!(!changes.text, "Text2d changed without registry changes");
+        assert!(
+            !changes.layout,
+            "TextLayout changed without registry changes"
+        );
+        assert!(
+            !changes.bounds,
+            "TextBounds changed without registry changes"
+        );
+        assert!(!changes.font, "TextFont changed without registry changes");
+        assert!(!changes.color, "TextColor changed without registry changes");
+        assert!(
+            !changes.transform,
+            "Transform changed without registry changes"
+        );
+        assert!(!changes.anchor, "Anchor changed without registry changes");
     }
 
     #[test]
