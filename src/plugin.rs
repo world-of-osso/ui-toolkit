@@ -13,6 +13,16 @@ impl Default for UiRenderEnabled {
     }
 }
 
+/// Enables synchronization of UI text into Bevy render entities.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Resource)]
+pub struct UiTextRenderEnabled(pub bool);
+
+impl Default for UiTextRenderEnabled {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 /// Central UI state, accessible as a Bevy Resource.
 #[derive(Resource)]
 pub struct UiState {
@@ -33,6 +43,7 @@ impl Plugin for UiPlugin {
         };
         app.insert_resource(state);
         app.insert_resource(UiRenderEnabled::default());
+        app.insert_resource(UiTextRenderEnabled::default());
         app.init_resource::<crate::font_registry::FontRegistry>();
         register_ui_startup_systems(app);
         register_ui_update_systems(app);
@@ -56,14 +67,18 @@ fn register_ui_update_systems(app: &mut App) {
             (
                 crate::render::sync_ui_quads,
                 crate::render_button::sync_ui_button_highlights,
-                crate::render_text::sync_ui_text,
+                crate::render_text::sync_ui_text.run_if(ui_text_render_enabled),
                 crate::render_border::sync_ui_borders,
                 crate::render_border::sync_css_borders,
                 crate::render_nine_slice::sync_ui_nine_slices,
                 crate::render_three_slice::sync_ui_three_slices,
                 crate::render_tiled::sync_ui_tiled_textures,
-                crate::render_text_fx::sync_ui_text_shadows,
-                crate::render_text_fx::sync_ui_text_outlines,
+                (
+                    crate::render_text_fx::sync_ui_text_shadows,
+                    crate::render_text_fx::sync_ui_text_outlines,
+                )
+                    .chain()
+                    .run_if(ui_text_render_enabled),
             )
                 .chain()
                 .run_if(ui_render_enabled),
@@ -74,6 +89,10 @@ fn register_ui_update_systems(app: &mut App) {
 }
 
 fn ui_render_enabled(enabled: Res<UiRenderEnabled>) -> bool {
+    enabled.0
+}
+
+fn ui_text_render_enabled(enabled: Res<UiTextRenderEnabled>) -> bool {
     enabled.0
 }
 
@@ -160,6 +179,54 @@ mod tests {
         app.update();
 
         assert_eq!(ui_quad_count(&mut app, frame_id), 1);
+    }
+
+    #[test]
+    fn disabled_ui_text_render_keeps_quad_until_reenabled() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::asset::AssetPlugin::default());
+        app.init_asset::<bevy::image::Image>();
+        app.init_asset::<bevy::text::Font>();
+        app.add_plugins(UiPlugin);
+
+        let frame_id = {
+            let mut ui = app.world_mut().resource_mut::<UiState>();
+            let frame_id = ui.registry.create_frame("TextPanel", None);
+            let frame = ui.registry.get_mut(frame_id).unwrap();
+            frame.width = crate::frame::Dimension::Fixed(100.0);
+            frame.height = crate::frame::Dimension::Fixed(40.0);
+            frame.background_color = Some([1.0, 0.0, 0.0, 1.0]);
+            frame.widget_data = Some(crate::frame::WidgetData::FontString(
+                crate::widgets::font_string::FontStringData {
+                    text: "Hello".into(),
+                    ..Default::default()
+                },
+            ));
+            frame_id
+        };
+        app.world_mut().resource_mut::<UiTextRenderEnabled>().0 = false;
+
+        app.update();
+
+        assert_eq!(ui_quad_count(&mut app, frame_id), 1);
+        assert_eq!(ui_text_count(&mut app, frame_id), 0);
+
+        app.world_mut().resource_mut::<UiTextRenderEnabled>().0 = true;
+        app.update();
+
+        assert_eq!(ui_text_count(&mut app, frame_id), 1);
+    }
+
+    fn ui_text_count(app: &mut App, frame_id: u64) -> usize {
+        let mut query = app.world_mut().query_filtered::<&crate::render::UiText, (
+            Without<crate::render_text_fx::UiTextShadow>,
+            Without<crate::render_text_fx::UiTextOutline>,
+        )>();
+        query
+            .iter(app.world())
+            .filter(|text| text.0 == frame_id)
+            .count()
     }
 
     fn ui_quad_count(app: &mut App, frame_id: u64) -> usize {
