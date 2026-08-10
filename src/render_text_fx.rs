@@ -124,8 +124,8 @@ fn spawn_missing_shadows(
             super::render_text::text_layout(frame),
             super::render_text::text_bounds(frame),
             TextFont {
-                font,
-                font_size: props.font_size,
+                font: FontSource::Handle(font),
+                font_size: FontSize::Px(props.font_size),
                 ..default()
             },
             TextColor(Color::srgba(r, g, b, a * frame.effective_alpha)),
@@ -185,8 +185,8 @@ fn update_shadow_entity(
     *text = Text2d::new(&props.content);
     *layout = super::render_text::text_layout(frame);
     *bounds = super::render_text::text_bounds(frame);
-    font.font_size = props.font_size;
-    font.font = font_registry.get(props.font, font_assets);
+    font.font_size = FontSize::Px(props.font_size);
+    font.font = FontSource::Handle(font_registry.get(props.font, font_assets));
     let [r, g, b, a] = props.shadow_color;
     *color = TextColor(Color::srgba(r, g, b, a));
 }
@@ -317,8 +317,8 @@ fn spawn_outline_entity(
         super::render_text::text_layout(frame),
         super::render_text::text_bounds(frame),
         TextFont {
-            font: font.clone(),
-            font_size: fs.font_size,
+            font: FontSource::Handle(font.clone()),
+            font_size: FontSize::Px(fs.font_size),
             ..default()
         },
         TextColor(Color::srgba(0.0, 0.0, 0.0, alpha)),

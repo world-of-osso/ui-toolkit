@@ -2,11 +2,11 @@
 name = "ui-toolkit"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.95"
 
 [dependencies]
 ui-toolkit-macros = { git = "ssh://git@github.com/world-of-osso/ui-toolkit-macros.git", rev = "1979e54" }
-bevy = { version = "0.18", default-features = false, features = ["default"] }
+bevy = { version = "0.19", default-features = false, features = ["default"] }
 image-blp = "1"
 ab_glyph = "0.2"
 image = { version = "0.25", default-features = false, features = ["png"] }

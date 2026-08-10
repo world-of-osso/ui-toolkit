@@ -17,8 +17,9 @@ impl FontRegistry {
         }
         let bytes = std::fs::read(font.path())
             .unwrap_or_else(|e| panic!("failed to read font {:?} at {}: {}", font, font.path(), e));
-        let f = Font::try_from_bytes(bytes)
+        ab_glyph::FontRef::try_from_slice(&bytes)
             .unwrap_or_else(|e| panic!("failed to parse font {:?}: {}", font, e));
+        let f = Font::from_bytes(bytes);
         let handle = font_assets.add(f);
         self.cache.insert(font, handle.clone());
         handle

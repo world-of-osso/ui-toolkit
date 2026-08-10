@@ -58,8 +58,8 @@ pub fn sync_ui_text(
         *text = Text2d::new(&props.content);
         *layout = text_layout(frame);
         *bounds = text_bounds(frame);
-        font.font_size = props.font_size;
-        font.font = font_registry.get(props.font, &mut font_assets);
+        font.font_size = FontSize::Px(props.font_size);
+        font.font = FontSource::Handle(font_registry.get(props.font, &mut font_assets));
         *color = TextColor(props.color);
         let sort_idx = sort_map[&ui_text.0];
         *transform = text_transform(
@@ -123,8 +123,8 @@ fn spawn_missing_text(
             layout,
             bounds,
             TextFont {
-                font,
-                font_size: props.font_size,
+                font: FontSource::Handle(font),
+                font_size: FontSize::Px(props.font_size),
                 ..default()
             },
             TextColor(props.color),
