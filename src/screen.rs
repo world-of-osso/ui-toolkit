@@ -264,7 +264,6 @@ fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frame::{Frame, WidgetType};
     use crate::widget_def::WidgetChild;
 
     #[test]
