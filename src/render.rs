@@ -518,6 +518,98 @@ mod tests {
         app
     }
 
+    #[derive(Resource, Default)]
+    struct QuadChanges {
+        transforms: usize,
+        sprites: usize,
+    }
+
+    fn observe_quad_changes(
+        transforms: Query<(), (Changed<Transform>, Or<(With<UiQuad>, With<UiBackdropQuad>)>)>,
+        sprites: Query<(), (Changed<Sprite>, Or<(With<UiQuad>, With<UiBackdropQuad>)>)>,
+        mut changes: ResMut<QuadChanges>,
+    ) {
+        changes.transforms = transforms.iter().count();
+        changes.sprites = sprites.iter().count();
+    }
+
+    fn quad_change_fixture(nine_slice: bool) -> (App, u64) {
+        let mut app = test_app();
+        app.init_resource::<QuadChanges>();
+        app.add_systems(PostUpdate, observe_quad_changes);
+        app.update();
+        let id = {
+            let mut ui = app.world_mut().resource_mut::<UiState>();
+            let id = ui.registry.create_frame("Changes", None);
+            let frame = ui.registry.get_mut(id).unwrap();
+            frame.width = Dimension::Fixed(100.0);
+            frame.height = Dimension::Fixed(50.0);
+            frame.background_color = Some([1.0, 0.0, 0.0, 1.0]);
+            if nine_slice {
+                frame.nine_slice = Some(crate::frame::NineSlice {
+                    edge_size: 8.0,
+                    ..default()
+                });
+            }
+            id
+        };
+        app.update();
+        (app, id)
+    }
+
+    #[test]
+    fn quad_changes_settled_visuals_do_not_invalidate_components() {
+        for nine_slice in [false, true] {
+            let (mut app, id) = quad_change_fixture(nine_slice);
+            // A mutable registry lookup marks dirty even without changing the output.
+            app.world_mut()
+                .resource_mut::<UiState>()
+                .registry
+                .get_mut(id)
+                .unwrap();
+            app.update();
+            let changes = app.world().resource::<QuadChanges>();
+            assert_eq!(changes.transforms, 0, "nine_slice={nine_slice}");
+            assert_eq!(changes.sprites, 0, "nine_slice={nine_slice}");
+        }
+    }
+
+    #[test]
+    fn quad_changes_color_and_geometry_remain_live() {
+        for nine_slice in [false, true] {
+            let (mut app, id) = quad_change_fixture(nine_slice);
+            app.update();
+            app.world_mut()
+                .resource_mut::<UiState>()
+                .registry
+                .get_mut(id)
+                .unwrap()
+                .background_color = Some([0.0, 1.0, 0.0, 1.0]);
+            app.update();
+            let changes = app.world().resource::<QuadChanges>();
+            assert_eq!(changes.transforms, 0, "color must not invalidate geometry");
+            assert_eq!(changes.sprites, if nine_slice { 5 } else { 1 });
+            let mut sprites = app
+                .world_mut()
+                .query_filtered::<&Sprite, Or<(With<UiQuad>, With<UiBackdropQuad>)>>();
+            assert!(
+                sprites
+                    .iter(app.world())
+                    .all(|sprite| sprite.color == Color::srgba(0.0, 1.0, 0.0, 1.0))
+            );
+            app.world_mut()
+                .resource_mut::<UiState>()
+                .registry
+                .get_mut(id)
+                .unwrap()
+                .width = Dimension::Fixed(200.0);
+            app.update();
+            let changes = app.world().resource::<QuadChanges>();
+            assert!(changes.transforms > 0);
+            assert!(changes.sprites > 0);
+        }
+    }
+
     #[test]
     fn ui_camera_spawned() {
         let mut app = test_app();
