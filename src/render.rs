@@ -640,20 +640,16 @@ mod tests {
                     .iter(app.world())
                     .all(|sprite| sprite.color == Color::srgba(0.0, 1.0, 0.0, 1.0))
             );
-            app.world_mut()
-                .resource_mut::<UiState>()
-                .registry
-                .get_mut(id)
-                .unwrap()
-                .width = Dimension::Fixed(200.0);
+            {
+                let mut ui = app.world_mut().resource_mut::<UiState>();
+                let frame = ui.registry.get_mut(id).unwrap();
+                frame.width = Dimension::Fixed(200.0);
+                // Unanchored frames retain explicit layout rectangles until invalidated.
+                frame.layout_rect = None;
+            }
             app.update();
             let changes = app.world().resource::<QuadChanges>();
-            if nine_slice {
-                assert!(changes.transforms > 0);
-            } else {
-                // Unanchored frames remain centered when their width changes.
-                assert_eq!(changes.transforms, 0);
-            }
+            assert!(changes.transforms > 0);
             assert!(changes.sprites > 0);
             let mut sprites = app.world_mut().query_filtered::<&Sprite, With<UiQuad>>();
             if !nine_slice {
