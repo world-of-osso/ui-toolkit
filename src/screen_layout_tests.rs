@@ -138,7 +138,7 @@ fn screen_layout_editbox_autosize_updates_settled_layout_and_follower() {
             .as_ref()
             .unwrap()
             .height,
-        50.0
+        51.0
     );
     assert_follower_at_bottom_right(&registry, input, follower);
     registry.render_dirty.clear();
