@@ -152,6 +152,9 @@ fn initialize_screen_size(
 }
 
 fn recompute_layout(mut state: ResMut<UiState>) {
+    if state.registry.rect_dirty.is_empty() {
+        return;
+    }
     crate::layout::recompute_layouts(&mut state.registry);
 }
 
