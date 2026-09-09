@@ -256,9 +256,13 @@ fn auto_size_fontstrings(frame_ids: &[u64], registry: &mut FrameRegistry) {
         let font = fs.font;
         let font_size = fs.font_size;
         if let Some((w, h)) = measure_text(&text, font, font_size) {
+            if frame.width == Dimension::Fixed(w) && frame.height == Dimension::Fixed(h) {
+                continue;
+            }
             let frame = registry.get_mut(fid).unwrap();
             frame.width = Dimension::Fixed(w);
             frame.height = Dimension::Fixed(h);
+            registry.mark_rect_dirty(fid);
         }
     }
 }
@@ -280,8 +284,12 @@ fn auto_size_editboxes(frame_ids: &[u64], registry: &mut FrameRegistry) {
         } else {
             0.0
         };
-        let frame = registry.get_mut(fid).unwrap();
-        frame.height = Dimension::Fixed(font_size + font_size * 0.5 + v_inset);
+        let height = Dimension::Fixed(font_size + font_size * 0.5 + v_inset);
+        if frame.height == height {
+            continue;
+        }
+        registry.get_mut(fid).unwrap().height = height;
+        registry.mark_rect_dirty(fid);
     }
 }
 

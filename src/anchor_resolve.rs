@@ -77,10 +77,11 @@ pub(crate) fn apply_anchor_resolved(registry: &mut FrameRegistry, frame_id: u64,
         x_offset,
         y_offset,
     };
-    if let Some(frame) = registry.get_mut(frame_id) {
-        frame.anchors.push(anchor);
-    }
-    registry.rect_dirty.insert(frame_id);
+    registry
+        .set_point(frame_id, anchor)
+        .unwrap_or_else(|error| {
+            panic!("failed to apply resolved anchor {s:?} to frame {frame_id}: {error}")
+        });
 }
 
 pub(crate) fn apply_anchor_from_def(
