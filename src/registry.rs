@@ -506,6 +506,164 @@ mod tests {
     use crate::anchor::{Anchor, AnchorPoint};
     use crate::strata::FrameStrata;
 
+    fn dirty_layout_anchor(target: Option<u64>, x: f32) -> Anchor {
+        Anchor {
+            point: AnchorPoint::TopLeft,
+            relative_to: target,
+            relative_point: AnchorPoint::TopLeft,
+            x_offset: x,
+            y_offset: 0.0,
+        }
+    }
+
+    fn dirty_layout_frame(reg: &mut FrameRegistry, name: &str, parent: Option<u64>) -> u64 {
+        let id = reg.create_frame(name, parent);
+        let frame = reg.get_mut(id).unwrap();
+        frame.width = crate::frame::Dimension::Fixed(50.0);
+        frame.height = crate::frame::Dimension::Fixed(20.0);
+        id
+    }
+
+    #[test]
+    fn dirty_layout_clean_pass_leaves_render_state_untouched() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let id = dirty_layout_frame(&mut reg, "Root", None);
+        reg.set_point(id, dirty_layout_anchor(None, 12.0)).unwrap();
+        crate::layout::recompute_layouts(&mut reg);
+        let expected = reg.get(id).unwrap().layout_rect.clone();
+        assert!(reg.rect_dirty.is_empty());
+        reg.render_dirty.clear();
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(reg.get(id).unwrap().layout_rect, expected);
+        assert!(
+            reg.render_dirty.is_empty(),
+            "clean layout must not invalidate rendering"
+        );
+    }
+
+    #[test]
+    fn dirty_layout_resize_and_anchor_chain_still_update() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let root = dirty_layout_frame(&mut reg, "Root", None);
+        reg.get_mut(root).unwrap().width = crate::frame::Dimension::Fill;
+        reg.set_point(root, dirty_layout_anchor(None, 0.0)).unwrap();
+        let child = dirty_layout_frame(&mut reg, "Child", Some(root));
+        reg.get_mut(child).unwrap().width = crate::frame::Dimension::Fill;
+        reg.set_point(child, dirty_layout_anchor(Some(root), 5.0))
+            .unwrap();
+        let follower = dirty_layout_frame(&mut reg, "Follower", None);
+        reg.set_point(follower, dirty_layout_anchor(Some(child), 7.0))
+            .unwrap();
+        crate::layout::recompute_layouts(&mut reg);
+        reg.screen_width = 1000.0;
+        reg.mark_all_rects_dirty();
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(
+            reg.get(child).unwrap().layout_rect.as_ref().unwrap().width,
+            1000.0
+        );
+        reg.set_point(root, dirty_layout_anchor(None, 40.0))
+            .unwrap();
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(
+            reg.get(follower).unwrap().layout_rect.as_ref().unwrap().x,
+            52.0
+        );
+    }
+
+    #[test]
+    fn dirty_layout_removal_reflows_flex_with_other_dirty_frames() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let parent = dirty_layout_frame(&mut reg, "Row", None);
+        reg.get_mut(parent).unwrap().flex_layout = Some(crate::frame::FlexLayout {
+            direction: crate::frame::FlexDirection::Row,
+            align: crate::frame::FlexAlign::Start,
+            ..Default::default()
+        });
+        let first = dirty_layout_frame(&mut reg, "First", Some(parent));
+        let second = dirty_layout_frame(&mut reg, "Second", Some(parent));
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(
+            reg.get(second).unwrap().layout_rect.as_ref().unwrap().x,
+            50.0
+        );
+        reg.remove_frame(first);
+        dirty_layout_frame(&mut reg, "Unrelated", None);
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(
+            reg.get(second).unwrap().layout_rect.as_ref().unwrap().x,
+            0.0
+        );
+        let replacement = dirty_layout_frame(&mut reg, "Replacement", Some(parent));
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(
+            reg.get(replacement)
+                .unwrap()
+                .layout_rect
+                .as_ref()
+                .unwrap()
+                .x,
+            50.0
+        );
+    }
+
+    #[test]
+    fn dirty_layout_child_resize_reflows_flex_parent() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let parent = dirty_layout_frame(&mut reg, "Row", None);
+        reg.get_mut(parent).unwrap().flex_layout = Some(crate::frame::FlexLayout {
+            direction: crate::frame::FlexDirection::Row,
+            align: crate::frame::FlexAlign::Start,
+            ..Default::default()
+        });
+        let first = dirty_layout_frame(&mut reg, "First", Some(parent));
+        let second = dirty_layout_frame(&mut reg, "Second", Some(parent));
+        crate::layout::recompute_layouts(&mut reg);
+        reg.get_mut(first).unwrap().width = crate::frame::Dimension::Fixed(80.0);
+        reg.mark_rect_dirty(first);
+        dirty_layout_frame(&mut reg, "Unrelated", None);
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(
+            reg.get(second).unwrap().layout_rect.as_ref().unwrap().x,
+            80.0
+        );
+    }
+
+    #[test]
+    fn dirty_layout_inserted_anchors_follow_target_updates() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let target = dirty_layout_frame(&mut reg, "Target", None);
+        reg.set_point(target, dirty_layout_anchor(None, 10.0))
+            .unwrap();
+        let id = reg.next_id();
+        let mut frame = Frame::new(id, Some("Inserted".to_string()), WidgetType::Frame);
+        frame.width = crate::frame::Dimension::Fixed(20.0);
+        frame.height = crate::frame::Dimension::Fixed(10.0);
+        frame.anchors.push(dirty_layout_anchor(Some(target), 3.0));
+        reg.insert_frame(frame);
+        crate::layout::recompute_layouts(&mut reg);
+        reg.set_point(target, dirty_layout_anchor(None, 30.0))
+            .unwrap();
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(reg.get(id).unwrap().layout_rect.as_ref().unwrap().x, 33.0);
+    }
+
+    #[test]
+    fn dirty_layout_removed_anchor_target_updates_dependents() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let target = dirty_layout_frame(&mut reg, "Target", None);
+        reg.set_point(target, dirty_layout_anchor(None, 30.0))
+            .unwrap();
+        let child = dirty_layout_frame(&mut reg, "Follower", None);
+        reg.set_point(child, dirty_layout_anchor(Some(target), 3.0))
+            .unwrap();
+        crate::layout::recompute_layouts(&mut reg);
+        reg.remove_frame(target);
+        dirty_layout_frame(&mut reg, "Unrelated", None);
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(reg.get(child).unwrap().layout_rect.as_ref().unwrap().x, 3.0);
+    }
+
     #[test]
     fn create_and_lookup_by_id() {
         let mut reg = FrameRegistry::new(1024.0, 768.0);
