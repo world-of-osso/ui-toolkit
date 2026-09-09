@@ -93,7 +93,9 @@ impl FrameRegistry {
             self.names.insert(n.clone(), id);
         }
         self.render_dirty.insert(id);
-        self.rect_dirty.insert(id);
+        for &anchor in &frame.anchors {
+            self.register_anchor_dependency(id, anchor);
+        }
         self.frames.insert(id, frame);
 
         if let Some(pid) = parent_id
@@ -101,6 +103,7 @@ impl FrameRegistry {
         {
             parent.children.push(id);
         }
+        self.mark_rect_dirty(id);
     }
 
     /// Remove a frame and unlink it from its parent.
@@ -114,9 +117,18 @@ impl FrameRegistry {
             {
                 parent.children.retain(|&c| c != id);
             }
+            for anchor in frame.anchors {
+                self.unregister_anchor_dependency(id, anchor);
+            }
+            let dependents = self.anchor_dependents.remove(&id).unwrap_or_default();
+            for dependent in dependents {
+                self.mark_rect_dirty(dependent);
+            }
+            if let Some(parent_id) = frame.parent_id {
+                self.mark_rect_dirty(parent_id);
+            }
             self.render_dirty.remove(&id);
             self.rect_dirty.remove(&id);
-            self.anchor_dependents.remove(&id);
         }
     }
 
@@ -160,7 +172,6 @@ impl FrameRegistry {
         }
 
         self.render_dirty.insert(id);
-        self.rect_dirty.insert(id);
 
         // Must insert frame before mutating parent
         self.frames.insert(id, frame);
@@ -170,6 +181,7 @@ impl FrameRegistry {
         {
             parent.children.push(id);
         }
+        self.mark_rect_dirty(id);
 
         id
     }
@@ -458,7 +470,9 @@ impl FrameRegistry {
         }
     }
 
-    fn mark_rect_dirty(&mut self, id: u64) {
+    /// Invalidate layout after changing geometry, including dependent frames.
+    /// Explicit cached rectangles are preserved; callers own their invalidation.
+    pub fn mark_rect_dirty(&mut self, id: u64) {
         if !self.rect_dirty.insert(id) {
             return;
         }
@@ -611,6 +625,7 @@ mod tests {
     fn dirty_layout_child_resize_reflows_flex_parent() {
         let mut reg = FrameRegistry::new(800.0, 600.0);
         let parent = dirty_layout_frame(&mut reg, "Row", None);
+        reg.get_mut(parent).unwrap().width = crate::frame::Dimension::Fixed(0.0);
         reg.get_mut(parent).unwrap().flex_layout = Some(crate::frame::FlexLayout {
             direction: crate::frame::FlexDirection::Row,
             align: crate::frame::FlexAlign::Start,
@@ -619,6 +634,15 @@ mod tests {
         let first = dirty_layout_frame(&mut reg, "First", Some(parent));
         let second = dirty_layout_frame(&mut reg, "Second", Some(parent));
         crate::layout::recompute_layouts(&mut reg);
+        let follower = dirty_layout_frame(&mut reg, "WidthFollower", None);
+        let mut anchor = dirty_layout_anchor(Some(parent), 0.0);
+        anchor.relative_point = AnchorPoint::TopRight;
+        reg.set_point(follower, anchor).unwrap();
+        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(
+            reg.get(follower).unwrap().layout_rect.as_ref().unwrap().x,
+            100.0
+        );
         reg.get_mut(first).unwrap().width = crate::frame::Dimension::Fixed(80.0);
         reg.mark_rect_dirty(first);
         dirty_layout_frame(&mut reg, "Unrelated", None);
@@ -626,6 +650,10 @@ mod tests {
         assert_eq!(
             reg.get(second).unwrap().layout_rect.as_ref().unwrap().x,
             80.0
+        );
+        assert_eq!(
+            reg.get(follower).unwrap().layout_rect.as_ref().unwrap().x,
+            130.0
         );
     }
 

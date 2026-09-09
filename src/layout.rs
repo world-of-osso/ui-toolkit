@@ -229,12 +229,10 @@ fn resolve_two_anchors(
 // --- Layout recomputation ---
 
 pub fn recompute_layouts(registry: &mut FrameRegistry) {
-    let dirty_ids: Vec<u64> = if registry.rect_dirty.is_empty() {
-        registry.frames_iter().map(|f| f.id).collect()
-    } else {
-        registry.rect_dirty.iter().copied().collect()
-    };
-    registry.rect_dirty.clear();
+    if registry.rect_dirty.is_empty() {
+        return;
+    }
+    let dirty_ids: Vec<u64> = registry.rect_dirty.drain().collect();
     resolve_dirty_frames(registry, &dirty_ids);
     // Flex auto-sizing may dirty frames (e.g. auto-height changes anchor position).
     // Run one extra pass to settle.
