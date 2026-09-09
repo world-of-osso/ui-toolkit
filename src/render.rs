@@ -648,8 +648,20 @@ mod tests {
                 .width = Dimension::Fixed(200.0);
             app.update();
             let changes = app.world().resource::<QuadChanges>();
-            assert!(changes.transforms > 0);
+            if nine_slice {
+                assert!(changes.transforms > 0);
+            } else {
+                // Unanchored frames remain centered when their width changes.
+                assert_eq!(changes.transforms, 0);
+            }
             assert!(changes.sprites > 0);
+            let mut sprites = app.world_mut().query_filtered::<&Sprite, With<UiQuad>>();
+            if !nine_slice {
+                assert_eq!(
+                    sprites.single(app.world()).unwrap().custom_size,
+                    Some(Vec2::new(200.0, 50.0))
+                );
+            }
         }
     }
 
