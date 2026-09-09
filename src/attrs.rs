@@ -17,6 +17,10 @@ use crate::widgets::slider::{FillStyle, Orientation};
 use crate::widgets::texture::TextureSource;
 
 mod parse;
+
+#[cfg(test)]
+#[path = "attrs_layout_tests.rs"]
+mod layout_tests;
 pub(crate) use self::parse::parse_color;
 
 fn parse_dimension(value: &str) -> Dimension {
