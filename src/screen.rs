@@ -12,6 +12,12 @@ use crate::text_measure::measure_text;
 use crate::widget_def::WidgetChild;
 use crate::widget_def_diff::DiffContext;
 
+#[cfg(all(test, debug_assertions))]
+thread_local! {
+    // Keep deterministic reload tests separate from the process-wide file watcher.
+    static TEST_HOT_RELOAD_RX: RefCell<Option<std::sync::mpsc::Receiver<HotReloadTemplate>>> = const { RefCell::new(None) };
+}
+
 #[cfg(debug_assertions)]
 static GLOBAL_HOT_RELOAD_RX: OnceLock<Mutex<std::sync::mpsc::Receiver<HotReloadTemplate>>> =
     OnceLock::new();
@@ -189,6 +195,19 @@ pub fn init_global_hot_reload(_watch_dirs: Vec<PathBuf>) {}
 
 #[cfg(debug_assertions)]
 fn drain_global_hot_reload(diff: &mut DiffContext, registry: &mut FrameRegistry) {
+    #[cfg(test)]
+    if TEST_HOT_RELOAD_RX.with(|slot| {
+        let slot = slot.borrow();
+        let Some(rx) = slot.as_ref() else {
+            return false;
+        };
+        while let Ok(template) = rx.try_recv() {
+            diff.patch_by_name(&template.defs, registry);
+        }
+        true
+    }) {
+        return;
+    }
     let Some(rx) = GLOBAL_HOT_RELOAD_RX.get() else {
         return;
     };
@@ -260,6 +279,10 @@ fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
         frame.height = Dimension::Fixed(font_size + font_size * 0.5 + v_inset);
     }
 }
+
+#[cfg(all(test, debug_assertions))]
+#[path = "screen_hot_reload_tests.rs"]
+mod hot_reload_tests;
 
 #[cfg(test)]
 mod tests {
