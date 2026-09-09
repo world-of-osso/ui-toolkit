@@ -140,8 +140,9 @@ impl Screen {
         self.resolve_pending_anchors(registry);
 
         // 3. Auto-size
-        auto_size_fontstrings(&self.diff, registry);
-        auto_size_editboxes(&self.diff, registry);
+        let frame_ids = collect_all_frame_ids(&self.diff.created_frames, registry);
+        auto_size_fontstrings(&frame_ids, registry);
+        auto_size_editboxes(&frame_ids, registry);
     }
 
     fn deps_changed(&self, ctx: &SharedContext) -> bool {
@@ -240,9 +241,8 @@ fn collect_all_frame_ids(roots: &[u64], registry: &FrameRegistry) -> Vec<u64> {
     all
 }
 
-fn auto_size_fontstrings(diff: &DiffContext, registry: &mut FrameRegistry) {
-    let all_ids = collect_all_frame_ids(&diff.created_frames, registry);
-    for fid in all_ids {
+fn auto_size_fontstrings(frame_ids: &[u64], registry: &mut FrameRegistry) {
+    for &fid in frame_ids {
         let Some(frame) = registry.get(fid) else {
             continue;
         };
@@ -263,9 +263,8 @@ fn auto_size_fontstrings(diff: &DiffContext, registry: &mut FrameRegistry) {
     }
 }
 
-fn auto_size_editboxes(diff: &DiffContext, registry: &mut FrameRegistry) {
-    let all_ids = collect_all_frame_ids(&diff.created_frames, registry);
-    for fid in all_ids {
+fn auto_size_editboxes(frame_ids: &[u64], registry: &mut FrameRegistry) {
+    for &fid in frame_ids {
         let Some(frame) = registry.get(fid) else {
             continue;
         };
