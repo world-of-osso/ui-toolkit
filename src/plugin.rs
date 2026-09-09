@@ -159,6 +159,103 @@ fn recompute_layout(mut state: ResMut<UiState>) {
 mod tests {
     use super::*;
 
+    #[derive(Resource, Default)]
+    struct LayoutCallerChanged(bool);
+
+    fn observe_layout_caller_change(
+        state: Res<UiState>,
+        mut observed: ResMut<LayoutCallerChanged>,
+    ) {
+        observed.0 = state.is_changed();
+    }
+
+    fn layout_caller_app() -> (App, u64) {
+        use crate::anchor::{Anchor, AnchorPoint};
+        use crate::frame::Dimension;
+
+        let mut registry = FrameRegistry::new(800.0, 600.0);
+        let id = registry.create_frame("LayoutCaller", None);
+        let frame = registry.get_mut(id).unwrap();
+        frame.width = Dimension::Fixed(80.0);
+        frame.height = Dimension::Fixed(30.0);
+        registry
+            .set_point(
+                id,
+                Anchor {
+                    point: AnchorPoint::TopLeft,
+                    relative_to: None,
+                    relative_point: AnchorPoint::TopLeft,
+                    x_offset: 12.0,
+                    y_offset: 0.0,
+                },
+            )
+            .unwrap();
+        crate::layout::recompute_layouts(&mut registry);
+        registry.render_dirty.clear();
+        let mut app = App::new();
+        app.insert_resource(UiState {
+            registry,
+            event_bus: EventBus::new(),
+            focused_frame: None,
+        });
+        app.init_resource::<LayoutCallerChanged>();
+        app.add_systems(
+            Update,
+            (recompute_layout, observe_layout_caller_change).chain(),
+        );
+        app.update(); // Consume the initial resource insertion notification.
+        (app, id)
+    }
+
+    #[test]
+    fn layout_caller_clean_updates_do_not_mark_ui_state_changed() {
+        let (mut app, id) = layout_caller_app();
+        let expected = app
+            .world()
+            .resource::<UiState>()
+            .registry
+            .get(id)
+            .unwrap()
+            .layout_rect
+            .clone();
+        for _ in 0..3 {
+            app.update();
+            assert!(!app.world().resource::<LayoutCallerChanged>().0);
+            let state = app.world().resource::<UiState>();
+            assert!(state.registry.rect_dirty.is_empty());
+            assert!(state.registry.render_dirty.is_empty());
+            assert_eq!(state.registry.get(id).unwrap().layout_rect, expected);
+        }
+    }
+
+    #[test]
+    fn layout_caller_dirty_update_changes_geometry_and_ui_state() {
+        let (mut app, id) = layout_caller_app();
+        {
+            let mut state = app.world_mut().resource_mut::<UiState>();
+            // Observe the production callback's notification, not fixture mutation.
+            let state = state.bypass_change_detection();
+            state.registry.get_mut(id).unwrap().width = crate::frame::Dimension::Fixed(150.0);
+            state.registry.mark_rect_dirty(id);
+            state.registry.render_dirty.clear();
+        }
+        app.update();
+        assert!(app.world().resource::<LayoutCallerChanged>().0);
+        let state = app.world().resource::<UiState>();
+        let rect = state
+            .registry
+            .get(id)
+            .unwrap()
+            .layout_rect
+            .as_ref()
+            .unwrap();
+        assert_eq!((rect.x, rect.width, rect.height), (12.0, 150.0, 30.0));
+        assert!(state.registry.rect_dirty.is_empty());
+        assert!(state.registry.render_dirty.contains(&id));
+        app.update();
+        assert!(!app.world().resource::<LayoutCallerChanged>().0);
+    }
+
     #[test]
     fn plugin_adds_ui_state() {
         let mut app = App::new();
