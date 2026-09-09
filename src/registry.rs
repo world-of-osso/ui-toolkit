@@ -477,6 +477,15 @@ impl FrameRegistry {
             return;
         }
 
+        if let Some(parent_id) = self.frames.get(&id).and_then(|frame| frame.parent_id)
+            && self
+                .frames
+                .get(&parent_id)
+                .is_some_and(|parent| parent.flex_layout.is_some())
+        {
+            self.mark_rect_dirty(parent_id);
+        }
+
         let mut dependents = self
             .anchor_dependents
             .get(&id)
