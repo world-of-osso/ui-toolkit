@@ -2,10 +2,12 @@ use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+#[cfg(debug_assertions)]
 use std::sync::{Mutex, OnceLock};
 
 use crate::anchor_resolve::apply_anchor_resolved;
 use crate::frame::{Dimension, WidgetData};
+#[cfg(debug_assertions)]
 use crate::hotreload::HotReloadTemplate;
 use crate::registry::FrameRegistry;
 use crate::text_measure::measure_text;
@@ -123,8 +125,6 @@ impl Screen {
     /// Sync the widget tree against the registry using shared context.
     /// Only rebuilds if a dependency's generation has advanced since last render.
     pub fn sync(&mut self, ctx: &SharedContext, registry: &mut FrameRegistry) {
-        drain_global_hot_reload(&mut self.diff, registry);
-
         // 1. Check if rebuild needed
         let needs_rebuild = !self.initialized || self.deps_changed(ctx);
         if needs_rebuild {
@@ -193,6 +193,15 @@ pub fn init_global_hot_reload(watch_dirs: Vec<PathBuf>) {
 #[cfg(not(debug_assertions))]
 pub fn init_global_hot_reload(_watch_dirs: Vec<PathBuf>) {}
 
+/// Apply queued attribute patches independently of normal screen synchronization.
+#[cfg(debug_assertions)]
+pub(crate) fn poll_hot_reload(
+    mut diff: bevy::prelude::Local<DiffContext>,
+    mut ui: bevy::prelude::ResMut<crate::plugin::UiState>,
+) {
+    drain_global_hot_reload(&mut diff, &mut ui.registry);
+}
+
 #[cfg(debug_assertions)]
 fn drain_global_hot_reload(diff: &mut DiffContext, registry: &mut FrameRegistry) {
     #[cfg(test)]
@@ -220,9 +229,6 @@ fn drain_global_hot_reload(diff: &mut DiffContext, registry: &mut FrameRegistry)
     }
     diff.log_changes = false;
 }
-
-#[cfg(not(debug_assertions))]
-fn drain_global_hot_reload(_diff: &mut DiffContext, _registry: &mut FrameRegistry) {}
 
 fn collect_all_frame_ids(roots: &[u64], registry: &FrameRegistry) -> Vec<u64> {
     let mut all = Vec::new();

@@ -69,6 +69,16 @@ fn register_ui_startup_systems(app: &mut App) {
 }
 
 fn register_ui_update_systems(app: &mut App) {
+    #[cfg(debug_assertions)]
+    app.add_systems(
+        Update,
+        crate::screen::poll_hot_reload
+            .before(sync_screen_size)
+            .run_if(bevy::time::common_conditions::on_real_timer(
+                std::time::Duration::from_secs(1),
+            ))
+            .run_if(ui_processing_enabled),
+    );
     app.add_systems(
         Update,
         (
