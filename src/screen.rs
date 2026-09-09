@@ -295,6 +295,83 @@ mod tests {
     use super::*;
     use crate::widget_def::WidgetChild;
 
+    fn sizing_widget(tag: &'static str, name: &str) -> crate::widget_def::WidgetDef {
+        let mut widget = crate::widget_def::WidgetDef::new(tag);
+        widget.name = Some(name.to_string());
+        widget
+    }
+
+    fn sizing_dimensions(registry: &FrameRegistry, id: u64) -> (f32, f32) {
+        let frame = registry.get(id).unwrap();
+        (frame.width.value(), frame.height.value())
+    }
+
+    #[test]
+    fn screen_sizing_preserves_nested_text_and_editbox_updates() {
+        let mut screen = Screen::new(|_| {
+            let mut nested = sizing_widget("Frame", "nested");
+            nested.children = vec![
+                WidgetChild::Widget(sizing_widget("FontString", "label")),
+                WidgetChild::Widget(sizing_widget("EditBox", "input")),
+            ];
+            let mut root = sizing_widget("Frame", "root");
+            root.children.push(WidgetChild::Widget(nested));
+            vec![WidgetChild::Widget(root)]
+        });
+        let ctx = SharedContext::new();
+        let mut registry = FrameRegistry::new(800.0, 600.0);
+        screen.sync(&ctx, &mut registry);
+        let label = registry.get_by_name("label").unwrap();
+        let input = registry.get_by_name("input").unwrap();
+        let (font, font_size) = {
+            let frame = registry.get_mut(label).unwrap();
+            frame.width = Dimension::Fixed(0.0);
+            let Some(WidgetData::FontString(text)) = &mut frame.widget_data else {
+                panic!("label must be text")
+            };
+            text.text = "Hi".to_string();
+            (text.font, text.font_size)
+        };
+        {
+            let frame = registry.get_mut(input).unwrap();
+            frame.width = Dimension::Fixed(120.0);
+            frame.height = Dimension::Fixed(0.0);
+            let Some(WidgetData::EditBox(editbox)) = &mut frame.widget_data else {
+                panic!("input must be an editbox")
+            };
+            editbox.font_size = 20.0;
+            editbox.text_insets = [1.0, 2.0, 3.0, 4.0];
+        }
+        screen.sync(&ctx, &mut registry);
+        let short_size = measure_text("Hi", font, font_size).expect("fixture font must load");
+        assert_eq!(sizing_dimensions(&registry, label), short_size);
+        assert_eq!(sizing_dimensions(&registry, input), (120.0, 37.0));
+        screen.sync(&ctx, &mut registry);
+        assert_eq!(sizing_dimensions(&registry, label), short_size);
+        assert_eq!(sizing_dimensions(&registry, input), (120.0, 37.0));
+        {
+            let frame = registry.get_mut(label).unwrap();
+            let Some(WidgetData::FontString(text)) = &mut frame.widget_data else {
+                unreachable!()
+            };
+            text.text = "A much longer label".to_string();
+        }
+        screen.sync(&ctx, &mut registry);
+        assert_eq!(sizing_dimensions(&registry, label), short_size);
+        registry.get_mut(label).unwrap().width = Dimension::Fixed(0.0);
+        registry.get_mut(input).unwrap().height = Dimension::Fixed(0.0);
+        if let Some(WidgetData::EditBox(editbox)) =
+            &mut registry.get_mut(input).unwrap().widget_data
+        {
+            editbox.font_size = 24.0;
+        }
+        screen.sync(&ctx, &mut registry);
+        let long_size = measure_text("A much longer label", font, font_size).unwrap();
+        assert!(long_size.0 > short_size.0);
+        assert_eq!(sizing_dimensions(&registry, label), long_size);
+        assert_eq!(sizing_dimensions(&registry, input), (120.0, 43.0));
+    }
+
     #[test]
     fn screen_with_no_deps_never_rebuilds_after_init() {
         let counter = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
