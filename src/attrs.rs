@@ -233,6 +233,12 @@ pub(crate) fn apply_attribute(
     apply_widget_text_attrs(frame, name, value, validated_paths, missing_paths);
     apply_slider_attrs(frame, name, value, validated_paths, missing_paths);
     apply_widget_texture_attrs(frame, name, value, validated_paths, missing_paths);
+    if matches!(
+        name,
+        "width" | "height" | "layout" | "gap" | "justify" | "align" | "padding"
+    ) {
+        registry.mark_rect_dirty(frame_id);
+    }
     None
 }
 
