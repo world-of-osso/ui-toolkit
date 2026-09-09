@@ -2,6 +2,10 @@ use crate::anchor::{Anchor, AnchorPoint};
 use crate::registry::FrameRegistry;
 use crate::widget_def::AnchorDef;
 
+#[cfg(test)]
+#[path = "anchor_resolve_tests.rs"]
+mod tests;
+
 /// Accumulated anchor attribute state for anchors with dynamic attrs.
 /// Static attrs are filled during template instantiation, dynamic attrs arrive via set_attribute.
 #[derive(Debug, Clone)]

@@ -290,6 +290,10 @@ fn auto_size_editboxes(frame_ids: &[u64], registry: &mut FrameRegistry) {
 mod hot_reload_tests;
 
 #[cfg(test)]
+#[path = "screen_layout_tests.rs"]
+mod layout_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::widget_def::WidgetChild;
