@@ -56,6 +56,7 @@ pub fn sync_ui_quads(
     mut images: Option<ResMut<Assets<Image>>>,
     quads: Query<(Entity, &UiQuad)>,
     backdrop_quads: Query<(Entity, &UiBackdropQuad)>,
+    visuals: Query<(&Transform, &Sprite)>,
     mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
     mut file_texture_cache: Local<HashMap<String, Handle<Image>>>,
     mut missing_textures: Local<HashSet<u32>>,
@@ -101,6 +102,7 @@ pub fn sync_ui_quads(
         &mut missing_textures,
         &mut missing_file_textures,
         &quads,
+        &visuals,
         blp_loader.as_deref(),
     );
     update_or_despawn_backdrop_quads(
@@ -110,6 +112,7 @@ pub fn sync_ui_quads(
         screen_h,
         &mut commands,
         &backdrop_quads,
+        &visuals,
     );
 
     let existing: HashSet<u64> = quads.iter().map(|(_, q)| q.0).collect();
@@ -155,6 +158,7 @@ fn update_or_despawn_quads(
     missing_textures: &mut HashSet<u32>,
     missing_file_textures: &mut HashSet<String>,
     quads: &Query<(Entity, &UiQuad)>,
+    visuals: &Query<(&Transform, &Sprite)>,
     blp_loader: Option<&BlpLoaderRes>,
 ) {
     for (entity, ui_quad) in quads {
@@ -163,6 +167,7 @@ fn update_or_despawn_quads(
                 state,
                 entity,
                 ui_quad.0,
+                visuals.get(entity).ok(),
                 sort_idx,
                 screen_w,
                 screen_h,
@@ -296,6 +301,7 @@ fn update_quad(
     state: &UiState,
     entity: Entity,
     frame_id: u64,
+    current: Option<(&Transform, &Sprite)>,
     sort_idx: usize,
     sw: f32,
     sh: f32,
@@ -323,7 +329,10 @@ fn update_quad(
         missing_file_textures,
         blp_loader,
     );
-    commands.entity(entity).insert((
+    insert_changed_quad_visuals(
+        commands,
+        entity,
+        current,
         transform,
         Sprite {
             color,
@@ -332,7 +341,37 @@ fn update_quad(
             rect,
             ..default()
         },
-    ));
+    );
+}
+
+fn insert_changed_quad_visuals(
+    commands: &mut Commands,
+    entity: Entity,
+    current: Option<(&Transform, &Sprite)>,
+    transform: Transform,
+    sprite: Sprite,
+) {
+    let Some((old_transform, old_sprite)) = current else {
+        commands.entity(entity).insert((transform, sprite));
+        return;
+    };
+    if *old_transform != transform {
+        commands.entity(entity).insert(transform);
+    }
+    if !sprites_equal(old_sprite, &sprite) {
+        commands.entity(entity).insert(sprite);
+    }
+}
+
+fn sprites_equal(left: &Sprite, right: &Sprite) -> bool {
+    left.image == right.image
+        && left.texture_atlas == right.texture_atlas
+        && left.color == right.color
+        && left.flip_x == right.flip_x
+        && left.flip_y == right.flip_y
+        && left.custom_size == right.custom_size
+        && left.rect == right.rect
+        && left.image_mode == right.image_mode
 }
 
 fn update_or_despawn_backdrop_quads(
@@ -342,6 +381,7 @@ fn update_or_despawn_backdrop_quads(
     screen_h: f32,
     commands: &mut Commands,
     backdrop_quads: &Query<(Entity, &UiBackdropQuad)>,
+    visuals: &Query<(&Transform, &Sprite)>,
 ) {
     for (entity, backdrop_part) in backdrop_quads {
         if should_keep_backdrop_part(state, backdrop_part) {
@@ -351,14 +391,17 @@ fn update_or_despawn_backdrop_quads(
             };
             let (transform, size, color) =
                 backdrop_part_geometry_for_id(state, backdrop_part, sort_idx, screen_w, screen_h);
-            commands.entity(entity).insert((
+            insert_changed_quad_visuals(
+                commands,
+                entity,
+                visuals.get(entity).ok(),
                 transform,
                 Sprite {
                     color,
                     custom_size: Some(size),
                     ..default()
                 },
-            ));
+            );
         } else {
             commands.entity(entity).despawn();
         }
