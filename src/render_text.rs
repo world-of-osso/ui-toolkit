@@ -94,19 +94,19 @@ pub fn sync_ui_text(
     );
 }
 
-fn sync_text_layout(mut layout: Mut<TextLayout>, desired: TextLayout) {
+pub(super) fn sync_text_layout(mut layout: Mut<TextLayout>, desired: TextLayout) {
     if layout.justify != desired.justify || layout.linebreak != desired.linebreak {
         *layout = desired;
     }
 }
 
-fn sync_text_bounds(mut bounds: Mut<TextBounds>, desired: TextBounds) {
+pub(super) fn sync_text_bounds(mut bounds: Mut<TextBounds>, desired: TextBounds) {
     if bounds.width != desired.width || bounds.height != desired.height {
         *bounds = desired;
     }
 }
 
-fn sync_text_font(mut font: Mut<TextFont>, source: FontSource, size: FontSize) {
+pub(super) fn sync_text_font(mut font: Mut<TextFont>, source: FontSource, size: FontSize) {
     if font.font_size != size || font.font != source {
         font.font_size = size;
         font.font = source;

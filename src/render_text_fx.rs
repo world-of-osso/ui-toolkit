@@ -48,17 +48,8 @@ pub fn sync_ui_text_shadows(
         .collect();
     let mut existing: HashSet<u64> = HashSet::new();
 
-    for (
-        entity,
-        shadow,
-        mut text,
-        mut layout,
-        mut bounds,
-        mut font,
-        mut color,
-        mut transform,
-        mut anchor,
-    ) in shadows.iter_mut()
+    for (entity, shadow, text, layout, bounds, font, color, mut transform, mut anchor) in
+        shadows.iter_mut()
     {
         let Some(props) = extract_shadow(state.registry.get(shadow.0)) else {
             commands.entity(entity).despawn();
@@ -69,17 +60,19 @@ pub fn sync_ui_text_shadows(
             update_shadow_entity(
                 frame,
                 &props,
-                &mut text,
-                &mut layout,
-                &mut bounds,
-                &mut font,
-                &mut color,
+                text,
+                layout,
+                bounds,
+                font,
+                color,
                 &mut font_assets,
                 &mut font_registry,
             );
-            *anchor = super::render_text::text_anchor_for_frame(frame);
+            anchor.set_if_neq(super::render_text::text_anchor_for_frame(frame));
             if let Some(&sort_idx) = sort_map.get(&shadow.0) {
-                *transform = shadow_transform(frame, &props, screen_w, screen_h, sort_idx);
+                transform.set_if_neq(shadow_transform(
+                    frame, &props, screen_w, screen_h, sort_idx,
+                ));
             }
         }
     }
@@ -174,21 +167,26 @@ fn extract_shadow(frame: Option<&crate::frame::Frame>) -> Option<ShadowProps> {
 fn update_shadow_entity(
     frame: &crate::frame::Frame,
     props: &ShadowProps,
-    text: &mut Text2d,
-    layout: &mut TextLayout,
-    bounds: &mut TextBounds,
-    font: &mut TextFont,
-    color: &mut TextColor,
+    mut text: Mut<Text2d>,
+    layout: Mut<TextLayout>,
+    bounds: Mut<TextBounds>,
+    font: Mut<TextFont>,
+    mut color: Mut<TextColor>,
     font_assets: &mut Assets<Font>,
     font_registry: &mut FontRegistry,
 ) {
-    *text = Text2d::new(&props.content);
-    *layout = super::render_text::text_layout(frame);
-    *bounds = super::render_text::text_bounds(frame);
-    font.font_size = FontSize::Px(props.font_size);
-    font.font = FontSource::Handle(font_registry.get(props.font, font_assets));
+    if text.0 != props.content {
+        text.0 = props.content.clone();
+    }
+    super::render_text::sync_text_layout(layout, super::render_text::text_layout(frame));
+    super::render_text::sync_text_bounds(bounds, super::render_text::text_bounds(frame));
+    super::render_text::sync_text_font(
+        font,
+        FontSize::Px(props.font_size),
+        FontSource::Handle(font_registry.get(props.font, font_assets)),
+    );
     let [r, g, b, a] = props.shadow_color;
-    *color = TextColor(Color::srgba(r, g, b, a));
+    color.set_if_neq(TextColor(Color::srgba(r, g, b, a)));
 }
 
 fn shadow_transform(
