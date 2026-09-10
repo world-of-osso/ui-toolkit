@@ -104,9 +104,8 @@ fn button_states_hover_and_resize_update_nine_slice() {
         data.hovered = hovered;
         settle(&mut app);
         app.update();
-        assert_eq!(
-            slice(&app, button).texture,
-            Some(TextureSource::Atlas(texture.into()))
+        assert!(
+            matches!(&slice(&app, button).texture, Some(TextureSource::Atlas(name)) if name == texture)
         );
         assert_eq!(
             app.world()
@@ -159,7 +158,9 @@ fn external_nine_slice_edits_are_replaced_and_nonbuttons_untouched() {
     let repaired = slice(&app, button);
     assert_eq!(repaired.edge_size, expected.edge_size);
     assert_eq!(repaired.bg_color, expected.bg_color);
-    assert_eq!(repaired.texture, expected.texture);
+    assert!(
+        matches!(&repaired.texture, Some(TextureSource::Atlas(name)) if name == "defaultbutton-nineslice-up")
+    );
     assert!(repaired.part_textures.is_none());
     assert!(repaired.uv_rects.is_none());
     assert_eq!(slice(&app, other).edge_size, 13.0);
