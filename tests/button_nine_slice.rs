@@ -64,13 +64,13 @@ fn settled_buttons_leave_render_dirty_and_resource_ticks_clean() {
     let (mut app, _, _) = fixture();
     app.update();
     let state = app.world().resource::<UiState>();
-    assert!(
-        state.registry.render_dirty.is_empty(),
-        "settled buttons must not invalidate rendering"
-    );
-    assert!(
-        !app.world().resource::<Observed>().0,
-        "settled synchronization must not mark UiState changed"
+    assert_eq!(
+        (
+            state.registry.render_dirty.is_empty(),
+            app.world().resource::<Observed>().0
+        ),
+        (true, false),
+        "settled synchronization must preserve render dirtiness and UiState change ticks"
     );
 }
 
