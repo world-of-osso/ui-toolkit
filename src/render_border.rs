@@ -22,6 +22,7 @@ pub fn sync_ui_borders(
     state: Res<UiState>,
     mut commands: Commands,
     borders: Query<(Entity, &UiBorder)>,
+    visuals: Query<(&Transform, &Sprite)>,
 ) {
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
@@ -30,7 +31,15 @@ pub fn sync_ui_borders(
     for (entity, border) in &borders {
         if should_keep_border(&state, border) {
             existing.insert((border.0, border.1));
-            update_border(&state, entity, border, screen_w, screen_h, &mut commands);
+            update_border(
+                &state,
+                entity,
+                border,
+                screen_w,
+                screen_h,
+                visuals.get(entity).ok(),
+                &mut commands,
+            );
         } else {
             commands.entity(entity).despawn();
         }
@@ -54,6 +63,7 @@ fn update_border(
     border: &UiBorder,
     screen_w: f32,
     screen_h: f32,
+    current: Option<(&Transform, &Sprite)>,
     commands: &mut Commands,
 ) {
     let Some(frame) = state.registry.get(border.0) else {
@@ -63,14 +73,17 @@ fn update_border(
         return;
     };
     let (transform, size, color) = edge_geometry(frame, backdrop, border.1, screen_w, screen_h);
-    commands.entity(entity).insert((
+    super::render::insert_changed_quad_visuals(
+        commands,
+        entity,
+        current,
         transform,
         Sprite {
             color,
             custom_size: Some(size),
             ..default()
         },
-    ));
+    );
 }
 
 fn spawn_missing_borders(
@@ -154,6 +167,7 @@ pub fn sync_css_borders(
     state: Res<UiState>,
     mut commands: Commands,
     parts: Query<(Entity, &UiBorderPart)>,
+    visuals: Query<(&Transform, &Sprite)>,
 ) {
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
@@ -162,7 +176,15 @@ pub fn sync_css_borders(
     for (entity, part) in &parts {
         if should_keep_css_border(&state, part) {
             existing.insert((part.0, part.1));
-            update_css_border(&state, entity, part, screen_w, screen_h, &mut commands);
+            update_css_border(
+                &state,
+                entity,
+                part,
+                screen_w,
+                screen_h,
+                visuals.get(entity).ok(),
+                &mut commands,
+            );
         } else {
             commands.entity(entity).despawn();
         }
@@ -184,6 +206,7 @@ fn update_css_border(
     part: &UiBorderPart,
     screen_w: f32,
     screen_h: f32,
+    current: Option<(&Transform, &Sprite)>,
     commands: &mut Commands,
 ) {
     let Some(frame) = state.registry.get(part.0) else {
@@ -191,14 +214,17 @@ fn update_css_border(
     };
     let Some(border) = &frame.border else { return };
     let (transform, size, color) = css_edge_geometry(frame, border, part.1, screen_w, screen_h);
-    commands.entity(entity).insert((
+    super::render::insert_changed_quad_visuals(
+        commands,
+        entity,
+        current,
         transform,
         Sprite {
             color,
             custom_size: Some(size),
             ..default()
         },
-    ));
+    );
 }
 
 fn spawn_missing_css_borders(

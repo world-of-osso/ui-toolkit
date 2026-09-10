@@ -21,6 +21,7 @@ pub fn sync_ui_three_slices(
     mut commands: Commands,
     mut images: Option<ResMut<Assets<Image>>>,
     parts: Query<(Entity, &UiThreeSlicePart)>,
+    visuals: Query<(&Transform, &Sprite)>,
     mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
     mut file_texture_cache: Local<HashMap<String, Handle<Image>>>,
     mut missing_textures: Local<HashSet<u32>>,
@@ -47,7 +48,7 @@ pub fn sync_ui_three_slices(
         if should_keep(&state, part.0) {
             existing.insert((part.0, part.1));
             let z = z_map.get(&part.0).copied().unwrap_or(0.0);
-            update_part(&state, entity, part, z, &mut sync);
+            update_part(&state, entity, part, z, visuals.get(entity).ok(), &mut sync);
         } else {
             sync.commands.entity(entity).despawn();
         }
@@ -89,6 +90,7 @@ fn update_part(
     entity: Entity,
     part: &UiThreeSlicePart,
     z: f32,
+    current: Option<(&Transform, &Sprite)>,
     sync: &mut ThreeSliceSyncContext<'_, '_, '_, '_>,
 ) {
     let Some(frame) = state.registry.get(part.0) else {
@@ -100,7 +102,10 @@ fn update_part(
     let (transform, size, color) =
         part_geometry(frame, ts, part.1, sync.screen_w, sync.screen_h, z);
     let image = resolve_texture(part_source(ts, part.1), sync);
-    sync.commands.entity(entity).insert((
+    super::render::insert_changed_quad_visuals(
+        sync.commands,
+        entity,
+        current,
         transform,
         Sprite {
             color,
@@ -108,7 +113,7 @@ fn update_part(
             image,
             ..default()
         },
-    ));
+    );
 }
 
 fn spawn_missing(

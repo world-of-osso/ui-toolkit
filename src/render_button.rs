@@ -131,6 +131,7 @@ pub fn sync_ui_button_highlights(
     mut commands: Commands,
     mut images: Option<ResMut<Assets<Image>>>,
     highlights: Query<(Entity, &UiButtonHighlight)>,
+    visuals: Query<(&Transform, &Sprite)>,
     mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
     mut file_texture_cache: Local<HashMap<String, Handle<Image>>>,
     mut missing_textures: Local<HashSet<u32>>,
@@ -167,7 +168,7 @@ pub fn sync_ui_button_highlights(
         ) else {
             continue;
         };
-        upsert_highlight_sprite(frame, texture, sw, sh, &existing, &mut commands);
+        upsert_highlight_sprite(frame, texture, sw, sh, &existing, &visuals, &mut commands);
     }
 
     despawn_stale_highlights(&existing, &seen, &mut commands);
@@ -190,6 +191,7 @@ fn upsert_highlight_sprite(
     sw: f32,
     sh: f32,
     existing: &HashMap<u64, Entity>,
+    visuals: &Query<(&Transform, &Sprite)>,
     commands: &mut Commands,
 ) {
     let alpha = frame.effective_alpha * 0.5;
@@ -211,7 +213,13 @@ fn upsert_highlight_sprite(
         ..default()
     };
     if let Some(&entity) = existing.get(&frame.id) {
-        commands.entity(entity).insert((transform, sprite));
+        crate::render::insert_changed_quad_visuals(
+            commands,
+            entity,
+            visuals.get(entity).ok(),
+            transform,
+            sprite,
+        );
     } else {
         commands.spawn((
             sprite,
