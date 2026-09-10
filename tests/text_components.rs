@@ -137,14 +137,12 @@ fn external_component_edits_are_repaired_without_resetting_unowned_font_fields()
     app.world_mut().clear_trackers();
     app.update();
     assert_eq!(app.world().get::<Text2d>(entity).unwrap().0, "Before");
-    assert_eq!(
-        *app.world().get::<TextLayout>(entity).unwrap(),
-        expected_layout
-    );
-    assert_eq!(
-        *app.world().get::<TextBounds>(entity).unwrap(),
-        expected_bounds
-    );
+    let layout = app.world().get::<TextLayout>(entity).unwrap();
+    assert_eq!(layout.justify, expected_layout.justify);
+    assert_eq!(layout.linebreak, expected_layout.linebreak);
+    let bounds = app.world().get::<TextBounds>(entity).unwrap();
+    assert_eq!(bounds.width, expected_bounds.width);
+    assert_eq!(bounds.height, expected_bounds.height);
     assert_eq!(
         *app.world().get::<TextColor>(entity).unwrap(),
         expected_color
