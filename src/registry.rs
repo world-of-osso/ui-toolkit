@@ -701,6 +701,122 @@ mod tests {
         assert_eq!(reg.get(child).unwrap().layout_rect.as_ref().unwrap().x, 3.0);
     }
 
+    fn visibility_alpha_tree() -> (FrameRegistry, [u64; 3]) {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let root = reg.create_frame("Root", None);
+        let child = reg.create_frame("Child", Some(root));
+        let grandchild = reg.create_frame("Grandchild", Some(child));
+        for id in [root, child, grandchild] {
+            reg.set_alpha(id, 0.5);
+        }
+        reg.render_dirty.clear();
+        reg.rect_dirty.clear();
+        (reg, [root, child, grandchild])
+    }
+
+    fn assert_visibility_alpha(
+        reg: &FrameRegistry,
+        ids: [u64; 3],
+        visible: [bool; 3],
+        effective: [f32; 3],
+    ) {
+        for (index, id) in ids.into_iter().enumerate() {
+            let frame = reg.get(id).unwrap();
+            assert_eq!(frame.visible, visible[index]);
+            assert_eq!(frame.effective_alpha, effective[index]);
+            assert_eq!(frame.effective_scale, 1.0);
+        }
+        assert!(reg.rect_dirty.is_empty());
+    }
+
+    #[test]
+    fn visibility_alpha_repeated_values_leave_subtree_clean() {
+        let (mut reg, ids) = visibility_alpha_tree();
+        for id in ids {
+            reg.set_hidden(id, false);
+            reg.set_alpha(id, 0.5);
+        }
+        assert_visibility_alpha(&reg, ids, [true; 3], [0.5, 0.25, 0.125]);
+        assert!(reg.render_dirty.is_empty());
+    }
+
+    #[test]
+    fn visibility_alpha_hide_show_marks_only_changed_frames() {
+        let (mut reg, ids) = visibility_alpha_tree();
+        let [root, child, _] = ids;
+        reg.set_hidden(root, true);
+        assert_visibility_alpha(&reg, ids, [false; 3], [0.0; 3]);
+        assert_eq!(reg.render_dirty, HashSet::from(ids));
+        reg.render_dirty.clear();
+        reg.set_hidden(root, true);
+        assert!(reg.render_dirty.is_empty());
+        reg.set_hidden(child, true);
+        assert_eq!(reg.render_dirty, HashSet::from([child]));
+        reg.render_dirty.clear();
+        reg.set_hidden(root, false);
+        assert_visibility_alpha(&reg, ids, [true, false, false], [0.5, 0.0, 0.0]);
+        assert_eq!(reg.render_dirty, HashSet::from([root]));
+    }
+
+    #[test]
+    fn visibility_alpha_changes_keep_raw_values_and_products() {
+        let (mut reg, ids) = visibility_alpha_tree();
+        let [root, child, _] = ids;
+        reg.set_alpha(root, 2.0);
+        assert_eq!(reg.get(root).unwrap().alpha, 2.0);
+        assert_visibility_alpha(&reg, ids, [true; 3], [2.0, 1.0, 0.5]);
+        assert_eq!(reg.render_dirty, HashSet::from(ids));
+        reg.set_alpha(child, -0.5);
+        assert_eq!(reg.get(child).unwrap().alpha, -0.5);
+        assert_visibility_alpha(&reg, ids, [true; 3], [2.0, -1.0, -0.5]);
+        reg.render_dirty.clear();
+        reg.set_alpha(root, 2.0);
+        assert!(reg.render_dirty.is_empty());
+    }
+
+    #[test]
+    fn visibility_alpha_hidden_child_keeps_effective_alpha_zero() {
+        let (mut reg, ids) = visibility_alpha_tree();
+        let [root, child, _] = ids;
+        reg.set_hidden(child, true);
+        reg.render_dirty.clear();
+        reg.set_alpha(root, 0.25);
+        assert_visibility_alpha(&reg, ids, [true, false, false], [0.25, 0.0, 0.0]);
+        assert_eq!(reg.render_dirty, HashSet::from([root]));
+        reg.render_dirty.clear();
+        reg.set_alpha(child, 0.75);
+        assert_eq!(reg.get(child).unwrap().alpha, 0.75);
+        assert_eq!(reg.render_dirty, HashSet::from([child]));
+        reg.render_dirty.clear();
+        reg.set_alpha(child, 0.75);
+        assert!(reg.render_dirty.is_empty());
+    }
+
+    #[test]
+    fn visibility_alpha_same_hidden_repairs_stale_grandchild() {
+        let (mut reg, ids) = visibility_alpha_tree();
+        let [root, _, grandchild] = ids;
+        let stale = reg.get_mut(grandchild).unwrap();
+        stale.visible = false;
+        stale.effective_alpha = 0.0;
+        reg.render_dirty.clear();
+        reg.set_hidden(root, false);
+        assert_visibility_alpha(&reg, ids, [true; 3], [0.5, 0.25, 0.125]);
+        assert_eq!(reg.render_dirty, HashSet::from([grandchild]));
+    }
+
+    #[test]
+    fn visibility_alpha_same_alpha_repairs_stale_descendants() {
+        let (mut reg, ids) = visibility_alpha_tree();
+        let [root, child, grandchild] = ids;
+        reg.get_mut(child).unwrap().effective_alpha = 0.75;
+        reg.get_mut(grandchild).unwrap().effective_alpha = 0.375;
+        reg.render_dirty.clear();
+        reg.set_alpha(root, 0.5);
+        assert_visibility_alpha(&reg, ids, [true; 3], [0.5, 0.25, 0.125]);
+        assert_eq!(reg.render_dirty, HashSet::from([child, grandchild]));
+    }
+
     #[test]
     fn create_and_lookup_by_id() {
         let mut reg = FrameRegistry::new(1024.0, 768.0);
