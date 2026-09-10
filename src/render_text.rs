@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
@@ -56,8 +58,8 @@ pub fn sync_ui_text(
         }
         let props = extract_text_props(frame);
         existing.insert(ui_text.0);
-        if text.0 != props.content {
-            text.0 = props.content.clone();
+        if text.0 != props.content.as_ref() {
+            text.0 = props.content.into_owned();
         }
         sync_text_layout(layout, text_layout(frame));
         sync_text_bounds(bounds, text_bounds(frame));
@@ -144,7 +146,7 @@ fn spawn_missing_text(
         let layout = text_layout(frame);
         let font = font_registry.get(props.font, font_assets);
         commands.spawn((
-            Text2d::new(props.content),
+            Text2d::new(props.content.into_owned()),
             layout,
             bounds,
             TextFont {
@@ -170,8 +172,8 @@ fn has_text(frame: &crate::frame::Frame) -> bool {
     }
 }
 
-pub(crate) struct TextProps {
-    pub content: String,
+pub(crate) struct TextProps<'a> {
+    pub content: Cow<'a, str>,
     pub font: GameFont,
     pub font_size: f32,
     pub color: Color,
@@ -179,10 +181,10 @@ pub(crate) struct TextProps {
     pub justify_v: JustifyV,
 }
 
-impl Default for TextProps {
+impl Default for TextProps<'_> {
     fn default() -> Self {
         Self {
-            content: String::new(),
+            content: Cow::Borrowed(""),
             font: GameFont::default(),
             font_size: 12.0,
             color: Color::WHITE,
@@ -193,11 +195,11 @@ impl Default for TextProps {
 }
 
 #[cfg(test)]
-pub(crate) fn extract_text_props_pub(frame: &crate::frame::Frame) -> TextProps {
+pub(crate) fn extract_text_props_pub(frame: &crate::frame::Frame) -> TextProps<'_> {
     extract_text_props(frame)
 }
 
-fn extract_text_props(frame: &crate::frame::Frame) -> TextProps {
+fn extract_text_props(frame: &crate::frame::Frame) -> TextProps<'_> {
     match &frame.widget_data {
         Some(WidgetData::FontString(fs)) => extract_fontstring_text(fs, frame.effective_alpha),
         Some(WidgetData::EditBox(eb)) => extract_editbox_text(eb, frame.effective_alpha),
@@ -209,10 +211,10 @@ fn extract_text_props(frame: &crate::frame::Frame) -> TextProps {
 fn extract_fontstring_text(
     fs: &crate::widgets::font_string::FontStringData,
     alpha: f32,
-) -> TextProps {
+) -> TextProps<'_> {
     let [r, g, b, a] = fs.color;
     TextProps {
-        content: fs.text.clone(),
+        content: Cow::Borrowed(&fs.text),
         font: fs.font,
         font_size: fs.font_size,
         color: Color::srgba(r, g, b, a * alpha),
@@ -221,11 +223,11 @@ fn extract_fontstring_text(
     }
 }
 
-fn extract_editbox_text(eb: &crate::widgets::edit_box::EditBoxData, alpha: f32) -> TextProps {
+fn extract_editbox_text(eb: &crate::widgets::edit_box::EditBoxData, alpha: f32) -> TextProps<'_> {
     let display = if eb.password {
-        "*".repeat(eb.text.len())
+        Cow::Owned("*".repeat(eb.text.len()))
     } else {
-        eb.text.clone()
+        Cow::Borrowed(eb.text.as_str())
     };
     let [r, g, b, a] = eb.text_color;
     TextProps {
@@ -241,14 +243,14 @@ fn extract_editbox_text(eb: &crate::widgets::edit_box::EditBoxData, alpha: f32) 
 pub(crate) fn extract_button_text(
     btn: &crate::widgets::button::ButtonData,
     alpha: f32,
-) -> TextProps {
+) -> TextProps<'_> {
     let (r, g, b) = match btn.state {
         ButtonState::Normal => (1.0, 0.82, 0.0),
         ButtonState::Pushed => (0.8, 0.65, 0.0),
         ButtonState::Disabled => (0.5, 0.5, 0.5),
     };
     TextProps {
-        content: btn.text.clone(),
+        content: Cow::Borrowed(&btn.text),
         font: GameFont::default(),
         font_size: btn.font_size,
         color: Color::srgba(r, g, b, alpha),
