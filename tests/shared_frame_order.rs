@@ -320,6 +320,27 @@ fn publish_after_consumers(world: &mut World) {
 }
 
 #[test]
+fn before_prepare_geometry_updates_reach_layout_and_render_in_same_update() {
+    let mut f = fixture();
+    let first = f.first;
+    f.app.add_systems(
+        Update,
+        (move |mut ui: ResMut<UiState>| {
+            ui.registry.get_mut(first).unwrap().width = Dimension::Fixed(136.0);
+            ui.registry.mark_rect_dirty(first);
+        })
+        .before(UiRenderSet::Prepare),
+    );
+    f.app.update();
+    let world = f.app.world_mut();
+    let mut quads = world.query::<(&UiQuad, &Sprite)>();
+    let (_, sprite) = quads.iter(world).find(|(quad, _)| quad.0 == first).unwrap();
+    assert_eq!(sprite.custom_size, Some(Vec2::new(136.0, 24.0)));
+    let frame = world.resource::<UiState>().registry.get(first).unwrap();
+    assert_eq!(frame.layout_rect.as_ref().unwrap().width, 136.0);
+}
+
+#[test]
 fn named_sets_apply_input_before_preparation_and_publish_current_render_order() {
     let mut f = fixture();
     f.app.insert_resource(PendingReorder {
