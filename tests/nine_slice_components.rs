@@ -134,11 +134,11 @@ fn external_edits_and_missing_components_are_repaired_on_same_entities() {
         *app.world().get::<Transform>(entity).unwrap(),
         expected_transform
     );
-    assert_eq!(*app.world().get::<Sprite>(entity).unwrap(), expected_sprite);
+    assert_sprite(app.world().get::<Sprite>(entity).unwrap(), &expected_sprite);
     app.world_mut().entity_mut(entity).remove::<Sprite>();
     app.update();
     assert_eq!(entities(&mut app), original_entities);
-    assert_eq!(*app.world().get::<Sprite>(entity).unwrap(), expected_sprite);
+    assert_sprite(app.world().get::<Sprite>(entity).unwrap(), &expected_sprite);
     app.world_mut().entity_mut(entity).remove::<Transform>();
     app.update();
     assert_eq!(entities(&mut app), original_entities);
@@ -146,6 +146,15 @@ fn external_edits_and_missing_components_are_repaired_on_same_entities() {
         *app.world().get::<Transform>(entity).unwrap(),
         expected_transform
     );
+}
+
+fn assert_sprite(actual: &Sprite, expected: &Sprite) {
+    assert_eq!(actual.image, expected.image);
+    assert_eq!(actual.color, expected.color);
+    assert_eq!(actual.custom_size, expected.custom_size);
+    assert_eq!(actual.rect, expected.rect);
+    assert_eq!(actual.flip_x, expected.flip_x);
+    assert_eq!(actual.flip_y, expected.flip_y);
 }
 
 #[test]
