@@ -131,8 +131,8 @@ fn spawn_missing_shadows(
     }
 }
 
-struct ShadowProps {
-    content: String,
+struct ShadowProps<'a> {
+    content: &'a str,
     font: GameFont,
     font_size: f32,
     shadow_color: [f32; 4],
@@ -141,7 +141,7 @@ struct ShadowProps {
     justify_v: JustifyV,
 }
 
-fn extract_shadow(frame: Option<&crate::frame::Frame>) -> Option<ShadowProps> {
+fn extract_shadow(frame: Option<&crate::frame::Frame>) -> Option<ShadowProps<'_>> {
     let frame = frame?;
     if !frame.visible {
         return None;
@@ -154,7 +154,7 @@ fn extract_shadow(frame: Option<&crate::frame::Frame>) -> Option<ShadowProps> {
     }
     let shadow_color = fs.shadow_color?;
     Some(ShadowProps {
-        content: fs.text.clone(),
+        content: &fs.text,
         font: fs.font,
         font_size: fs.font_size,
         shadow_color,
@@ -166,7 +166,7 @@ fn extract_shadow(frame: Option<&crate::frame::Frame>) -> Option<ShadowProps> {
 
 fn update_shadow_entity(
     frame: &crate::frame::Frame,
-    props: &ShadowProps,
+    props: &ShadowProps<'_>,
     mut text: Mut<Text2d>,
     layout: Mut<TextLayout>,
     bounds: Mut<TextBounds>,
@@ -176,7 +176,7 @@ fn update_shadow_entity(
     font_registry: &mut FontRegistry,
 ) {
     if text.0 != props.content {
-        text.0 = props.content.clone();
+        text.0 = props.content.to_owned();
     }
     super::render_text::sync_text_layout(layout, super::render_text::text_layout(frame));
     super::render_text::sync_text_bounds(bounds, super::render_text::text_bounds(frame));
@@ -191,7 +191,7 @@ fn update_shadow_entity(
 
 fn shadow_transform(
     frame: &crate::frame::Frame,
-    props: &ShadowProps,
+    props: &ShadowProps<'_>,
     screen_w: f32,
     screen_h: f32,
     sort_idx: usize,
