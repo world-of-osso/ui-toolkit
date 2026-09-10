@@ -5,7 +5,7 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-use super::render::{UI_RENDER_LAYER, build_sorted_visible_frame_ids};
+use super::render::{UI_RENDER_LAYER, UiFrameOrder};
 use super::render_texture::{BlpLoaderRes, load_texture_source_pub};
 use crate::frame::NineSlice;
 use crate::plugin::UiState;
@@ -30,7 +30,7 @@ pub fn sync_ui_nine_slices(
 ) {
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
-    let z_map = build_z_map(&state);
+    let order = UiFrameOrder::from_state(&state);
     let mut sync = NineSliceSyncContext {
         screen_w,
         screen_h,
@@ -43,28 +43,55 @@ pub fn sync_ui_nine_slices(
         blp_loader: blp_loader.as_deref(),
     };
 
+    sync_nine_slice_parts(&state, &order, &parts, &visuals, &mut sync);
+}
+
+pub(crate) fn sync_ui_nine_slices_prepared(
+    state: Res<UiState>,
+    order: Res<UiFrameOrder>,
+    mut commands: Commands,
+    mut images: Option<ResMut<Assets<Image>>>,
+    parts: Query<(Entity, &UiNineSlicePart)>,
+    visuals: Query<(&Transform, &Sprite)>,
+    mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
+    mut file_texture_cache: Local<HashMap<String, Handle<Image>>>,
+    mut missing_textures: Local<HashSet<u32>>,
+    mut missing_file_textures: Local<HashSet<String>>,
+    blp_loader: Option<Res<BlpLoaderRes>>,
+) {
+    let mut sync = NineSliceSyncContext {
+        screen_w: state.registry.screen_width,
+        screen_h: state.registry.screen_height,
+        commands: &mut commands,
+        images: &mut images,
+        texture_cache: &mut texture_cache,
+        file_texture_cache: &mut file_texture_cache,
+        missing_textures: &mut missing_textures,
+        missing_file_textures: &mut missing_file_textures,
+        blp_loader: blp_loader.as_deref(),
+    };
+    sync_nine_slice_parts(&state, &order, &parts, &visuals, &mut sync);
+}
+
+fn sync_nine_slice_parts(
+    state: &UiState,
+    order: &UiFrameOrder,
+    parts: &Query<(Entity, &UiNineSlicePart)>,
+    visuals: &Query<(&Transform, &Sprite)>,
+    sync: &mut NineSliceSyncContext<'_, '_, '_, '_>,
+) {
     let mut existing: HashSet<(u64, u8)> = HashSet::new();
-    for (entity, part) in &parts {
-        if should_keep_part(&state, part) {
+    for (entity, part) in parts {
+        if should_keep_part(state, part) {
             existing.insert((part.0, part.1));
-            let z = z_map.get(&part.0).copied().unwrap_or(0.0);
-            update_part(&state, entity, part, z, visuals.get(entity).ok(), &mut sync);
+            let z = order.z(part.0);
+            update_part(state, entity, part, z, visuals.get(entity).ok(), sync);
         } else {
             sync.commands.entity(entity).despawn();
         }
     }
 
-    spawn_missing_parts(&state, &existing, &z_map, &mut sync);
-}
-
-/// Build z-order map: frame_id → z value, matching the strata sort used by UiQuad.
-fn build_z_map(state: &UiState) -> HashMap<u64, f32> {
-    build_sorted_visible_frame_ids(state)
-        .iter()
-        .copied()
-        .enumerate()
-        .map(|(i, id)| (id, i as f32 * 0.001))
-        .collect()
+    spawn_missing_parts(state, &existing, order, sync);
 }
 
 fn should_keep_part(state: &UiState, part: &UiNineSlicePart) -> bool {
@@ -121,7 +148,7 @@ fn update_part(
 fn spawn_missing_parts(
     state: &UiState,
     existing: &HashSet<(u64, u8)>,
-    z_map: &HashMap<u64, f32>,
+    order: &UiFrameOrder,
     sync: &mut NineSliceSyncContext<'_, '_, '_, '_>,
 ) {
     for frame in state.registry.frames_iter() {
@@ -131,7 +158,7 @@ fn spawn_missing_parts(
         let Some(nine_slice) = &frame.nine_slice else {
             continue;
         };
-        let z = z_map.get(&frame.id).copied().unwrap_or(0.0);
+        let z = order.z(frame.id);
         for p in 0..9u8 {
             if existing.contains(&(frame.id, p)) {
                 continue;
