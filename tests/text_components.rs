@@ -8,19 +8,25 @@ use ui_toolkit::plugin::UiState;
 use ui_toolkit::registry::FrameRegistry;
 use ui_toolkit::render::UiText;
 use ui_toolkit::render_text::sync_ui_text;
+use ui_toolkit::widgets::button::ButtonData;
+use ui_toolkit::widgets::edit_box::EditBoxData;
 use ui_toolkit::widgets::font_string::{FontStringData, GameFont, JustifyH};
 
 fn fixture() -> (App, Entity, u64) {
+    fixture_with_widget(WidgetData::FontString(FontStringData {
+        text: "Before".into(),
+        ..default()
+    }))
+}
+
+fn fixture_with_widget(widget: WidgetData) -> (App, Entity, u64) {
     let mut app = App::new();
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let id = registry.create_frame("RegressionText", None);
     let frame = registry.get_mut(id).unwrap();
     frame.width = Dimension::Fixed(180.0);
     frame.height = Dimension::Fixed(40.0);
-    frame.widget_data = Some(WidgetData::FontString(FontStringData {
-        text: "Before".into(),
-        ..default()
-    }));
+    frame.widget_data = Some(widget);
     app.insert_resource(UiState {
         registry,
         event_bus: EventBus::new(),
@@ -64,6 +70,85 @@ fn observe_ticks(world: &mut World) {
 
 fn ticks(app: &mut App) -> [bool; 7] {
     app.world().resource::<ObservedTicks>().0
+}
+
+fn replace_source_text(app: &mut App, id: u64, text: &str) {
+    let mut state = app.world_mut().resource_mut::<UiState>();
+    let widget = state.registry.get_mut(id).unwrap().widget_data.as_mut().unwrap();
+    let content = match widget {
+        WidgetData::FontString(data) => &mut data.text,
+        WidgetData::Button(data) => &mut data.text,
+        WidgetData::EditBox(data) => &mut data.text,
+        _ => panic!("text fixture"),
+    };
+    *content = text.to_owned();
+}
+
+fn assert_content_and_external_repair(app: &mut App, entity: Entity, expected: &str) {
+    assert_eq!(app.world().get::<Text2d>(entity).unwrap().0, expected);
+    app.world_mut().get_mut::<Text2d>(entity).unwrap().0 = "External overwrite".into();
+    app.update();
+    assert_eq!(app.world().get::<Text2d>(entity).unwrap().0, expected);
+    app.update();
+    assert_eq!(ticks(app), [false; 7]);
+}
+
+#[test]
+fn unicode_content_survives_spawn_updates_and_external_repair() {
+    let original = "Élan 世界 🦊";
+    let widgets = [
+        WidgetData::FontString(FontStringData {
+            text: original.into(),
+            ..default()
+        }),
+        WidgetData::Button(ButtonData {
+            text: original.into(),
+            ..default()
+        }),
+        WidgetData::EditBox(EditBoxData {
+            text: original.into(),
+            ..default()
+        }),
+    ];
+    for widget in widgets {
+        let (mut app, entity, id) = fixture_with_widget(widget);
+        assert_content_and_external_repair(&mut app, entity, original);
+        replace_source_text(&mut app, id, "Après 🌙 — 秘密");
+        app.update();
+        assert_content_and_external_repair(&mut app, entity, "Après 🌙 — 秘密");
+    }
+}
+
+#[test]
+fn password_content_preserves_byte_count_through_mode_and_text_changes() {
+    let (mut app, entity, id) = fixture_with_widget(WidgetData::EditBox(EditBoxData {
+        text: "é猫🦊".into(),
+        password: true,
+        ..default()
+    }));
+    // Existing display contract: 2 + 3 + 4 UTF-8 bytes produce nine asterisks.
+    assert_content_and_external_repair(&mut app, entity, "*********");
+    for (password, text, expected) in [
+        (false, "é猫🦊", "é猫🦊"),
+        (true, "é猫🦊", "*********"),
+        (true, "aé", "***"),
+        (true, "", ""),
+        (true, "猫", "***"),
+        (false, "猫", "猫"),
+    ] {
+        replace_source_text(&mut app, id, text);
+        {
+            let mut state = app.world_mut().resource_mut::<UiState>();
+            let Some(WidgetData::EditBox(data)) =
+                &mut state.registry.get_mut(id).unwrap().widget_data
+            else {
+                panic!("editbox fixture")
+            };
+            data.password = password;
+        }
+        app.update();
+        assert_content_and_external_repair(&mut app, entity, expected);
+    }
 }
 
 #[test]
