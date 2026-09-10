@@ -182,8 +182,8 @@ fn update_shadow_entity(
     super::render_text::sync_text_bounds(bounds, super::render_text::text_bounds(frame));
     super::render_text::sync_text_font(
         font,
-        FontSize::Px(props.font_size),
         FontSource::Handle(font_registry.get(props.font, font_assets)),
+        FontSize::Px(props.font_size),
     );
     let [r, g, b, a] = props.shadow_color;
     color.set_if_neq(TextColor(Color::srgba(r, g, b, a)));
