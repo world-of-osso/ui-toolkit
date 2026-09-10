@@ -172,6 +172,125 @@ fn center(app: &mut App, frame: u64) -> Entity {
         .0
 }
 
+fn resize_fixture() -> Fixture {
+    let mut fixture = fixture();
+    {
+        let mut ui = fixture.app.world_mut().resource_mut::<UiState>();
+        ui.registry.clear_all_points(fixture.panel);
+        ui.registry
+            .set_point(
+                fixture.panel,
+                Anchor {
+                    point: AnchorPoint::BottomRight,
+                    relative_to: None,
+                    relative_point: AnchorPoint::BottomRight,
+                    x_offset: -20.0,
+                    y_offset: 20.0,
+                },
+            )
+            .unwrap();
+    }
+    fixture.app.update();
+    fixture.app.update();
+    fixture
+}
+
+fn set_window_quarter_pixels(fixture: &mut Fixture, width: u32, height: u32) {
+    let mut window = fixture
+        .app
+        .world_mut()
+        .get_mut::<Window>(fixture.window)
+        .unwrap();
+    window.resolution.set_scale_factor_override(Some(4.0));
+    window.resolution.set_physical_resolution(width, height);
+    assert_eq!(window.width(), width as f32 / 4.0);
+    assert_eq!(window.height(), height as f32 / 4.0);
+}
+
+fn panel_rect(fixture: &Fixture) -> (f32, f32, f32, f32) {
+    let ui = fixture.app.world().resource::<UiState>();
+    let rect = ui
+        .registry
+        .get(fixture.panel)
+        .unwrap()
+        .layout_rect
+        .as_ref()
+        .unwrap();
+    (rect.x, rect.y, rect.width, rect.height)
+}
+
+#[test]
+fn real_plugin_resize_ignores_deltas_at_or_below_half_pixel() {
+    let mut fixture = resize_fixture();
+    let entity = center(&mut fixture.app, fixture.panel);
+    let before = *fixture.app.world().get::<Transform>(entity).unwrap();
+    assert_eq!(panel_rect(&fixture), (680.0, 520.0, 100.0, 60.0));
+    for (width, height) in [(3201, 2400), (3202, 2400), (3200, 2401), (3200, 2402)] {
+        set_window_quarter_pixels(&mut fixture, width, height);
+        fixture.app.update();
+        let ui = fixture.app.world().resource::<UiState>();
+        assert_eq!(
+            (ui.registry.screen_width, ui.registry.screen_height),
+            (800.0, 600.0)
+        );
+        assert!(ui.registry.rect_dirty.is_empty());
+        assert_eq!(panel_rect(&fixture), (680.0, 520.0, 100.0, 60.0));
+        assert_eq!(
+            *fixture.app.world().get::<Transform>(entity).unwrap(),
+            before
+        );
+        let observed = fixture.app.world().resource::<Observed>();
+        assert_eq!(observed.sprite_changes, 0);
+        assert_eq!(observed.text_changes, 0);
+    }
+}
+
+#[test]
+fn real_plugin_resize_above_half_pixel_updates_registry_and_anchored_layout() {
+    for (width, height) in [(3203, 2400), (3200, 2403), (3203, 2401), (3197, 2399)] {
+        let mut fixture = resize_fixture();
+        let entity = center(&mut fixture.app, fixture.panel);
+        let before = fixture
+            .app
+            .world()
+            .get::<Transform>(entity)
+            .unwrap()
+            .translation;
+        set_window_quarter_pixels(&mut fixture, width, height);
+        fixture.app.update();
+        let expected_width = width as f32 / 4.0;
+        let expected_height = height as f32 / 4.0;
+        let ui = fixture.app.world().resource::<UiState>();
+        assert_eq!(
+            (ui.registry.screen_width, ui.registry.screen_height),
+            (expected_width, expected_height)
+        );
+        assert!(ui.registry.rect_dirty.is_empty());
+        assert_eq!(
+            panel_rect(&fixture),
+            (expected_width - 120.0, expected_height - 80.0, 100.0, 60.0)
+        );
+        assert_eq!(center(&mut fixture.app, fixture.panel), entity);
+        let after = fixture
+            .app
+            .world()
+            .get::<Transform>(entity)
+            .unwrap()
+            .translation;
+        assert_eq!(
+            after - before,
+            Vec3::new(
+                (expected_width - 800.0) * 0.5,
+                -(expected_height - 600.0) * 0.5,
+                0.0
+            )
+        );
+        let observed = fixture.app.world().resource::<Observed>();
+        assert!(observed.ui_changed);
+        assert!(observed.sprite_changes > 0);
+    }
+}
+
 #[test]
 fn real_plugin_settled_components_and_resource_are_clean() {
     let mut fixture = fixture();
