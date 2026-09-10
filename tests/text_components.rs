@@ -28,7 +28,8 @@ fn fixture() -> (App, Entity, u64) {
     });
     app.init_resource::<Assets<Font>>();
     app.init_resource::<FontRegistry>();
-    app.add_systems(Update, sync_ui_text);
+    app.init_resource::<ObservedTicks>();
+    app.add_systems(Update, (sync_ui_text, observe_ticks).chain());
     app.update();
     let entity = app
         .world_mut()
@@ -38,24 +39,31 @@ fn fixture() -> (App, Entity, u64) {
     (app, entity, id)
 }
 
-fn changed<T: Component>(app: &mut App) -> bool {
-    app.world_mut()
-        .query_filtered::<Entity, (With<UiText>, Changed<T>)>()
-        .iter(app.world())
-        .next()
-        .is_some()
+#[derive(Resource, Default)]
+struct ObservedTicks([bool; 7]);
+
+fn observe_ticks(world: &mut World) {
+    fn did_change<T: Component>(world: &mut World) -> bool {
+        world
+            .query_filtered::<Entity, (With<UiText>, Changed<T>)>()
+            .iter(world)
+            .next()
+            .is_some()
+    }
+    let observed = [
+        did_change::<Text2d>(world),
+        did_change::<TextLayout>(world),
+        did_change::<TextBounds>(world),
+        did_change::<TextFont>(world),
+        did_change::<TextColor>(world),
+        did_change::<Transform>(world),
+        did_change::<Anchor>(world),
+    ];
+    world.resource_mut::<ObservedTicks>().0 = observed;
 }
 
 fn ticks(app: &mut App) -> [bool; 7] {
-    [
-        changed::<Text2d>(app),
-        changed::<TextLayout>(app),
-        changed::<TextBounds>(app),
-        changed::<TextFont>(app),
-        changed::<TextColor>(app),
-        changed::<Transform>(app),
-        changed::<Anchor>(app),
-    ]
+    app.world().resource::<ObservedTicks>().0
 }
 
 #[test]
