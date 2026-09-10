@@ -172,6 +172,10 @@ fn read_edit_box_text_attr(frame: &Frame, name: &str) -> Option<String> {
 
 fn read_widget_texture_attr(frame: &Frame, name: &str) -> Option<String> {
     match name {
+        "tex_coords" => match &frame.widget_data {
+            Some(WidgetData::Texture(texture)) => Some(format_color(texture.tex_coords)),
+            _ => None,
+        },
         "texture_file" => match &frame.widget_data {
             Some(WidgetData::Texture(t)) => match &t.source {
                 TextureSource::File(p) => Some(p.clone()),
@@ -520,6 +524,7 @@ fn apply_widget_texture_attrs(
         "texture_file" => apply_texture_file(frame, value, validated_paths, missing_paths),
         "texture_fdid" => apply_texture_fdid(frame, value, validated_paths, missing_paths),
         "texture_atlas" => apply_texture_atlas(frame, value),
+        "tex_coords" => apply_texture_coordinates(frame, value),
         "vertex_color" => {
             if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
                 if let Some(color) = parse_color(value) {
@@ -540,6 +545,23 @@ fn apply_widget_texture_attrs(
             apply_button_texture(frame, value, |bd, src| bd.disabled_texture = Some(src))
         }
         _ => {}
+    }
+}
+
+fn apply_texture_coordinates(frame: &mut Frame, value: &str) {
+    let coordinates = parse_color(value).filter(|coordinates| {
+        coordinates
+            .iter()
+            .all(|value| value.is_finite() && (0.0..=1.0).contains(value))
+            && coordinates[0] <= coordinates[1]
+            && coordinates[2] <= coordinates[3]
+    });
+    let Some(coordinates) = coordinates else {
+        eprintln!("[UI] invalid normalized tex_coords (left,right,top,bottom): {value}");
+        return;
+    };
+    if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
+        texture.tex_coords = coordinates;
     }
 }
 

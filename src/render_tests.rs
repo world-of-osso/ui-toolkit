@@ -565,6 +565,107 @@ fn nested_texture_quad_renders_above_button_nine_slice_even_with_visible_text() 
 
 // --- Dynamic texture tests ---
 
+#[test]
+fn texture_crop_preserves_left_pixels_and_updates_uv_without_stale_sprite() {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    use std::collections::HashSet;
+
+    let mut app = setup_app();
+    let pixels: Vec<u8> = (0..32)
+        .flat_map(|index| [index as u8, 80, 150, 255])
+        .collect();
+    let image = Image::new(
+        Extent3d {
+            width: 8,
+            height: 4,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        pixels.clone(),
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    let handle = app.world_mut().resource_mut::<Assets<Image>>().add(image);
+    let id = create_dynamic_texture(&mut app, "CroppedMask", handle.clone());
+    for (crop, width, right) in [("0,0.5,0,1", "4", 4.0), ("0,0.25,0,1", "2", 2.0)] {
+        {
+            let mut ui = app.world_mut().resource_mut::<UiState>();
+            for (name, value) in [("width", width), ("height", "4"), ("tex_coords", crop)] {
+                crate::attrs::apply_attribute(
+                    &mut ui.registry,
+                    id,
+                    name,
+                    value,
+                    &mut HashSet::new(),
+                    &mut HashSet::new(),
+                );
+            }
+        }
+        app.update();
+        let entity = app
+            .world_mut()
+            .query::<(Entity, &crate::render::UiQuad)>()
+            .iter(app.world())
+            .find(|(_, quad)| quad.0 == id)
+            .unwrap()
+            .0;
+        let sprite = app.world().get::<Sprite>(entity).unwrap();
+        assert_eq!(
+            sprite.rect,
+            Some(Rect::new(0.0, 0.0, right, 4.0)),
+            "UV crop must select left source columns, not squeeze all eight"
+        );
+        assert_eq!(sprite.custom_size, Some(Vec2::new(right, 4.0)));
+        assert_eq!(sprite.image, handle);
+        assert_eq!(
+            app.world()
+                .resource::<Assets<Image>>()
+                .get(&handle)
+                .unwrap()
+                .data
+                .as_ref()
+                .unwrap(),
+            &pixels
+        );
+        let changed = app
+            .world()
+            .entity(entity)
+            .get_ref::<Sprite>()
+            .unwrap()
+            .last_changed();
+        app.update();
+        assert_eq!(
+            app.world()
+                .entity(entity)
+                .get_ref::<Sprite>()
+                .unwrap()
+                .last_changed(),
+            changed
+        );
+    }
+}
+
+#[test]
+fn default_texture_coordinates_preserve_full_image() {
+    let mut app = setup_app();
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::default());
+    let id = create_dynamic_texture(&mut app, "FullTexture", handle.clone());
+    app.update();
+    let sprite = app
+        .world_mut()
+        .query::<(&Sprite, &crate::render::UiQuad)>()
+        .iter(app.world())
+        .find(|(_, quad)| quad.0 == id)
+        .unwrap()
+        .0;
+    assert_eq!(sprite.rect, None);
+    assert_eq!(sprite.image, handle);
+}
+
 fn create_dynamic_texture(app: &mut App, name: &str, handle: Handle<Image>) -> u64 {
     let mut ui = app.world_mut().resource_mut::<UiState>();
     let id = ui.registry.create_frame(name, None);
