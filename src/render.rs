@@ -143,7 +143,9 @@ pub fn sync_ui_quads(
         &mut commands,
     );
 
-    state.registry.render_dirty.clear();
+    if !state.registry.render_dirty.is_empty() {
+        state.registry.render_dirty.clear();
+    }
 }
 
 fn update_or_despawn_quads(

@@ -220,5 +220,7 @@ pub fn sync_ui_tiled_textures(
         }
     }
 
-    state.registry.render_dirty.clear();
+    if !state.registry.render_dirty.is_empty() {
+        state.registry.render_dirty.clear();
+    }
 }
