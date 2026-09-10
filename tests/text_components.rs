@@ -74,7 +74,13 @@ fn ticks(app: &mut App) -> [bool; 7] {
 
 fn replace_source_text(app: &mut App, id: u64, text: &str) {
     let mut state = app.world_mut().resource_mut::<UiState>();
-    let widget = state.registry.get_mut(id).unwrap().widget_data.as_mut().unwrap();
+    let widget = state
+        .registry
+        .get_mut(id)
+        .unwrap()
+        .widget_data
+        .as_mut()
+        .unwrap();
     let content = match widget {
         WidgetData::FontString(data) => &mut data.text,
         WidgetData::Button(data) => &mut data.text,
