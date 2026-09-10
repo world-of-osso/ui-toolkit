@@ -87,14 +87,24 @@ fn assert_dirty(app: &App, ids: &[u64]) {
     );
 }
 
+fn assert_idle(cursor: Option<Vec2>) {
+    let (mut app, _, _) = fixture(cursor);
+    app.update();
+    let observed = app.world().resource::<Observed>();
+    assert_eq!(
+        (observed.dirty.clone(), observed.changed),
+        (BTreeSet::new(), false)
+    );
+}
+
 #[test]
-fn no_cursor_and_stationary_cursor_do_not_mutate_ui() {
-    for cursor in [None, Some(Vec2::new(120.0, 120.0))] {
-        let (mut app, _, _) = fixture(cursor);
-        app.update();
-        assert_dirty(&app, &[]);
-        assert!(!app.world().resource::<Observed>().changed);
-    }
+fn no_cursor_does_not_mutate_ui() {
+    assert_idle(None);
+}
+
+#[test]
+fn stationary_cursor_does_not_mutate_ui() {
+    assert_idle(Some(Vec2::new(120.0, 120.0)));
 }
 
 #[test]
