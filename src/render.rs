@@ -49,9 +49,98 @@ pub fn setup_ui_camera(mut commands: Commands) {
     ));
 }
 
+/// Ordering prepared for one plugin render update.
+#[derive(Default, Resource)]
+pub(crate) struct UiFrameOrder {
+    pub(crate) ids: Vec<u64>,
+    pub(crate) indices: HashMap<u64, usize>,
+}
+
+impl UiFrameOrder {
+    pub(crate) fn from_state(state: &UiState) -> Self {
+        let ids = build_sorted_visible_frame_ids(state);
+        let indices = ids
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(index, id)| (id, index))
+            .collect();
+        Self { ids, indices }
+    }
+
+    pub(crate) fn z(&self, id: u64) -> f32 {
+        self.indices.get(&id).copied().unwrap_or(0) as f32 * 0.001
+    }
+}
+
+pub(crate) fn prepare_ui_frame_order(state: Res<UiState>, mut order: ResMut<UiFrameOrder>) {
+    *order = UiFrameOrder::from_state(&state);
+}
+
 /// Syncs the frame registry into Bevy sprite entities each frame.
 pub fn sync_ui_quads(
+    state: ResMut<UiState>,
+    commands: Commands,
+    images: Option<ResMut<Assets<Image>>>,
+    quads: Query<(Entity, &UiQuad)>,
+    backdrop_quads: Query<(Entity, &UiBackdropQuad)>,
+    visuals: Query<(&Transform, &Sprite)>,
+    texture_cache: Local<HashMap<u32, Handle<Image>>>,
+    file_texture_cache: Local<HashMap<String, Handle<Image>>>,
+    missing_textures: Local<HashSet<u32>>,
+    missing_file_textures: Local<HashSet<String>>,
+    blp_loader: Option<Res<BlpLoaderRes>>,
+) {
+    let order = UiFrameOrder::from_state(&state);
+    sync_ui_quads_with_order(
+        state,
+        &order,
+        commands,
+        images,
+        quads,
+        backdrop_quads,
+        visuals,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    );
+}
+
+pub(crate) fn sync_ui_quads_prepared(
+    state: ResMut<UiState>,
+    order: Res<UiFrameOrder>,
+    commands: Commands,
+    images: Option<ResMut<Assets<Image>>>,
+    quads: Query<(Entity, &UiQuad)>,
+    backdrop_quads: Query<(Entity, &UiBackdropQuad)>,
+    visuals: Query<(&Transform, &Sprite)>,
+    texture_cache: Local<HashMap<u32, Handle<Image>>>,
+    file_texture_cache: Local<HashMap<String, Handle<Image>>>,
+    missing_textures: Local<HashSet<u32>>,
+    missing_file_textures: Local<HashSet<String>>,
+    blp_loader: Option<Res<BlpLoaderRes>>,
+) {
+    sync_ui_quads_with_order(
+        state,
+        &order,
+        commands,
+        images,
+        quads,
+        backdrop_quads,
+        visuals,
+        texture_cache,
+        file_texture_cache,
+        missing_textures,
+        missing_file_textures,
+        blp_loader,
+    );
+}
+
+fn sync_ui_quads_with_order(
     mut state: ResMut<UiState>,
+    order: &UiFrameOrder,
     mut commands: Commands,
     mut images: Option<ResMut<Assets<Image>>>,
     quads: Query<(Entity, &UiQuad)>,
@@ -66,7 +155,7 @@ pub fn sync_ui_quads(
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
 
-    let visible_sorted_ids = build_sorted_visible_frame_ids(&state);
+    let visible_sorted_ids = &order.ids;
     let sorted_quad_ids: Vec<u64> = visible_sorted_ids
         .iter()
         .copied()
@@ -83,16 +172,11 @@ pub fn sync_ui_quads(
         .copied()
         .filter(|id| state.registry.get(*id).is_some_and(uses_backdrop_parts))
         .collect();
-    let sort_map: HashMap<u64, usize> = visible_sorted_ids
-        .iter()
-        .copied()
-        .enumerate()
-        .map(|(i, id)| (id, i))
-        .collect();
+    let sort_map = &order.indices;
 
     update_or_despawn_quads(
         &state,
-        &sort_map,
+        sort_map,
         screen_w,
         screen_h,
         &mut commands,
@@ -107,7 +191,7 @@ pub fn sync_ui_quads(
     );
     update_or_despawn_backdrop_quads(
         &state,
-        &sort_map,
+        sort_map,
         screen_w,
         screen_h,
         &mut commands,
@@ -119,7 +203,7 @@ pub fn sync_ui_quads(
     spawn_new_quads(
         &state,
         &sorted_quad_ids,
-        &sort_map,
+        sort_map,
         &existing,
         screen_w,
         screen_h,
@@ -136,7 +220,7 @@ pub fn sync_ui_quads(
     spawn_new_backdrop_quads(
         &state,
         &sorted_backdrop_ids,
-        &sort_map,
+        sort_map,
         &existing_backdrop_parts,
         screen_w,
         screen_h,
