@@ -87,6 +87,7 @@ fn load_tile_texture(
 fn spawn_or_update_tile(
     commands: &mut Commands,
     existing: &HashMap<(u64, u32), Entity>,
+    visuals: &Query<(&Transform, &Sprite)>,
     frame_id: u64,
     tile_idx: u32,
     pos: Vec2,
@@ -106,7 +107,13 @@ fn spawn_or_update_tile(
         ..default()
     };
     if let Some(&entity) = existing.get(&(frame_id, tile_idx)) {
-        commands.entity(entity).insert((transform, sprite));
+        crate::render::insert_changed_quad_visuals(
+            commands,
+            entity,
+            visuals.get(entity).ok(),
+            transform,
+            sprite,
+        );
     } else {
         commands.spawn((
             sprite,
@@ -123,6 +130,7 @@ fn sync_tiled_frame(
     commands: &mut Commands,
     images: &mut Option<ResMut<Assets<Image>>>,
     existing: &HashMap<(u64, u32), Entity>,
+    visuals: &Query<(&Transform, &Sprite)>,
     needed: &mut HashSet<(u64, u32)>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
     missing_textures: &mut HashSet<u32>,
@@ -152,6 +160,7 @@ fn sync_tiled_frame(
         spawn_or_update_tile(
             commands,
             existing,
+            visuals,
             frame_id,
             tile_idx,
             *pos,
@@ -169,6 +178,7 @@ pub fn sync_ui_tiled_textures(
     mut commands: Commands,
     mut images: Option<ResMut<Assets<Image>>>,
     tiles: Query<(Entity, &UiTile)>,
+    visuals: Query<(&Transform, &Sprite)>,
     mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
     mut missing_textures: Local<HashSet<u32>>,
     blp_loader: Option<Res<BlpLoaderRes>>,
@@ -194,6 +204,7 @@ pub fn sync_ui_tiled_textures(
             &mut commands,
             &mut images,
             &existing,
+            &visuals,
             &mut needed,
             &mut texture_cache,
             &mut missing_textures,
