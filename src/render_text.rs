@@ -27,6 +27,7 @@ pub fn sync_ui_text(
             &mut TextFont,
             &mut TextColor,
             &mut Transform,
+            Option<&mut Anchor>,
         ),
         (Without<UiTextShadow>, Without<UiTextOutline>),
     >,
@@ -42,8 +43,17 @@ pub fn sync_ui_text(
         .collect();
     let mut existing: std::collections::HashSet<u64> = std::collections::HashSet::new();
 
-    for (entity, ui_text, mut text, mut layout, mut bounds, mut font, mut color, mut transform) in
-        texts.iter_mut()
+    for (
+        entity,
+        ui_text,
+        mut text,
+        mut layout,
+        mut bounds,
+        mut font,
+        mut color,
+        mut transform,
+        anchor,
+    ) in texts.iter_mut()
     {
         let Some(frame) = state.registry.get(ui_text.0) else {
             commands.entity(entity).despawn();
@@ -55,24 +65,40 @@ pub fn sync_ui_text(
         }
         let props = extract_text_props(frame);
         existing.insert(ui_text.0);
-        *text = Text2d::new(&props.content);
-        *layout = text_layout(frame);
-        *bounds = text_bounds(frame);
-        font.font_size = FontSize::Px(props.font_size);
-        font.font = FontSource::Handle(font_registry.get(props.font, &mut font_assets));
-        *color = TextColor(props.color);
+        if text.0 != props.content {
+            text.0 = props.content.clone();
+        }
+        let desired_layout = text_layout(frame);
+        if layout.justify != desired_layout.justify || layout.linebreak != desired_layout.linebreak
+        {
+            *layout = desired_layout;
+        }
+        let desired_bounds = text_bounds(frame);
+        if bounds.width != desired_bounds.width || bounds.height != desired_bounds.height {
+            *bounds = desired_bounds;
+        }
+        let desired_size = FontSize::Px(props.font_size);
+        let desired_font = FontSource::Handle(font_registry.get(props.font, &mut font_assets));
+        if font.font_size != desired_size || font.font != desired_font {
+            font.font_size = desired_size;
+            font.font = desired_font;
+        }
+        color.set_if_neq(TextColor(props.color));
         let sort_idx = sort_map[&ui_text.0];
-        *transform = text_transform(
+        transform.set_if_neq(text_transform(
             frame,
             screen_w,
             screen_h,
             props.justify_h,
             props.justify_v,
             sort_idx,
-        );
-        commands
-            .entity(entity)
-            .insert(text_anchor(props.justify_h, props.justify_v));
+        ));
+        let desired_anchor = text_anchor(props.justify_h, props.justify_v);
+        if let Some(mut anchor) = anchor {
+            anchor.set_if_neq(desired_anchor);
+        } else {
+            commands.entity(entity).insert(desired_anchor);
+        }
     }
 
     spawn_missing_text(
