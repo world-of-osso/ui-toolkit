@@ -359,8 +359,7 @@ impl FrameRegistry {
         }
         let children = self.child_ids(id);
         for child_id in children {
-            self.propagate_visibility(child_id);
-            self.propagate_alpha(child_id);
+            self.propagate_visibility_and_alpha(child_id);
         }
     }
 
@@ -423,12 +422,22 @@ impl FrameRegistry {
             .map_or(1.0, |p| p.effective_scale)
     }
 
-    fn propagate_visibility(&mut self, id: u64) {
+    fn propagate_visibility_and_alpha(&mut self, id: u64) {
         let parent_visible = self.parent_visible(id);
+        let parent_effective = self.parent_effective_alpha(id);
         let children = if let Some(frame) = self.frames.get_mut(&id) {
             let visible = parent_visible && !frame.hidden;
+            let effective_alpha = if visible {
+                parent_effective * frame.alpha
+            } else {
+                0.0
+            };
             if frame.visible != visible {
                 frame.visible = visible;
+                self.render_dirty.insert(id);
+            }
+            if frame.effective_alpha != effective_alpha {
+                frame.effective_alpha = effective_alpha;
                 self.render_dirty.insert(id);
             }
             frame.children.clone()
@@ -436,7 +445,7 @@ impl FrameRegistry {
             return;
         };
         for child_id in children {
-            self.propagate_visibility(child_id);
+            self.propagate_visibility_and_alpha(child_id);
         }
     }
 
