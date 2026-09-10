@@ -305,14 +305,23 @@ impl FrameRegistry {
     pub fn set_alpha(&mut self, id: u64, alpha: f32) {
         let parent_effective = self.parent_effective_alpha(id);
         if let Some(frame) = self.frames.get_mut(&id) {
-            frame.alpha = alpha;
             let new_effective = if frame.visible {
                 parent_effective * alpha
             } else {
                 0.0
             };
-            frame.effective_alpha = new_effective;
-            self.render_dirty.insert(id);
+            let mut changed = false;
+            if frame.alpha != alpha {
+                frame.alpha = alpha;
+                changed = true;
+            }
+            if frame.effective_alpha != new_effective {
+                frame.effective_alpha = new_effective;
+                changed = true;
+            }
+            if changed {
+                self.render_dirty.insert(id);
+            }
         }
         let children = self.child_ids(id);
         for child_id in children {
@@ -325,14 +334,28 @@ impl FrameRegistry {
         let parent_visible = self.parent_visible(id);
         let parent_effective_alpha = self.parent_effective_alpha(id);
         if let Some(frame) = self.frames.get_mut(&id) {
-            frame.hidden = hidden;
-            frame.visible = parent_visible && !hidden;
-            frame.effective_alpha = if frame.visible {
+            let visible = parent_visible && !hidden;
+            let effective_alpha = if visible {
                 parent_effective_alpha * frame.alpha
             } else {
                 0.0
             };
-            self.render_dirty.insert(id);
+            let mut changed = false;
+            if frame.hidden != hidden {
+                frame.hidden = hidden;
+                changed = true;
+            }
+            if frame.visible != visible {
+                frame.visible = visible;
+                changed = true;
+            }
+            if frame.effective_alpha != effective_alpha {
+                frame.effective_alpha = effective_alpha;
+                changed = true;
+            }
+            if changed {
+                self.render_dirty.insert(id);
+            }
         }
         let children = self.child_ids(id);
         for child_id in children {
@@ -403,8 +426,11 @@ impl FrameRegistry {
     fn propagate_visibility(&mut self, id: u64) {
         let parent_visible = self.parent_visible(id);
         let children = if let Some(frame) = self.frames.get_mut(&id) {
-            frame.visible = parent_visible && !frame.hidden;
-            self.render_dirty.insert(id);
+            let visible = parent_visible && !frame.hidden;
+            if frame.visible != visible {
+                frame.visible = visible;
+                self.render_dirty.insert(id);
+            }
             frame.children.clone()
         } else {
             return;
@@ -417,12 +443,15 @@ impl FrameRegistry {
     fn propagate_alpha(&mut self, id: u64) {
         let parent_effective = self.parent_effective_alpha(id);
         let children = if let Some(frame) = self.frames.get_mut(&id) {
-            frame.effective_alpha = if frame.visible {
+            let effective_alpha = if frame.visible {
                 parent_effective * frame.alpha
             } else {
                 0.0
             };
-            self.render_dirty.insert(id);
+            if frame.effective_alpha != effective_alpha {
+                frame.effective_alpha = effective_alpha;
+                self.render_dirty.insert(id);
+            }
             frame.children.clone()
         } else {
             return;
