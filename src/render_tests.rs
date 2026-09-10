@@ -588,6 +588,20 @@ fn texture_crop_preserves_left_pixels_and_updates_uv_without_stale_sprite() {
     );
     let handle = app.world_mut().resource_mut::<Assets<Image>>().add(image);
     let id = create_dynamic_texture(&mut app, "CroppedMask", handle.clone());
+    // Runtime progress textures are anchored; unanchored frames retain their layout rectangle.
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .get_mut(id)
+        .unwrap()
+        .anchors
+        .push(crate::anchor::Anchor {
+            point: crate::anchor::AnchorPoint::TopLeft,
+            relative_to: None,
+            relative_point: crate::anchor::AnchorPoint::TopLeft,
+            x_offset: 0.0,
+            y_offset: 0.0,
+        });
     for (crop, width, right) in [("0,0.5,0,1", "4", 4.0), ("0,0.25,0,1", "2", 2.0)] {
         {
             let mut ui = app.world_mut().resource_mut::<UiState>();
