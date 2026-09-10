@@ -344,7 +344,7 @@ fn update_quad(
     );
 }
 
-fn insert_changed_quad_visuals(
+pub(super) fn insert_changed_quad_visuals(
     commands: &mut Commands,
     entity: Entity,
     current: Option<(&Transform, &Sprite)>,
