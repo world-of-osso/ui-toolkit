@@ -36,6 +36,8 @@ fn fixture() -> (App, u64, u64) {
     app.add_systems(Update, (sync_button_nine_slices, observe).chain());
     app.update();
     settle(&mut app);
+    // Let the observer consume settle's resource mutation before measuring idle sync.
+    app.update();
     (app, button, other)
 }
 
