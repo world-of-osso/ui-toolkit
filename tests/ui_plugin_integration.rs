@@ -74,7 +74,7 @@ fn place(ui: &mut UiState, id: u64, x: f32, y: f32) {
                 relative_to: None,
                 relative_point: AnchorPoint::TopLeft,
                 x_offset: x,
-                y_offset: y,
+                y_offset: -y,
             },
         )
         .unwrap();
