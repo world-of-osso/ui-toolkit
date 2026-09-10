@@ -40,12 +40,23 @@ fn fixture() -> (App, u64, u64) {
 }
 
 fn settle(app: &mut App) {
-    app.world_mut().resource_mut::<UiState>().registry.render_dirty.clear();
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .render_dirty
+        .clear();
     app.world_mut().clear_trackers();
 }
 
 fn slice(app: &App, id: u64) -> &NineSlice {
-    app.world().resource::<UiState>().registry.get(id).unwrap().nine_slice.as_ref().unwrap()
+    app.world()
+        .resource::<UiState>()
+        .registry
+        .get(id)
+        .unwrap()
+        .nine_slice
+        .as_ref()
+        .unwrap()
 }
 
 #[test]
@@ -53,27 +64,60 @@ fn settled_buttons_leave_render_dirty_and_resource_ticks_clean() {
     let (mut app, _, _) = fixture();
     app.update();
     let state = app.world().resource::<UiState>();
-    assert!(state.registry.render_dirty.is_empty(), "settled buttons must not invalidate rendering");
-    assert!(!app.world().resource::<Observed>().0, "settled synchronization must not mark UiState changed");
+    assert!(
+        state.registry.render_dirty.is_empty(),
+        "settled buttons must not invalidate rendering"
+    );
+    assert!(
+        !app.world().resource::<Observed>().0,
+        "settled synchronization must not mark UiState changed"
+    );
 }
 
 #[test]
 fn button_states_hover_and_resize_update_nine_slice() {
     let (mut app, button, other) = fixture();
     for (state, hovered, texture) in [
-        (ButtonState::Pushed, false, "defaultbutton-nineslice-pressed"),
-        (ButtonState::Disabled, false, "defaultbutton-nineslice-disabled"),
-        (ButtonState::Normal, true, "defaultbutton-nineslice-highlight"),
+        (
+            ButtonState::Pushed,
+            false,
+            "defaultbutton-nineslice-pressed",
+        ),
+        (
+            ButtonState::Disabled,
+            false,
+            "defaultbutton-nineslice-disabled",
+        ),
+        (
+            ButtonState::Normal,
+            true,
+            "defaultbutton-nineslice-highlight",
+        ),
         (ButtonState::Normal, false, "defaultbutton-nineslice-up"),
     ] {
         let mut ui = app.world_mut().resource_mut::<UiState>();
-        let Some(WidgetData::Button(data)) = &mut ui.registry.get_mut(button).unwrap().widget_data else { panic!("button fixture") };
+        let Some(WidgetData::Button(data)) = &mut ui.registry.get_mut(button).unwrap().widget_data
+        else {
+            panic!("button fixture")
+        };
         data.state = state;
         data.hovered = hovered;
         settle(&mut app);
         app.update();
-        assert_eq!(slice(&app, button).texture, Some(TextureSource::Atlas(texture.into())));
-        assert_eq!(app.world().resource::<UiState>().registry.render_dirty.iter().copied().collect::<Vec<_>>(), vec![button]);
+        assert_eq!(
+            slice(&app, button).texture,
+            Some(TextureSource::Atlas(texture.into()))
+        );
+        assert_eq!(
+            app.world()
+                .resource::<UiState>()
+                .registry
+                .render_dirty
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![button]
+        );
         assert!(app.world().resource::<Observed>().0);
     }
     let before = slice(&app, button).edge_sizes.unwrap();
@@ -85,7 +129,10 @@ fn button_states_hover_and_resize_update_nine_slice() {
     }
     settle(&mut app);
     app.update();
-    assert_eq!(slice(&app, button).edge_sizes.unwrap(), before.map(|value| value * 2.0));
+    assert_eq!(
+        slice(&app, button).edge_sizes.unwrap(),
+        before.map(|value| value * 2.0)
+    );
     assert_eq!(slice(&app, other).edge_size, 13.0);
 }
 
@@ -95,7 +142,13 @@ fn external_nine_slice_edits_are_replaced_and_nonbuttons_untouched() {
     let expected = slice(&app, button).clone();
     {
         let mut state = app.world_mut().resource_mut::<UiState>();
-        let nine = state.registry.get_mut(button).unwrap().nine_slice.as_mut().unwrap();
+        let nine = state
+            .registry
+            .get_mut(button)
+            .unwrap()
+            .nine_slice
+            .as_mut()
+            .unwrap();
         nine.edge_size = 99.0;
         nine.bg_color = [0.2; 4];
         nine.part_textures = Some(std::array::from_fn(|_| TextureSource::None));
@@ -110,6 +163,15 @@ fn external_nine_slice_edits_are_replaced_and_nonbuttons_untouched() {
     assert!(repaired.part_textures.is_none());
     assert!(repaired.uv_rects.is_none());
     assert_eq!(slice(&app, other).edge_size, 13.0);
-    assert_eq!(app.world().resource::<UiState>().registry.render_dirty.iter().copied().collect::<Vec<_>>(), vec![button]);
+    assert_eq!(
+        app.world()
+            .resource::<UiState>()
+            .registry
+            .render_dirty
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![button]
+    );
     assert!(app.world().resource::<Observed>().0);
 }
