@@ -7,7 +7,7 @@ use bevy::window::PrimaryWindow;
 use ui_toolkit::anchor::{Anchor, AnchorPoint};
 use ui_toolkit::frame::{Dimension, NineSlice, ThreeSlice, WidgetData};
 use ui_toolkit::plugin::{
-    UiPlugin, UiProcessingEnabled, UiRenderEnabled, UiState, UiTextRenderEnabled,
+    UiPlugin, UiProcessingEnabled, UiRenderEnabled, UiRenderSet, UiState, UiTextRenderEnabled,
 };
 use ui_toolkit::render::{UiQuad, UiText, sync_ui_quads};
 use ui_toolkit::render_nine_slice::{UiNineSlicePart, sync_ui_nine_slices};
@@ -104,7 +104,7 @@ fn fixture() -> Fixture {
     for _ in 0..3 {
         app.update();
     }
-    let fixture = Fixture {
+    Fixture {
         app,
         first,
         second,
@@ -112,8 +112,7 @@ fn fixture() -> Fixture {
         nine,
         three,
         spacer,
-    };
-    fixture
+    }
 }
 
 fn snapshot(world: &mut World) -> Snapshot {
@@ -165,6 +164,10 @@ fn assert_z(actual: f32, rank: usize, offset: f32) {
 
 fn assert_order(fixture: &mut Fixture, expected: &[u64]) {
     let result = snapshot(fixture.app.world_mut());
+    assert_snapshot_order(fixture, &result, expected);
+}
+
+fn assert_snapshot_order(fixture: &Fixture, result: &Snapshot, expected: &[u64]) {
     for (rank, &id) in expected.iter().enumerate() {
         if id == fixture.first || id == fixture.second {
             assert_z(result.quads[&id], rank, 0.0);
@@ -290,4 +293,57 @@ fn standalone_renderers_ignore_stale_plugin_preparation() {
     world.run_system_once(sync_ui_three_slices).unwrap();
     let expected = [f.text, f.nine, f.three, f.first];
     assert_order(&mut f, &expected);
+}
+
+#[derive(Resource)]
+struct PendingReorder {
+    first: u64,
+    second: u64,
+    pending: bool,
+}
+
+#[derive(Resource, Default)]
+struct PublishedOrder(Snapshot);
+
+fn reorder_before_preparation(mut ui: ResMut<UiState>, mut change: ResMut<PendingReorder>) {
+    if !change.pending {
+        return;
+    }
+    ui.registry.get_mut(change.first).unwrap().frame_level = 5;
+    ui.registry.get_mut(change.second).unwrap().strata = FrameStrata::High;
+    change.pending = false;
+}
+
+fn publish_after_consumers(world: &mut World) {
+    let rendered = snapshot(world);
+    world.resource_mut::<PublishedOrder>().0 = rendered;
+}
+
+#[test]
+fn named_sets_apply_input_before_preparation_and_publish_current_render_order() {
+    let mut f = fixture();
+    f.app.insert_resource(PendingReorder {
+        first: f.first,
+        second: f.second,
+        pending: true,
+    });
+    f.app.init_resource::<PublishedOrder>();
+    f.app.add_systems(
+        Update,
+        reorder_before_preparation.before(UiRenderSet::Prepare),
+    );
+    f.app.add_systems(
+        Update,
+        publish_after_consumers
+            .after(UiRenderSet::Quads)
+            .after(UiRenderSet::Text)
+            .after(UiRenderSet::Shadows)
+            .after(UiRenderSet::Outlines)
+            .after(UiRenderSet::NineSlices)
+            .after(UiRenderSet::ThreeSlices),
+    );
+    f.app.update();
+    let expected = [f.text, f.nine, f.three, f.spacer, f.first, f.second];
+    let published = &f.app.world().resource::<PublishedOrder>().0;
+    assert_snapshot_order(&f, published, &expected);
 }
