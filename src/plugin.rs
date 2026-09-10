@@ -44,7 +44,8 @@ pub struct UiState {
 
 /// Ordering points for the plugin's shared-order render pipeline.
 ///
-/// Registry changes affecting render order must run before `Prepare`.
+/// Registry changes affecting render order must run before `Prepare`, which
+/// includes window sizing, layout, button derivation, and order preparation.
 /// Standalone renderer functions retain their independent ordering behavior.
 #[derive(SystemSet, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum UiRenderSet {
@@ -71,6 +72,7 @@ impl Plugin for UiPlugin {
         app.insert_resource(UiProcessingEnabled::default());
         app.insert_resource(UiTextRenderEnabled::default());
         app.init_resource::<crate::font_registry::FontRegistry>();
+        app.init_resource::<crate::render::UiFrameOrder>();
         register_ui_startup_systems(app);
         register_ui_update_systems(app);
     }
@@ -97,21 +99,28 @@ fn register_ui_update_systems(app: &mut App) {
     app.add_systems(
         Update,
         (
-            sync_screen_size,
-            recompute_layout,
-            crate::render_button::sync_button_nine_slices,
+            sync_screen_size.in_set(UiRenderSet::Prepare),
+            recompute_layout.in_set(UiRenderSet::Prepare),
+            crate::render_button::sync_button_nine_slices.in_set(UiRenderSet::Prepare),
             (
-                crate::render::sync_ui_quads,
+                crate::render::prepare_ui_frame_order.in_set(UiRenderSet::Prepare),
+                crate::render::sync_ui_quads_prepared.in_set(UiRenderSet::Quads),
                 crate::render_button::sync_ui_button_highlights,
-                crate::render_text::sync_ui_text.run_if(ui_text_render_enabled),
+                crate::render_text::sync_ui_text_prepared
+                    .in_set(UiRenderSet::Text)
+                    .run_if(ui_text_render_enabled),
                 crate::render_border::sync_ui_borders,
                 crate::render_border::sync_css_borders,
-                crate::render_nine_slice::sync_ui_nine_slices,
-                crate::render_three_slice::sync_ui_three_slices,
+                crate::render_nine_slice::sync_ui_nine_slices_prepared
+                    .in_set(UiRenderSet::NineSlices),
+                crate::render_three_slice::sync_ui_three_slices_prepared
+                    .in_set(UiRenderSet::ThreeSlices),
                 crate::render_tiled::sync_ui_tiled_textures,
                 (
-                    crate::render_text_fx::sync_ui_text_shadows,
-                    crate::render_text_fx::sync_ui_text_outlines,
+                    crate::render_text_fx::sync_ui_text_shadows_prepared
+                        .in_set(UiRenderSet::Shadows),
+                    crate::render_text_fx::sync_ui_text_outlines_prepared
+                        .in_set(UiRenderSet::Outlines),
                 )
                     .chain()
                     .run_if(ui_text_render_enabled),
