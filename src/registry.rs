@@ -835,6 +835,49 @@ mod tests {
     }
 
     #[test]
+    fn visibility_single_pass_preserves_branched_hidden_and_stale_state() {
+        let (mut reg, ids) = visibility_alpha_tree();
+        let [root, child, grandchild] = ids;
+        let hidden = reg.create_frame("HiddenBranch", Some(root));
+        let hidden_leaf = reg.create_frame("HiddenLeaf", Some(hidden));
+        reg.set_alpha(hidden, 0.25);
+        reg.set_alpha(hidden_leaf, 0.75);
+        reg.set_hidden(hidden, true);
+        for id in [grandchild, hidden_leaf] {
+            let frame = reg.get_mut(id).unwrap();
+            frame.visible = id == hidden_leaf;
+            frame.effective_alpha = 9.0;
+        }
+        reg.render_dirty.clear();
+        reg.rect_dirty.clear();
+
+        reg.set_hidden(root, false);
+        assert_visibility_alpha(&reg, ids, [true; 3], [0.5, 0.25, 0.125]);
+        for id in [hidden, hidden_leaf] {
+            let frame = reg.get(id).unwrap();
+            assert!(!frame.visible);
+            assert_eq!(frame.effective_alpha, 0.0);
+        }
+        assert_eq!(reg.get(hidden).unwrap().alpha, 0.25);
+        assert_eq!(reg.get(hidden_leaf).unwrap().alpha, 0.75);
+        assert_eq!(reg.render_dirty, HashSet::from([grandchild, hidden_leaf]));
+
+        reg.render_dirty.clear();
+        reg.set_hidden(root, true);
+        assert_visibility_alpha(&reg, ids, [false; 3], [0.0; 3]);
+        assert_eq!(reg.render_dirty, HashSet::from([root, child, grandchild]));
+        reg.render_dirty.clear();
+        reg.set_hidden(root, false);
+        assert_visibility_alpha(&reg, ids, [true; 3], [0.5, 0.25, 0.125]);
+        assert_eq!(reg.render_dirty, HashSet::from([root, child, grandchild]));
+        reg.render_dirty.clear();
+        reg.set_hidden(root, false);
+        assert!(reg.render_dirty.is_empty());
+        assert!(!reg.get(hidden_leaf).unwrap().visible);
+        assert_eq!(reg.get(hidden_leaf).unwrap().effective_alpha, 0.0);
+    }
+
+    #[test]
     fn visibility_alpha_same_alpha_repairs_stale_descendants() {
         let (mut reg, ids) = visibility_alpha_tree();
         let [root, child, grandchild] = ids;
