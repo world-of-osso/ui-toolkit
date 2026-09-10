@@ -11,7 +11,7 @@ use crate::frame::WidgetData;
 use crate::plugin::UiState;
 use crate::widgets::font_string::{GameFont, JustifyH, JustifyV, Outline};
 
-use super::render::{UI_RENDER_LAYER, UiText, build_sorted_visible_frame_ids};
+use super::render::{UI_RENDER_LAYER, UiFrameOrder, UiText};
 
 /// Marker for shadow text entities.
 #[derive(Component)]
@@ -24,6 +24,49 @@ pub struct UiTextOutline(pub u64);
 /// Syncs text shadows — a dark copy of text rendered behind the main text.
 pub fn sync_ui_text_shadows(
     state: Res<UiState>,
+    commands: Commands,
+    font_assets: ResMut<Assets<Font>>,
+    font_registry: ResMut<FontRegistry>,
+    shadows: Query<(
+        Entity,
+        &UiTextShadow,
+        &mut Text2d,
+        &mut TextLayout,
+        &mut TextBounds,
+        &mut TextFont,
+        &mut TextColor,
+        &mut Transform,
+        &mut Anchor,
+    )>,
+) {
+    let order = UiFrameOrder::from_state(&state);
+    sync_ui_text_shadows_with_order(state, &order, commands, font_assets, font_registry, shadows);
+}
+
+pub(crate) fn sync_ui_text_shadows_prepared(
+    state: Res<UiState>,
+    order: Res<UiFrameOrder>,
+    commands: Commands,
+    font_assets: ResMut<Assets<Font>>,
+    font_registry: ResMut<FontRegistry>,
+    shadows: Query<(
+        Entity,
+        &UiTextShadow,
+        &mut Text2d,
+        &mut TextLayout,
+        &mut TextBounds,
+        &mut TextFont,
+        &mut TextColor,
+        &mut Transform,
+        &mut Anchor,
+    )>,
+) {
+    sync_ui_text_shadows_with_order(state, &order, commands, font_assets, font_registry, shadows);
+}
+
+fn sync_ui_text_shadows_with_order(
+    state: Res<UiState>,
+    order: &UiFrameOrder,
     mut commands: Commands,
     mut font_assets: ResMut<Assets<Font>>,
     mut font_registry: ResMut<FontRegistry>,
@@ -41,11 +84,6 @@ pub fn sync_ui_text_shadows(
 ) {
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
-    let sort_map: std::collections::HashMap<u64, usize> = build_sorted_visible_frame_ids(&state)
-        .into_iter()
-        .enumerate()
-        .map(|(i, id)| (id, i))
-        .collect();
     let mut existing: HashSet<u64> = HashSet::new();
 
     for (entity, shadow, text, layout, bounds, font, color, mut transform, mut anchor) in
@@ -69,7 +107,7 @@ pub fn sync_ui_text_shadows(
                 &mut font_registry,
             );
             anchor.set_if_neq(super::render_text::text_anchor_for_frame(frame));
-            if let Some(&sort_idx) = sort_map.get(&shadow.0) {
+            if let Some(&sort_idx) = order.indices.get(&shadow.0) {
                 transform.set_if_neq(shadow_transform(
                     frame, &props, screen_w, screen_h, sort_idx,
                 ));
@@ -79,7 +117,7 @@ pub fn sync_ui_text_shadows(
 
     spawn_missing_shadows(
         &state,
-        &sort_map,
+        &order.indices,
         &existing,
         screen_w,
         screen_h,
@@ -213,6 +251,43 @@ fn shadow_transform(
 /// Syncs text outlines — dark copies of text at directional offsets.
 pub fn sync_ui_text_outlines(
     state: Res<UiState>,
+    commands: Commands,
+    font_assets: ResMut<Assets<Font>>,
+    font_registry: ResMut<FontRegistry>,
+    outlines: Query<(Entity, &UiTextOutline)>,
+) {
+    let order = UiFrameOrder::from_state(&state);
+    sync_ui_text_outlines_with_order(
+        state,
+        &order,
+        commands,
+        font_assets,
+        font_registry,
+        outlines,
+    );
+}
+
+pub(crate) fn sync_ui_text_outlines_prepared(
+    state: Res<UiState>,
+    order: Res<UiFrameOrder>,
+    commands: Commands,
+    font_assets: ResMut<Assets<Font>>,
+    font_registry: ResMut<FontRegistry>,
+    outlines: Query<(Entity, &UiTextOutline)>,
+) {
+    sync_ui_text_outlines_with_order(
+        state,
+        &order,
+        commands,
+        font_assets,
+        font_registry,
+        outlines,
+    );
+}
+
+fn sync_ui_text_outlines_with_order(
+    state: Res<UiState>,
+    order: &UiFrameOrder,
     mut commands: Commands,
     mut font_assets: ResMut<Assets<Font>>,
     mut font_registry: ResMut<FontRegistry>,
@@ -220,11 +295,6 @@ pub fn sync_ui_text_outlines(
 ) {
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
-    let sort_map: HashMap<u64, usize> = build_sorted_visible_frame_ids(&state)
-        .into_iter()
-        .enumerate()
-        .map(|(i, id)| (id, i))
-        .collect();
 
     let mut existing: HashSet<u64> = HashSet::new();
     for (entity, outline) in &outlines {
@@ -241,7 +311,7 @@ pub fn sync_ui_text_outlines(
         }
         spawn_outlines(
             frame,
-            sort_map[&frame.id],
+            order.indices[&frame.id],
             screen_w,
             screen_h,
             &mut commands,

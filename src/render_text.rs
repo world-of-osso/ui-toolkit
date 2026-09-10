@@ -8,7 +8,7 @@ use bevy::text::{Font, Justify, LineBreak, TextBounds, TextFont, TextLayout};
 use crate::font_registry::FontRegistry;
 use crate::frame::WidgetData;
 use crate::plugin::UiState;
-use crate::render::{UI_RENDER_LAYER, UiText, build_sorted_visible_frame_ids};
+use crate::render::{UI_RENDER_LAYER, UiFrameOrder, UiText};
 use crate::render_text_fx::{UiTextOutline, UiTextShadow};
 use crate::widgets::button::ButtonState;
 use crate::widgets::font_string::{GameFont, JustifyH, JustifyV};
@@ -16,6 +16,55 @@ use crate::widgets::font_string::{GameFont, JustifyH, JustifyV};
 /// Syncs text content from the frame registry into Bevy Text2d entities.
 pub fn sync_ui_text(
     state: Res<UiState>,
+    commands: Commands,
+    font_assets: ResMut<Assets<Font>>,
+    font_registry: ResMut<FontRegistry>,
+    texts: Query<
+        (
+            Entity,
+            &UiText,
+            &mut Text2d,
+            &mut TextLayout,
+            &mut TextBounds,
+            &mut TextFont,
+            &mut TextColor,
+            &mut Transform,
+            Option<&mut Anchor>,
+        ),
+        (Without<UiTextShadow>, Without<UiTextOutline>),
+    >,
+) {
+    let order = UiFrameOrder::from_state(&state);
+    sync_ui_text_with_order(state, &order, commands, font_assets, font_registry, texts);
+}
+
+pub(crate) fn sync_ui_text_prepared(
+    state: Res<UiState>,
+    order: Res<UiFrameOrder>,
+    commands: Commands,
+    font_assets: ResMut<Assets<Font>>,
+    font_registry: ResMut<FontRegistry>,
+    texts: Query<
+        (
+            Entity,
+            &UiText,
+            &mut Text2d,
+            &mut TextLayout,
+            &mut TextBounds,
+            &mut TextFont,
+            &mut TextColor,
+            &mut Transform,
+            Option<&mut Anchor>,
+        ),
+        (Without<UiTextShadow>, Without<UiTextOutline>),
+    >,
+) {
+    sync_ui_text_with_order(state, &order, commands, font_assets, font_registry, texts);
+}
+
+fn sync_ui_text_with_order(
+    state: Res<UiState>,
+    order: &UiFrameOrder,
     mut commands: Commands,
     mut font_assets: ResMut<Assets<Font>>,
     mut font_registry: ResMut<FontRegistry>,
@@ -36,13 +85,6 @@ pub fn sync_ui_text(
 ) {
     let screen_w = state.registry.screen_width;
     let screen_h = state.registry.screen_height;
-    let sorted_ids = build_sorted_visible_frame_ids(&state);
-    let sort_map: std::collections::HashMap<u64, usize> = sorted_ids
-        .iter()
-        .copied()
-        .enumerate()
-        .map(|(i, id)| (id, i))
-        .collect();
     let mut existing: std::collections::HashSet<u64> = std::collections::HashSet::new();
 
     for (entity, ui_text, mut text, layout, bounds, font, mut color, mut transform, anchor) in
@@ -66,7 +108,7 @@ pub fn sync_ui_text(
         let desired_font = FontSource::Handle(font_registry.get(props.font, &mut font_assets));
         sync_text_font(font, desired_font, FontSize::Px(props.font_size));
         color.set_if_neq(TextColor(props.color));
-        let sort_idx = sort_map[&ui_text.0];
+        let sort_idx = order.indices[&ui_text.0];
         transform.set_if_neq(text_transform(
             frame,
             screen_w,
@@ -85,8 +127,8 @@ pub fn sync_ui_text(
 
     spawn_missing_text(
         &state,
-        &sorted_ids,
-        &sort_map,
+        &order.ids,
+        &order.indices,
         &existing,
         screen_w,
         screen_h,
