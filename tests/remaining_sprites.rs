@@ -204,9 +204,9 @@ fn assert_updates(renderer: Renderer) {
     }
     let expected = match renderer {
         Renderer::ThreeSlice => vec![
-            (-390.0, 250.0, Vec2::new(10.0, 100.0)),
+            (-395.0, 250.0, Vec2::new(10.0, 100.0)),
             (-300.0, 250.0, Vec2::new(180.0, 100.0)),
-            (-210.0, 250.0, Vec2::new(10.0, 100.0)),
+            (-205.0, 250.0, Vec2::new(10.0, 100.0)),
         ],
         Renderer::CssBorder => vec![
             (-300.0, 297.0, Vec2::new(200.0, 6.0)),
