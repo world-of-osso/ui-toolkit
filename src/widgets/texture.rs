@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TextureSource {
     None,
     SolidColor([f32; 4]),

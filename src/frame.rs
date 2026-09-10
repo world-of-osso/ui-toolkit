@@ -45,7 +45,7 @@ pub enum WidgetType {
 }
 
 /// Nine-slice frame rendering (solid color corners/edges/center, or textured).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NineSlice {
     pub edge_size: f32,
     /// Vertical edge size (top/bottom). Falls back to `edge_size` when `None`.

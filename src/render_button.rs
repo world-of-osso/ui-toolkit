@@ -76,12 +76,12 @@ pub fn sync_button_nine_slices(mut state: ResMut<UiState>) {
     for id in ids {
         let texture = extract_button_texture(&state, id);
         let tex = texture.unwrap_or_else(|| default_button_texture(&state, id));
-        let Some(frame) = state.registry.get_mut(id) else {
+        let Some(frame) = state.registry.get(id) else {
             continue;
         };
         let (display_edges, uv_edges) =
             button_nine_slice_metrics(&tex, frame.resolved_width(), frame.resolved_height());
-        frame.nine_slice = Some(NineSlice {
+        let desired = Some(NineSlice {
             edge_size: display_edges[0],
             edge_size_v: Some(display_edges[1]),
             edge_sizes: Some(display_edges),
@@ -92,6 +92,13 @@ pub fn sync_button_nine_slices(mut state: ResMut<UiState>) {
             texture: Some(tex),
             ..Default::default()
         });
+        if frame.nine_slice != desired {
+            state
+                .registry
+                .get_mut(id)
+                .expect("button frame exists")
+                .nine_slice = desired;
+        }
     }
 }
 
