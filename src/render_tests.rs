@@ -379,6 +379,80 @@ fn nine_slice_part_z(world: &mut World, frame_id: u64, part: u8) -> Option<f32> 
         .map(|(t, _)| t.translation.z)
 }
 
+#[test]
+fn frame_order_mixed_keys_and_effective_size_membership() {
+    use crate::frame::Frame;
+    use crate::layout::LayoutRect;
+    use crate::registry::FrameRegistry;
+    use crate::strata::FrameStrata::{Background, High, Medium};
+
+    let mut frames = Vec::new();
+    for (id, strata, level, raise) in [
+        (40, Medium, 0, 1),
+        (30, Medium, 0, 0),
+        (50, High, -99, -99),
+        (70, Background, 99, 99),
+        (20, Medium, 0, 0),
+        (60, Medium, 0, -1),
+        (10, Medium, -1, 99),
+    ] {
+        let mut frame = Frame::new(id, None, WidgetType::Frame);
+        frame.strata = strata;
+        frame.frame_level = level;
+        frame.raise_order = raise;
+        frame.width = Dimension::Fixed(80.0);
+        frame.height = Dimension::Fixed(30.0);
+        frames.push(frame);
+    }
+    for (id, visible, width, height, resolved_size) in [
+        (1, false, 80.0, 30.0, None),
+        (2, true, 0.0, 30.0, None),
+        (3, true, 80.0, -1.0, None),
+        (4, true, 80.0, 30.0, Some((0.0, 30.0))),
+        (5, true, 80.0, 30.0, Some((80.0, 0.0))),
+        (6, true, -1.0, 30.0, None),
+        (7, true, 80.0, 0.0, None),
+        (25, true, 0.0, 0.0, Some((8.0, 9.0))),
+    ] {
+        let mut frame = Frame::new(id, None, WidgetType::Frame);
+        frame.strata = Medium;
+        frame.frame_level = 0;
+        frame.raise_order = 0;
+        frame.visible = visible;
+        frame.hidden = !visible;
+        frame.width = Dimension::Fixed(width);
+        frame.height = Dimension::Fixed(height);
+        frame.layout_rect = resolved_size.map(|(width, height)| LayoutRect {
+            x: 12.0,
+            y: 18.0,
+            width,
+            height,
+        });
+        frames.push(frame);
+    }
+
+    for reverse in [false, true] {
+        let mut insertion_order = frames.clone();
+        if reverse {
+            insertion_order.reverse();
+        }
+        let mut registry = FrameRegistry::new(800.0, 600.0);
+        for frame in insertion_order {
+            registry.insert_frame(frame);
+        }
+        let state = UiState {
+            registry,
+            event_bus: crate::event::EventBus::new(),
+            focused_frame: None,
+        };
+        assert_eq!(
+            crate::render::build_sorted_visible_frame_ids(&state),
+            vec![70, 10, 60, 20, 25, 30, 40, 50],
+            "ordering and resolved-size membership must survive reversed insertion: {reverse}"
+        );
+    }
+}
+
 /// Frames with equal sort keys use creation order (id) as tiebreaker,
 /// so z-ordering is deterministic regardless of HashMap iteration order.
 #[test]
