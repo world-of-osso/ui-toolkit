@@ -42,6 +42,21 @@ pub struct UiState {
     pub focused_frame: Option<u64>,
 }
 
+/// Ordering points for the plugin's shared-order render pipeline.
+///
+/// Registry changes affecting render order must run before `Prepare`.
+/// Standalone renderer functions retain their independent ordering behavior.
+#[derive(SystemSet, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum UiRenderSet {
+    Prepare,
+    Quads,
+    Text,
+    Shadows,
+    Outlines,
+    NineSlices,
+    ThreeSlices,
+}
+
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
