@@ -195,7 +195,7 @@ fn sort_frame_ids<'a>(frames: impl Iterator<Item = &'a crate::frame::Frame>) -> 
     let mut frames: Vec<_> = frames
         .map(|f| (f.id, f.strata, f.frame_level, f.raise_order))
         .collect();
-    frames.sort_by(|a, b| {
+    frames.sort_unstable_by(|a, b| {
         a.1.cmp(&b.1)
             .then(a.2.cmp(&b.2))
             .then(a.3.cmp(&b.3))
@@ -205,12 +205,13 @@ fn sort_frame_ids<'a>(frames: impl Iterator<Item = &'a crate::frame::Frame>) -> 
 }
 
 pub(crate) fn build_sorted_visible_frame_ids(state: &UiState) -> Vec<u64> {
-    sort_frame_ids(
-        state
-            .registry
-            .frames_iter()
-            .filter(|f| f.visible && effective_size(f).0 > 0.0 && effective_size(f).1 > 0.0),
-    )
+    sort_frame_ids(state.registry.frames_iter().filter(|frame| {
+        if !frame.visible {
+            return false;
+        }
+        let (width, height) = effective_size(frame);
+        width > 0.0 && height > 0.0
+    }))
 }
 
 /// Effective size: layout_rect if available, else explicit width/height.
