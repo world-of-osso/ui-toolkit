@@ -126,22 +126,34 @@ pub fn sync_registry_to_primary_window(
     registry: &mut FrameRegistry,
     windows: &Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
-    let Ok(window) = windows.single() else {
-        return;
-    };
-    let (w, h) = (window.width(), window.height());
-    if (registry.screen_width - w).abs() > 0.5 || (registry.screen_height - h).abs() > 0.5 {
-        registry.screen_width = w;
-        registry.screen_height = h;
-        registry.mark_all_rects_dirty();
+    if let Some((width, height)) = changed_window_size(registry, windows) {
+        resize_registry(registry, width, height);
     }
+}
+
+fn changed_window_size(
+    registry: &FrameRegistry,
+    windows: &Query<&Window, With<bevy::window::PrimaryWindow>>,
+) -> Option<(f32, f32)> {
+    let window = windows.single().ok()?;
+    let (width, height) = (window.width(), window.height());
+    ((registry.screen_width - width).abs() > 0.5 || (registry.screen_height - height).abs() > 0.5)
+        .then_some((width, height))
+}
+
+fn resize_registry(registry: &mut FrameRegistry, width: f32, height: f32) {
+    registry.screen_width = width;
+    registry.screen_height = height;
+    registry.mark_all_rects_dirty();
 }
 
 fn sync_screen_size(
     mut state: ResMut<UiState>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
-    sync_registry_to_primary_window(&mut state.registry, &windows);
+    if let Some((width, height)) = changed_window_size(&state.registry, &windows) {
+        resize_registry(&mut state.registry, width, height);
+    }
 }
 
 fn initialize_screen_size(
