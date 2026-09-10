@@ -43,17 +43,8 @@ pub fn sync_ui_text(
         .collect();
     let mut existing: std::collections::HashSet<u64> = std::collections::HashSet::new();
 
-    for (
-        entity,
-        ui_text,
-        mut text,
-        mut layout,
-        mut bounds,
-        mut font,
-        mut color,
-        mut transform,
-        anchor,
-    ) in texts.iter_mut()
+    for (entity, ui_text, mut text, layout, bounds, font, mut color, mut transform, anchor) in
+        texts.iter_mut()
     {
         let Some(frame) = state.registry.get(ui_text.0) else {
             commands.entity(entity).despawn();
@@ -68,21 +59,10 @@ pub fn sync_ui_text(
         if text.0 != props.content {
             text.0 = props.content.clone();
         }
-        let desired_layout = text_layout(frame);
-        if layout.justify != desired_layout.justify || layout.linebreak != desired_layout.linebreak
-        {
-            *layout = desired_layout;
-        }
-        let desired_bounds = text_bounds(frame);
-        if bounds.width != desired_bounds.width || bounds.height != desired_bounds.height {
-            *bounds = desired_bounds;
-        }
-        let desired_size = FontSize::Px(props.font_size);
+        sync_text_layout(layout, text_layout(frame));
+        sync_text_bounds(bounds, text_bounds(frame));
         let desired_font = FontSource::Handle(font_registry.get(props.font, &mut font_assets));
-        if font.font_size != desired_size || font.font != desired_font {
-            font.font_size = desired_size;
-            font.font = desired_font;
-        }
+        sync_text_font(font, desired_font, FontSize::Px(props.font_size));
         color.set_if_neq(TextColor(props.color));
         let sort_idx = sort_map[&ui_text.0];
         transform.set_if_neq(text_transform(
@@ -112,6 +92,25 @@ pub fn sync_ui_text(
         &mut font_assets,
         &mut font_registry,
     );
+}
+
+fn sync_text_layout(mut layout: Mut<TextLayout>, desired: TextLayout) {
+    if layout.justify != desired.justify || layout.linebreak != desired.linebreak {
+        *layout = desired;
+    }
+}
+
+fn sync_text_bounds(mut bounds: Mut<TextBounds>, desired: TextBounds) {
+    if bounds.width != desired.width || bounds.height != desired.height {
+        *bounds = desired;
+    }
+}
+
+fn sync_text_font(mut font: Mut<TextFont>, source: FontSource, size: FontSize) {
+    if font.font_size != size || font.font != source {
+        font.font_size = size;
+        font.font = source;
+    }
 }
 
 fn spawn_missing_text(
