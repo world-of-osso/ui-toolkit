@@ -1,3 +1,5 @@
+use crate::anchor::AnchorTarget;
+use bevy::prelude::{PositionType, Val};
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -25,6 +27,7 @@ pub(crate) use self::parse::parse_color;
 
 fn parse_dimension(value: &str) -> Dimension {
     match value {
+        "auto" | "Auto" => Dimension::Auto,
         "fill" | "Fill" => Dimension::Fill,
         _ => value
             .parse::<f32>()
@@ -35,6 +38,7 @@ fn parse_dimension(value: &str) -> Dimension {
 
 fn format_dimension(dim: Dimension) -> String {
     match dim {
+        Dimension::Auto => "auto".to_string(),
         Dimension::Fill => "fill".to_string(),
         Dimension::Fixed(v) => format!("{v}"),
     }
@@ -61,7 +65,8 @@ pub(crate) fn read_attribute(
     name: &str,
 ) -> Option<String> {
     let frame = registry.get(frame_id)?;
-    read_frame_attr(frame, name)
+    read_layout_attr(frame, name)
+        .or_else(|| read_frame_attr(frame, name))
         .or_else(|| read_widget_text_attr(frame, name))
         .or_else(|| read_widget_texture_attr(frame, name))
 }
@@ -214,24 +219,26 @@ pub(crate) fn apply_attribute(
     value: &str,
     validated_paths: &mut HashSet<String>,
     missing_paths: &mut HashSet<String>,
-) -> Option<(u64, String)> {
+) {
     if apply_registry_attr(registry, frame_id, name, value) {
-        return None;
+        return;
     }
     if name == "stretch" {
-        return apply_stretch_attr(registry, frame_id, value);
+        apply_stretch_attr(registry, frame_id, value);
+        return;
     }
     if name == "style" {
         registry.apply_panel_style(frame_id, value);
-        return None;
+        return;
     }
     if name == "three_slice_style" {
         registry.apply_three_slice_style(frame_id, value);
-        return None;
+        return;
     }
     let Some(frame) = registry.get_mut(frame_id) else {
-        return None;
+        return;
     };
+    apply_layout_attr(frame, name, value);
     apply_flex_attr(frame, name, value);
     apply_frame_attr(frame, name, value);
     apply_widget_text_attrs(frame, name, value, validated_paths, missing_paths);
@@ -243,7 +250,6 @@ pub(crate) fn apply_attribute(
     ) {
         registry.mark_rect_dirty(frame_id);
     }
-    None
 }
 
 /// Handle attributes that need registry-level access.
@@ -280,16 +286,16 @@ fn apply_disabled_attr(registry: &mut FrameRegistry, frame_id: u64, value: &str)
     }
 }
 
-fn apply_stretch_attr(
-    registry: &mut FrameRegistry,
-    frame_id: u64,
-    value: &str,
-) -> Option<(u64, String)> {
+fn apply_stretch_attr(registry: &mut FrameRegistry, frame_id: u64, value: &str) {
     if matches!(value, "true" | "TRUE" | "1") {
-        let parent_id = registry.get(frame_id).and_then(|f| f.parent_id);
-        let _ = registry.stretch_to_fill(frame_id, parent_id);
+        let Some(frame) = registry.get_mut(frame_id) else {
+            return;
+        };
+        frame.position_type = PositionType::Absolute;
+        frame.position = bevy::prelude::UiRect::ZERO;
+        frame.width = Dimension::Auto;
+        frame.height = Dimension::Auto;
     }
-    None
 }
 
 macro_rules! flex {
@@ -343,6 +349,103 @@ fn parse_flex_align(value: &str) -> FlexAlign {
         "stretch" => FlexAlign::Stretch,
         _ => FlexAlign::Center,
     }
+}
+
+fn parse_val(value: &str) -> Option<Val> {
+    let value = value.trim();
+    if value == "auto" {
+        return Some(Val::Auto);
+    }
+    if let Some(percent) = value.strip_suffix('%') {
+        return percent.parse().ok().map(Val::Percent);
+    }
+    value.parse().ok().map(Val::Px)
+}
+
+fn format_val(value: Val) -> String {
+    match value {
+        Val::Auto => "auto".to_string(),
+        Val::Px(v) => v.to_string(),
+        Val::Percent(v) => format!("{v}%"),
+        other => format!("{other:?}"),
+    }
+}
+
+fn layout_val_mut<'a>(frame: &'a mut Frame, name: &str) -> Option<&'a mut Val> {
+    match name {
+        "pos_x" | "left" => Some(&mut frame.position.left),
+        "pos_y" | "top" => Some(&mut frame.position.top),
+        "right" => Some(&mut frame.position.right),
+        "bottom" => Some(&mut frame.position.bottom),
+        "translate_x" => Some(&mut frame.translation.x),
+        "translate_y" => Some(&mut frame.translation.y),
+        "margin_left" => Some(&mut frame.margin.left),
+        "margin_right" => Some(&mut frame.margin.right),
+        "margin_top" => Some(&mut frame.margin.top),
+        "margin_bottom" => Some(&mut frame.margin.bottom),
+        _ => None,
+    }
+}
+
+fn apply_layout_attr(frame: &mut Frame, name: &str, value: &str) {
+    match name {
+        "pos_type" => match value {
+            "relative" => frame.position_type = PositionType::Relative,
+            "absolute" => frame.position_type = PositionType::Absolute,
+            _ => panic!("invalid pos_type {value:?}: expected relative or absolute"),
+        },
+        "anchor" => match value {
+            "parent" => frame.anchor = AnchorTarget::Parent,
+            "screen" => frame.anchor = AnchorTarget::Screen,
+            _ => panic!("invalid anchor {value:?}: expected parent or screen"),
+        },
+        _ => {
+            let Some(target) = layout_val_mut(frame, name) else {
+                return;
+            };
+            let parsed = if matches!(name, "pos_x" | "pos_y") {
+                value.parse().ok().map(Val::Px)
+            } else {
+                parse_val(value)
+            };
+            *target = parsed.unwrap_or_else(|| panic!("invalid {name} value {value:?}"));
+        }
+    }
+}
+
+fn read_layout_attr(frame: &Frame, name: &str) -> Option<String> {
+    let value = match name {
+        "pos_x" | "left" => frame.position.left,
+        "pos_y" | "top" => frame.position.top,
+        "right" => frame.position.right,
+        "bottom" => frame.position.bottom,
+        "translate_x" => frame.translation.x,
+        "translate_y" => frame.translation.y,
+        "margin_left" => frame.margin.left,
+        "margin_right" => frame.margin.right,
+        "margin_top" => frame.margin.top,
+        "margin_bottom" => frame.margin.bottom,
+        "pos_type" => {
+            return Some(
+                match frame.position_type {
+                    PositionType::Relative => "relative",
+                    PositionType::Absolute => "absolute",
+                }
+                .to_string(),
+            );
+        }
+        "anchor" => {
+            return Some(
+                match frame.anchor {
+                    AnchorTarget::Parent => "parent",
+                    AnchorTarget::Screen => "screen",
+                }
+                .to_string(),
+            );
+        }
+        _ => return None,
+    };
+    Some(format_val(value))
 }
 
 fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {

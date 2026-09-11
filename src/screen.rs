@@ -5,7 +5,6 @@ use std::path::PathBuf;
 #[cfg(debug_assertions)]
 use std::sync::{Mutex, OnceLock};
 
-use crate::anchor_resolve::apply_anchor_resolved;
 use crate::frame::{Dimension, WidgetData};
 #[cfg(debug_assertions)]
 use crate::hotreload::HotReloadTemplate;
@@ -136,10 +135,7 @@ impl Screen {
             self.initialized = true;
         }
 
-        // 2. Resolve pending anchors
-        self.resolve_pending_anchors(registry);
-
-        // 3. Auto-size
+        // 2. Auto-size
         let frame_ids = collect_all_frame_ids(&self.diff.created_frames, registry);
         auto_size_fontstrings(&frame_ids, registry);
         auto_size_editboxes(&frame_ids, registry);
@@ -155,18 +151,6 @@ impl Screen {
         self.parent_frame_name
             .as_ref()
             .and_then(|name| registry.get_by_name(name))
-    }
-
-    fn resolve_pending_anchors(&mut self, registry: &mut FrameRegistry) {
-        let pending = std::mem::take(&mut self.diff.pending_anchors);
-        for (frame_id, spec) in pending {
-            let already_has = registry
-                .get(frame_id)
-                .is_some_and(|f| !f.anchors.is_empty());
-            if !already_has {
-                apply_anchor_resolved(registry, frame_id, &spec);
-            }
-        }
     }
 
     /// Remove all frames created by this screen (roots + their subtrees).
