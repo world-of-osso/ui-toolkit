@@ -202,6 +202,7 @@ pub struct FlexLayout {
 }
 
 /// A UI frame in the logical hierarchy, with authored native layout properties.
+#[derive(Clone)]
 pub struct Frame {
     pub id: u64,
     pub name: Option<String>,
@@ -325,6 +326,16 @@ impl Frame {
             id,
             name,
             widget_type,
+            width: if widget_type == WidgetType::FontString {
+                Dimension::Auto
+            } else {
+                Dimension::Fixed(0.0)
+            },
+            height: if matches!(widget_type, WidgetType::FontString | WidgetType::EditBox) {
+                Dimension::Auto
+            } else {
+                Dimension::Fixed(0.0)
+            },
             visible: true,
             alpha: 1.0,
             effective_alpha: 1.0,

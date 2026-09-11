@@ -1,7 +1,6 @@
 extern crate self as ui_toolkit;
 
 pub mod anchor;
-pub mod anchor_resolve;
 pub mod animation;
 pub mod atlas;
 pub mod attrs;
@@ -34,8 +33,6 @@ pub mod widgets;
 
 pub use ui_toolkit_macros::rsx;
 
-#[cfg(test)]
-mod layout_tests;
 #[cfg(test)]
 mod panel_tests;
 #[cfg(test)]

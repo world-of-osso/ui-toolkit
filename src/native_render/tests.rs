@@ -1,5 +1,5 @@
 use super::*;
-use crate::anchor::{Anchor, AnchorPoint};
+use crate::anchor::{AnchorPoint, AnchorTarget};
 use crate::frame::{Dimension, WidgetType};
 use crate::widgets::{edit_box::EditBoxData, font_string::FontStringData};
 use bevy::asset::{AssetApp, AssetPlugin};
@@ -9,7 +9,7 @@ use bevy::time::TimeUpdateStrategy;
 use bevy::window::PrimaryWindow;
 use std::time::Duration;
 
-fn app_with_real_fonts(scale: f32) -> App {
+pub(crate) fn app_with_real_fonts(scale: f32) -> App {
     assert!(std::path::Path::new(GameFont::ArialNarrow.path()).is_file());
     let mut app = App::new();
     app.add_plugins((
@@ -83,20 +83,19 @@ fn create_frame(
 }
 
 fn anchor(world: &mut World, id: u64, point: AnchorPoint, target: Option<u64>, x: f32, y: f32) {
-    world
-        .resource_mut::<UiState>()
-        .registry
-        .set_point(
-            id,
-            Anchor {
-                point,
-                relative_to: target,
-                relative_point: point,
-                x_offset: x,
-                y_offset: y,
-            },
-        )
+    let mut ui = world.resource_mut::<UiState>();
+    assert_eq!(ui.registry.get(id).unwrap().parent_id, target);
+    ui.registry
+        .set_pos_type(id, PositionType::Absolute)
         .unwrap();
+    ui.registry.set_anchor(id, AnchorTarget::Parent).unwrap();
+    let (horizontal, vertical) = crate::anchor::anchor_position(point, 0.0, 0.0, 1.0, 1.0);
+    let frame = ui.registry.get_mut(id).unwrap();
+    frame.position.left = percent(horizontal * 100.0);
+    frame.position.top = percent(vertical * 100.0);
+    frame.translation = Val2::percent(-horizontal * 100.0, -vertical * 100.0);
+    frame.margin.left = px(x);
+    frame.margin.top = px(-y);
 }
 
 fn projected_frame(world: &mut World, id: u64) -> Entity {

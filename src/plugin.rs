@@ -78,6 +78,14 @@ impl Plugin for UiPlugin {
         app.init_resource::<crate::native_render::caret::UiCaretBlocked>();
         app.add_systems(
             PostUpdate,
+            crate::native_render::layout::read_bounds
+                .after(bevy::ui::UiSystems::PostLayout)
+                .before(crate::native_render::caret::sync_carets)
+                .run_if(ui_processing_enabled)
+                .run_if(ui_render_enabled),
+        );
+        app.add_systems(
+            PostUpdate,
             crate::native_render::caret::sync_carets
                 .after(bevy::ui::UiSystems::PostLayout)
                 .run_if(ui_processing_enabled)
@@ -99,17 +107,15 @@ fn register_ui_update_systems(app: &mut App) {
     app.add_systems(
         Update,
         crate::screen::poll_hot_reload
-            .before(sync_screen_size)
             .run_if(bevy::time::common_conditions::on_real_timer(
                 std::time::Duration::from_secs(1),
             ))
             .run_if(ui_processing_enabled),
     );
     app.add_systems(
-        Update,
+        PostUpdate,
         (
             sync_screen_size.in_set(UiRenderSet::Prepare),
-            recompute_layout.in_set(UiRenderSet::Prepare),
             crate::render_button::sync_button_nine_slices.in_set(UiRenderSet::Prepare),
             (
                 crate::render::prepare_ui_frame_order.in_set(UiRenderSet::Prepare),
@@ -120,6 +126,9 @@ fn register_ui_update_systems(app: &mut App) {
             crate::button_input::sync_button_input,
         )
             .chain()
+            .after(bevy::camera::CameraUpdateSystems)
+            .before(bevy::ui::UiSystems::Prepare)
+            .before(bevy::ui::UiSystems::Stack)
             .run_if(ui_processing_enabled),
     );
 }
@@ -175,13 +184,6 @@ fn initialize_screen_size(
     mut state: ResMut<UiState>,
 ) {
     sync_registry_to_primary_window(&mut state.registry, &windows);
-}
-
-fn recompute_layout(mut state: ResMut<UiState>) {
-    if state.registry.rect_dirty.is_empty() {
-        return;
-    }
-    crate::layout::recompute_layouts(&mut state.registry);
 }
 
 #[cfg(test)]

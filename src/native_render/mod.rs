@@ -15,6 +15,7 @@ pub mod caret;
 mod tests;
 
 mod images;
+pub(crate) mod layout;
 mod text;
 
 /// Stable logical identity; all authored properties remain in FrameRegistry.
@@ -133,6 +134,9 @@ pub(crate) struct ProjectionQueries<'w, 's> {
     >,
     nodes: Query<'w, 's, &'static Node>,
     layers: Query<'w, 's, &'static GlobalZIndex>,
+    transforms: Query<'w, 's, &'static UiTransform>,
+    computed: Query<'w, 's, &'static ComputedNode>,
+    children: Query<'w, 's, &'static Children>,
 }
 
 pub(crate) fn sync_registry(
@@ -142,12 +146,16 @@ pub(crate) fn sync_registry(
     cameras: Query<(Entity, &Projection), With<UiCamera>>,
     mut commands: Commands,
     mut assets: NativeAssets,
+    mut ui_scale: ResMut<UiScale>,
     query: ProjectionQueries,
 ) {
     let Ok((camera, projection)) = cameras.single() else {
         return;
     };
-    let canvas = sync_canvas(&mut commands, &query, camera, projection);
+    if let Projection::Orthographic(projection) = projection {
+        ui_scale.set_if_neq(UiScale(projection.scale.recip()));
+    }
+    let canvas = sync_canvas(&mut commands, &query, camera);
     let frames = sync_frames(&state, &order, canvas, &mut commands, &query);
     sync_images(&state, &order, &frames, &mut assets, &mut commands, &query);
     sync_texts(
@@ -164,22 +172,11 @@ pub(crate) fn sync_registry(
         .registry
         .render_dirty
         .clear();
+    state.bypass_change_detection().registry.rect_dirty.clear();
 }
 
-fn sync_canvas(
-    commands: &mut Commands,
-    query: &ProjectionQueries,
-    camera: Entity,
-    projection: &Projection,
-) -> Entity {
-    let scale = match projection {
-        Projection::Orthographic(p) => p.scale.recip(),
-        _ => 1.0,
-    };
-    let transform = UiTransform {
-        scale: Vec2::splat(scale),
-        ..default()
-    };
+fn sync_canvas(commands: &mut Commands, query: &ProjectionQueries, camera: Entity) -> Entity {
+    let transform = UiTransform::default();
     if let Ok((entity, old)) = query.canvas.single() {
         if *old != transform {
             commands.entity(entity).insert(transform);
@@ -203,24 +200,6 @@ fn sync_canvas(
         .id()
 }
 
-fn frame_node(frame: &Frame, parent: Option<&Frame>) -> Node {
-    let rect = frame.layout_rect.as_ref();
-    let parent_rect = parent.and_then(|p| p.layout_rect.as_ref());
-    Node {
-        position_type: PositionType::Absolute,
-        left: px(rect.map_or(0.0, |r| r.x) - parent_rect.map_or(0.0, |r| r.x)),
-        top: px(rect.map_or(0.0, |r| r.y) - parent_rect.map_or(0.0, |r| r.y)),
-        width: px(rect.map_or(frame.resolved_width(), |r| r.width)),
-        height: px(rect.map_or(frame.resolved_height(), |r| r.height)),
-        display: if frame.visible {
-            Display::Flex
-        } else {
-            Display::None
-        },
-        ..default()
-    }
-}
-
 fn sync_frames(
     state: &UiState,
     order: &UiFrameOrder,
@@ -235,15 +214,14 @@ fn sync_frames(
         .filter(|(_, id, ..)| state.registry.get(id.0).is_none())
         .map(|(e, ..)| e)
         .collect();
-    for (entity, id, _, parent, ..) in &query.frames {
+    for (entity, id, ..) in &query.frames {
         if removed.contains(&entity) {
-            if !removed.contains(&parent.parent()) {
-                commands.entity(entity).despawn();
-            }
             entities.remove(&id.0);
         }
     }
-    for frame in state.registry.frames_iter() {
+    let mut ordered_frames: Vec<_> = state.registry.frames_iter().collect();
+    ordered_frames.sort_by_key(|frame| frame.id);
+    for frame in &ordered_frames {
         entities.entry(frame.id).or_insert_with(|| {
             commands
                 .spawn((
@@ -257,11 +235,27 @@ fn sync_frames(
                 .id()
         });
     }
-    for frame in state.registry.frames_iter() {
+    for frame in &ordered_frames {
         let entity = entities[&frame.id];
-        let parent_frame = frame.parent_id.and_then(|id| state.registry.get(id));
-        let parent = parent_frame.map_or(canvas, |p| entities[&p.id]);
-        let node = frame_node(frame, parent_frame);
+        let parent = match frame.anchor {
+            crate::anchor::AnchorTarget::Screen => canvas,
+            crate::anchor::AnchorTarget::Parent => {
+                frame.parent_id.map_or(canvas, |id| entities[&id])
+            }
+        };
+        let node = layout::node(frame);
+        let transform = UiTransform {
+            translation: frame.translation,
+            scale: Vec2::splat(frame.scale),
+            ..default()
+        };
+        if query
+            .transforms
+            .get(entity)
+            .map_or(true, |old| *old != transform)
+        {
+            commands.entity(entity).insert(transform);
+        };
         let z = GlobalZIndex(order.indices.get(&frame.id).copied().unwrap_or(0) as i32);
         if let Ok((_, _, old_node, old_parent, old_z, old_name)) = query.frames.get(entity) {
             if *old_node != node {
@@ -281,7 +275,76 @@ fn sync_frames(
             set_frame_name(commands, entity, frame.name.as_deref());
         }
     }
+    synchronize_child_order(state, canvas, &entities, commands, query);
+    for (entity, _, _, parent, ..) in &query.frames {
+        if removed.contains(&entity) && !removed.contains(&parent.parent()) {
+            commands.entity(entity).despawn();
+        }
+    }
     entities
+}
+
+fn synchronize_child_order(
+    state: &UiState,
+    canvas: Entity,
+    frames: &HashMap<u64, Entity>,
+    commands: &mut Commands,
+    query: &ProjectionQueries,
+) {
+    let frame_entities: HashSet<_> = frames.values().copied().collect();
+    let mut groups: HashMap<Entity, Vec<u64>> = HashMap::new();
+    for frame in state.registry.frames_iter() {
+        let parent = match frame.anchor {
+            crate::anchor::AnchorTarget::Screen => canvas,
+            crate::anchor::AnchorTarget::Parent => frame.parent_id.map_or(canvas, |id| frames[&id]),
+        };
+        groups.entry(parent).or_default().push(frame.id);
+    }
+    for (parent, mut ids) in groups {
+        if parent == canvas {
+            ids.sort_unstable();
+        } else if let Some(frame) = state
+            .registry
+            .frames_iter()
+            .find(|f| frames[&f.id] == parent)
+        {
+            ids.sort_by_key(|id| {
+                frame
+                    .children
+                    .iter()
+                    .position(|child| child == id)
+                    .unwrap_or(usize::MAX)
+            });
+        }
+        let mut desired: Vec<_> = ids.into_iter().map(|id| frames[&id]).collect();
+        if let Ok(children) = query.children.get(parent) {
+            desired.extend(
+                children
+                    .iter()
+                    .filter(|child| !frame_entities.contains(child)),
+            );
+            if children.iter().eq(desired.iter().copied()) {
+                continue;
+            }
+        }
+        commands.entity(parent).replace_children(&desired);
+    }
+}
+
+fn projection_frame(frame: &Frame, entity: Entity, query: &ProjectionQueries) -> Frame {
+    let mut projected = frame.clone();
+    let size = query
+        .computed
+        .get(entity)
+        .map(|node| node.size * node.inverse_scale_factor)
+        .unwrap_or(Vec2::new(frame.width.value(), frame.height.value()));
+    projected.layout_rect = Some(crate::layout::LayoutRect {
+        x: 0.0,
+        y: 0.0,
+        width: size.x,
+        height: size.y,
+    });
+    projected
 }
 
 fn set_frame_name(commands: &mut Commands, entity: Entity, name: Option<&str>) {
@@ -308,7 +371,8 @@ fn sync_images(
     let mut seen = HashSet::new();
     for frame in state.registry.frames_iter().filter(|f| f.visible) {
         *assets.frame_z = order.indices.get(&frame.id).copied().unwrap_or(0) as f32 * 0.001;
-        for part in images::project_images(frame, assets) {
+        let projected = projection_frame(frame, frames[&frame.id], query);
+        for part in images::project_images(&projected, assets) {
             let key = (frame.id, part.key);
             seen.insert(key);
             if let Some(&entity) = existing.get(&key) {
@@ -358,6 +422,22 @@ fn images_equal(a: &ImageNode, b: &ImageNode) -> bool {
         && a.visual_box == b.visual_box
 }
 
+fn text_content_node(frame: &Frame, part: &TextPart) -> Node {
+    Node {
+        width: if frame.width == crate::frame::Dimension::Auto {
+            Val::Auto
+        } else {
+            percent(100)
+        },
+        min_height: match part.font.font_size {
+            FontSize::Px(size) => px(size),
+            _ => Val::Auto,
+        },
+        flex_shrink: 0.0,
+        ..default()
+    }
+}
+
 fn sync_texts(
     state: &UiState,
     order: &UiFrameOrder,
@@ -379,11 +459,16 @@ fn sync_texts(
         .filter(|f| enabled && f.visible)
     {
         *assets.frame_z = order.indices.get(&frame.id).copied().unwrap_or(0) as f32 * 0.001;
-        for part in text::project_text(frame, assets) {
+        let projected = projection_frame(frame, frames[&frame.id], query);
+        for part in text::project_text(&projected, assets) {
+            let content_node = text_content_node(frame, &part);
             let key = (frame.id, part.key);
             seen.insert(key);
             if let Some(&(entity, bounds)) = existing.get(&key) {
                 let (_, _, old_text, font, layout, color) = query.texts.get(entity).unwrap();
+                if *query.nodes.get(entity).unwrap() != content_node {
+                    commands.entity(entity).insert(content_node);
+                }
                 if *query.nodes.get(bounds).unwrap() != part.node {
                     commands.entity(bounds).insert(part.node);
                 }
@@ -424,11 +509,7 @@ fn sync_texts(
                         part.font,
                         part.layout,
                         part.color,
-                        Node {
-                            width: percent(100),
-                            flex_shrink: 0.0,
-                            ..default()
-                        },
+                        content_node,
                         ChildOf(bounds),
                         bevy::picking::Pickable::IGNORE,
                     ))

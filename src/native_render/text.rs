@@ -1,6 +1,7 @@
 use super::{NativeAssets, TextPart};
-use crate::frame::{Frame, WidgetData};
-use crate::render_text::{extract_text_props, has_text, text_bounds, text_layout, text_transform};
+use crate::frame::{Dimension, Frame, WidgetData};
+use crate::render_text::{extract_text_props, has_text, text_layout};
+use crate::widgets::font_string::JustifyV;
 use bevy::prelude::*;
 
 pub(super) fn project_text(frame: &Frame, assets: &mut NativeAssets) -> Vec<TextPart> {
@@ -8,20 +9,12 @@ pub(super) fn project_text(frame: &Frame, assets: &mut NativeAssets) -> Vec<Text
         return Vec::new();
     }
     let props = extract_text_props(frame);
-    let origin = text_transform(frame, 0.0, 0.0, props.justify_h, props.justify_v, 0);
-    let rect = frame.layout_rect.as_ref();
-    let x = origin.translation.x - rect.map_or(0.0, |r| r.x);
-    let y = -origin.translation.y - rect.map_or(0.0, |r| r.y);
-    let bounds = text_bounds(frame);
-    let node = Node {
-        position_type: PositionType::Absolute,
-        left: px(x),
-        top: px(y),
-        width: px(bounds.width.unwrap_or(frame.resolved_width())),
-        height: bounds.height.map_or(Val::Auto, px),
-        align_items: AlignItems::FlexStart,
-        ..default()
+    let insets = match &frame.widget_data {
+        Some(WidgetData::EditBox(edit)) => edit.text_insets,
+        _ => [0.0; 4],
     };
+    let auto = frame.width == Dimension::Auto || frame.height == Dimension::Auto;
+    let node = text_node(frame, props.justify_v, insets, auto);
     let font = TextFont {
         font: FontSource::Handle(assets.font(props.font)),
         font_size: FontSize::Px(props.font_size),
@@ -66,18 +59,66 @@ pub(super) fn project_text(frame: &Frame, assets: &mut NativeAssets) -> Vec<Text
     parts
 }
 
+fn text_node(frame: &Frame, justify: JustifyV, insets: [f32; 4], auto: bool) -> Node {
+    let justify_content = match justify {
+        JustifyV::Top => JustifyContent::FlexStart,
+        JustifyV::Middle => JustifyContent::Center,
+        JustifyV::Bottom => JustifyContent::FlexEnd,
+    };
+    let mut node = Node {
+        flex_direction: FlexDirection::Column,
+        justify_content,
+        align_items: AlignItems::Stretch,
+        flex_shrink: 0.0,
+        ..default()
+    };
+    if auto {
+        node.margin = UiRect {
+            left: px(insets[0]),
+            right: px(insets[1]),
+            top: px(insets[2]),
+            bottom: px(insets[3]),
+        };
+        node.width = if frame.width == Dimension::Auto {
+            Val::Auto
+        } else {
+            percent(100)
+        };
+        node.height = if frame.height == Dimension::Auto {
+            Val::Auto
+        } else {
+            percent(100)
+        };
+    } else {
+        node.position_type = PositionType::Absolute;
+        node.left = px(insets[0]);
+        node.right = px(insets[1]);
+        node.top = px(insets[2]);
+        node.bottom = px(insets[3]);
+    }
+    if let Some(WidgetData::FontString(fs)) = &frame.widget_data {
+        if let Some(lines) = fs.max_lines {
+            node.max_height = px(lines as f32 * fs.font_size * 1.2 * fs.text_scale);
+            node.overflow = Overflow::clip();
+        }
+    }
+    node
+}
+
 fn quantize(z: f32) -> i32 {
     (z * 10000.0).round() as i32
 }
 
 fn offset_part(base: &TextPart, key: u32, x: f32, y: f32, color: Color, z: i32) -> TextPart {
     let mut node = base.node.clone();
-    if let Val::Px(left) = &mut node.left {
-        *left += x;
-    }
-    if let Val::Px(top) = &mut node.top {
-        *top += y;
-    }
+    node.position_type = PositionType::Absolute;
+    node.margin = UiRect::ZERO;
+    node.left = px(x);
+    node.right = px(-x);
+    node.top = px(y);
+    node.bottom = px(-y);
+    node.width = Val::Auto;
+    node.height = Val::Auto;
     TextPart {
         key,
         node,

@@ -66,7 +66,17 @@ fn project_background(
         }
         return;
     }
-    if !crate::render::is_renderable(frame) {
+    if frame.nine_slice.is_some() || frame.three_slice.is_some() {
+        if frame.background_color.is_none() {
+            return;
+        }
+    } else if frame.background_color.is_none()
+        && frame.backdrop.as_ref().and_then(|b| b.bg_color).is_none()
+        && !matches!(
+            frame.widget_data,
+            Some(WidgetData::Texture(_) | WidgetData::Button(_) | WidgetData::StatusBar(_))
+        )
+    {
         return;
     }
     let Some(image) = base_image(frame, load) else {
@@ -75,7 +85,31 @@ fn project_background(
     let (size, offset) = frame_sprite_params(frame);
     let mut transform = frame_transform(frame, 0, 0.0, 0.0);
     transform.translation += offset.extend(z);
-    parts.push(from_geometry(frame, 0, transform, size, image));
+    let mut part = from_geometry(frame, 0, transform, size, image);
+    part.node.left = px(0);
+    part.node.top = px(0);
+    part.node.width = match &frame.widget_data {
+        Some(WidgetData::StatusBar(bar)) => percent(
+            (((bar.value - bar.min) / (bar.max - bar.min).max(f64::EPSILON)).clamp(0.0, 1.0)
+                * 100.0) as f32,
+        ),
+        _ => percent(100),
+    };
+    part.node.height = percent(100);
+    if matches!(frame.widget_data, Some(WidgetData::Texture(_)))
+        && (frame.width == crate::frame::Dimension::Auto
+            || frame.height == crate::frame::Dimension::Auto)
+    {
+        part.node.position_type = PositionType::Relative;
+        if frame.width == crate::frame::Dimension::Auto {
+            part.node.width = Val::Auto;
+        }
+        if frame.height == crate::frame::Dimension::Auto {
+            part.node.height = Val::Auto;
+        }
+        part.image.image_mode = NodeImageMode::Auto;
+    }
+    parts.push(part);
 }
 
 fn base_image(
