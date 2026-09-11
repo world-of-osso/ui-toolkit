@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
 use crate::frame::{Dimension, WidgetData, WidgetType};
-use crate::plugin::{UiPlugin, UiState};
+use crate::native_render::RegistryImage;
+use crate::plugin::UiState;
 use crate::render::{frame_sprite_params, texture_tint};
-use crate::render_nine_slice::UiNineSlicePart;
 use crate::render_text::extract_button_text;
 use crate::widget_def::{Attr, WidgetChild, WidgetDef};
 use crate::widget_def_diff::DiffContext;
@@ -13,14 +13,66 @@ use crate::widgets::font_string::{FontStringData, GameFont};
 use crate::widgets::texture::TextureSource;
 
 fn setup_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.add_plugins(bevy::asset::AssetPlugin::default());
-    app.init_asset::<Image>();
-    app.init_asset::<bevy::text::Font>();
-    app.add_plugins(UiPlugin);
+    let mut app = crate::native_render::tests::app_with_real_fonts(1.0);
     app.update();
     app
+}
+
+fn settle(app: &mut App) {
+    for _ in 0..3 {
+        app.update();
+    }
+}
+
+fn image_entity(world: &mut World, frame_id: u64, key: u32) -> Option<Entity> {
+    world
+        .query::<(Entity, &RegistryImage)>()
+        .iter(world)
+        .find(|(_, part)| part.frame_id == frame_id && part.key == key)
+        .map(|(entity, _)| entity)
+}
+
+fn native_size(world: &World, entity: Entity) -> Vec2 {
+    let node = world.get::<ComputedNode>(entity).unwrap();
+    node.size * node.inverse_scale_factor
+}
+
+fn fixture_image() -> Image {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    Image::new_fill(
+        Extent3d {
+            width: 64,
+            height: 64,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        &[255, 255, 255, 255],
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    )
+}
+
+fn supply_dynamic_art(app: &mut App) {
+    let image = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(fixture_image());
+    let mut ui = app.world_mut().resource_mut::<UiState>();
+    let ids: Vec<_> = ui.registry.frames_iter().map(|frame| frame.id).collect();
+    for id in ids {
+        match &mut ui.registry.get_mut(id).unwrap().widget_data {
+            Some(WidgetData::Texture(texture)) => {
+                texture.source = TextureSource::Dynamic(image.clone())
+            }
+            Some(WidgetData::Button(button)) => {
+                button.normal_texture = Some(TextureSource::Dynamic(image.clone()));
+                button.highlight_texture = Some(TextureSource::Dynamic(image.clone()));
+                button.pushed_texture = Some(TextureSource::Dynamic(image.clone()));
+            }
+            _ => {}
+        }
+    }
 }
 
 fn create_button(app: &mut App, name: &str, btn: ButtonData) -> u64 {
@@ -84,19 +136,29 @@ fn button_without_texture_no_nine_slice() {
 }
 
 #[test]
-fn button_nine_slice_spawns_all_9_parts_for_nine_slice_atlas() {
+fn button_nine_slice_spawns_all_9_native_parts() {
     let mut app = setup_app();
+    let image = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(fixture_image());
     let btn = ButtonData {
-        normal_texture: Some(TextureSource::Atlas("128-redbutton-up".into())),
+        normal_texture: Some(TextureSource::Dynamic(image)),
         ..Default::default()
     };
     let id = create_button(&mut app, "Btn9", btn);
     app.update();
-    let mut q = app.world_mut().query::<&UiNineSlicePart>();
-    let parts: Vec<u8> = q
+    settle(&mut app);
+    let mut q = app
+        .world_mut()
+        .query::<(&RegistryImage, &ImageNode, &ComputedNode)>();
+    let parts: Vec<u32> = q
         .iter(app.world())
-        .filter(|p| p.0 == id)
-        .map(|p| p.1)
+        .filter(|(part, _, _)| part.frame_id == id && (100..109).contains(&part.key))
+        .map(|(part, _, node)| {
+            assert!(node.size.x >= 0.0 && node.size.y >= 0.0);
+            part.key - 100
+        })
         .collect();
     assert_eq!(
         parts.len(),
@@ -104,7 +166,7 @@ fn button_nine_slice_spawns_all_9_parts_for_nine_slice_atlas() {
         "expected 9 nine-slice parts, got {}",
         parts.len()
     );
-    for i in 0..9u8 {
+    for i in 0..9u32 {
         assert!(parts.contains(&i), "missing nine-slice part {i}");
     }
 }
@@ -276,11 +338,11 @@ fn nested_texture_inside_button_creates_child_frame_and_quad() {
     let icon_frame = ui.registry.get(icon_id).expect("icon frame");
     assert_eq!(icon_frame.parent_id, Some(button_id));
 
-    let mut q = app.world_mut().query::<&crate::render::UiQuad>();
-    assert!(
-        q.iter(app.world()).any(|quad| quad.0 == icon_id),
-        "nested texture should spawn a render quad"
-    );
+    supply_dynamic_art(&mut app);
+    settle(&mut app);
+    let entity = image_entity(app.world_mut(), icon_id, 0).expect("nested native image");
+    assert!(app.world().get::<ImageNode>(entity).is_some());
+    assert_eq!(native_size(app.world(), entity), Vec2::new(24.0, 24.0));
 }
 
 // --- Alpha tests ---
@@ -364,19 +426,13 @@ fn create_colored_frame(app: &mut App, name: &str, strata: crate::strata::FrameS
 }
 
 fn quad_z(world: &mut World, frame_id: u64) -> Option<f32> {
-    world
-        .query::<(&Transform, &crate::render::UiQuad)>()
-        .iter(world)
-        .find(|(_, q)| q.0 == frame_id)
-        .map(|(t, _)| t.translation.z)
+    let entity = image_entity(world, frame_id, 0)?;
+    Some(world.get::<GlobalZIndex>(entity)?.0 as f32 / 10_000.0)
 }
 
 fn nine_slice_part_z(world: &mut World, frame_id: u64, part: u8) -> Option<f32> {
-    world
-        .query::<(&Transform, &crate::render_nine_slice::UiNineSlicePart)>()
-        .iter(world)
-        .find(|(_, p)| p.0 == frame_id && p.1 == part)
-        .map(|(t, _)| t.translation.z)
+    let entity = image_entity(world, frame_id, 100 + u32::from(part))?;
+    Some(world.get::<GlobalZIndex>(entity)?.0 as f32 / 10_000.0)
 }
 
 #[test]
@@ -553,6 +609,8 @@ fn nested_texture_quad_renders_above_button_nine_slice_even_with_visible_text() 
         .get_by_name("DeleteCharIcon")
         .expect("icon frame");
     let _ = ui;
+    supply_dynamic_art(&mut app);
+    settle(&mut app);
 
     let icon_z = quad_z(app.world_mut(), icon_id).expect("icon quad z");
     let button_center_z =
@@ -566,7 +624,7 @@ fn nested_texture_quad_renders_above_button_nine_slice_even_with_visible_text() 
 // --- Dynamic texture tests ---
 
 #[test]
-fn texture_crop_preserves_left_pixels_and_updates_uv_without_stale_sprite() {
+fn texture_crop_preserves_left_pixels_and_updates_native_uv_without_stale_image() {
     use bevy::asset::RenderAssetUsages;
     use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
     use std::collections::HashSet;
@@ -588,20 +646,13 @@ fn texture_crop_preserves_left_pixels_and_updates_uv_without_stale_sprite() {
     );
     let handle = app.world_mut().resource_mut::<Assets<Image>>().add(image);
     let id = create_dynamic_texture(&mut app, "CroppedMask", handle.clone());
-    // Runtime progress textures are anchored; unanchored frames retain their layout rectangle.
-    app.world_mut()
-        .resource_mut::<UiState>()
-        .registry
-        .get_mut(id)
-        .unwrap()
-        .anchors
-        .push(crate::anchor::Anchor {
-            point: crate::anchor::AnchorPoint::TopLeft,
-            relative_to: None,
-            relative_point: crate::anchor::AnchorPoint::TopLeft,
-            x_offset: 0.0,
-            y_offset: 0.0,
-        });
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        ui.registry
+            .set_pos_type(id, PositionType::Absolute)
+            .unwrap();
+        ui.registry.set_pos(id, 0.0, 0.0).unwrap();
+    }
     for (crop, width, right) in [("0,0.5,0,1", "4", 4.0), ("0,0.25,0,1", "2", 2.0)] {
         {
             let mut ui = app.world_mut().resource_mut::<UiState>();
@@ -616,21 +667,15 @@ fn texture_crop_preserves_left_pixels_and_updates_uv_without_stale_sprite() {
                 );
             }
         }
-        app.update();
-        let entity = app
-            .world_mut()
-            .query::<(Entity, &crate::render::UiQuad)>()
-            .iter(app.world())
-            .find(|(_, quad)| quad.0 == id)
-            .unwrap()
-            .0;
-        let sprite = app.world().get::<Sprite>(entity).unwrap();
+        settle(&mut app);
+        let entity = image_entity(app.world_mut(), id, 0).unwrap();
+        let sprite = app.world().get::<ImageNode>(entity).unwrap();
         assert_eq!(
             sprite.rect,
             Some(Rect::new(0.0, 0.0, right, 4.0)),
             "UV crop must select left source columns, not squeeze all eight"
         );
-        assert_eq!(sprite.custom_size, Some(Vec2::new(right, 4.0)));
+        assert_eq!(native_size(app.world(), entity), Vec2::new(right, 4.0));
         assert_eq!(sprite.image, handle);
         assert_eq!(
             app.world()
@@ -645,14 +690,14 @@ fn texture_crop_preserves_left_pixels_and_updates_uv_without_stale_sprite() {
         let changed = app
             .world()
             .entity(entity)
-            .get_ref::<Sprite>()
+            .get_ref::<ImageNode>()
             .unwrap()
             .last_changed();
         app.update();
         assert_eq!(
             app.world()
                 .entity(entity)
-                .get_ref::<Sprite>()
+                .get_ref::<ImageNode>()
                 .unwrap()
                 .last_changed(),
             changed
@@ -669,13 +714,9 @@ fn default_texture_coordinates_preserve_full_image() {
         .add(Image::default());
     let id = create_dynamic_texture(&mut app, "FullTexture", handle.clone());
     app.update();
-    let sprite = app
-        .world_mut()
-        .query::<(&Sprite, &crate::render::UiQuad)>()
-        .iter(app.world())
-        .find(|(_, quad)| quad.0 == id)
-        .unwrap()
-        .0;
+    settle(&mut app);
+    let entity = image_entity(app.world_mut(), id, 0).unwrap();
+    let sprite = app.world().get::<ImageNode>(entity).unwrap();
     assert_eq!(sprite.rect, None);
     assert_eq!(sprite.image, handle);
 }
@@ -705,16 +746,14 @@ fn dynamic_texture_spawns_quad() {
     app.update();
     assert!(
         quad_z(app.world_mut(), id).is_some(),
-        "Dynamic texture should spawn a UiQuad"
+        "Dynamic texture should have a native image projection"
     );
 }
 
 fn quad_rotation_z(world: &mut World, frame_id: u64) -> Option<f32> {
-    world
-        .query::<(&Transform, &crate::render::UiQuad)>()
-        .iter(world)
-        .find(|(_, q)| q.0 == frame_id)
-        .map(|(t, _)| t.rotation.to_euler(bevy::math::EulerRot::XYZ).2)
+    let entity = image_entity(world, frame_id, 0)?;
+    // Native UI is Y-down; preserve the old counterclockwise visual rotation.
+    Some(-world.get::<UiTransform>(entity)?.rotation.as_radians())
 }
 
 #[test]
