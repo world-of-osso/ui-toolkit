@@ -9,6 +9,8 @@ ui-toolkit-macros = { git = "ssh://git@github.com/world-of-osso/ui-toolkit-macro
 bevy = { version = "0.19", default-features = false, features = ["default"] }
 image-blp = "1"
 ab_glyph = "0.2"
+# Native edit-box carets use Bevy's existing shaped-text cursor geometry.
+parley = { version = "0.9", default-features = false, features = ["std"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 serde = { version = "1", features = ["derive"] }
 log = "0.4"

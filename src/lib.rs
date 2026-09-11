@@ -12,6 +12,7 @@ pub mod frame;
 pub mod hotreload;
 pub mod input;
 pub mod layout;
+pub mod native_render;
 pub mod panel_style;
 pub mod plugin;
 pub mod registry;

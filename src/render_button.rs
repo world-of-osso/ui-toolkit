@@ -45,7 +45,7 @@ fn button_nine_slice_metrics(
     (display, uv)
 }
 
-fn select_button_texture_source(btn: &ButtonData) -> Option<&TextureSource> {
+pub(crate) fn select_button_texture_source(btn: &ButtonData) -> Option<&TextureSource> {
     let source = match btn.state {
         ButtonState::Disabled => btn
             .disabled_texture
@@ -174,7 +174,7 @@ pub fn sync_ui_button_highlights(
     despawn_stale_highlights(&existing, &seen, &mut commands);
 }
 
-fn button_highlight_source(frame: &crate::frame::Frame) -> Option<&TextureSource> {
+pub(crate) fn button_highlight_source(frame: &crate::frame::Frame) -> Option<&TextureSource> {
     // Nine-slice buttons handle their own visual states; skip the flat highlight overlay.
     if frame.nine_slice.is_some() {
         return None;

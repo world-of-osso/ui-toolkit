@@ -398,7 +398,7 @@ fn spawn_outline_entity(
     ));
 }
 
-fn outline_offsets(outline: Outline) -> &'static [(f32, f32)] {
+pub(crate) fn outline_offsets(outline: Outline) -> &'static [(f32, f32)] {
     match outline {
         Outline::None => &[],
         Outline::Outline => &[(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)],

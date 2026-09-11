@@ -180,7 +180,7 @@ fn spawn_missing(
     }
 }
 
-fn part_source(ts: &ThreeSlice, part: u8) -> &TextureSource {
+pub(crate) fn part_source(ts: &ThreeSlice, part: u8) -> &TextureSource {
     match part {
         0 => &ts.left,
         1 => &ts.center,
@@ -209,7 +209,7 @@ fn resolve_texture(
 }
 
 /// Compute transform, size, color for one three-slice part.
-fn part_geometry(
+pub(crate) fn part_geometry(
     frame: &crate::frame::Frame,
     ts: &ThreeSlice,
     part: u8,

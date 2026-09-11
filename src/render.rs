@@ -344,7 +344,12 @@ fn frame_texture_source(f: &crate::frame::Frame) -> Option<&TextureSource> {
     Some(&texture.source)
 }
 
-fn frame_transform(f: &crate::frame::Frame, sort_idx: usize, sw: f32, sh: f32) -> Transform {
+pub(crate) fn frame_transform(
+    f: &crate::frame::Frame,
+    sort_idx: usize,
+    sw: f32,
+    sh: f32,
+) -> Transform {
     let (w, h) = effective_size(f);
     let bx = w.mul_add(0.5, f.layout_rect.as_ref().map_or(0.0, |r| r.x)) - sw * 0.5;
     let by = sh * 0.5 - f.layout_rect.as_ref().map_or(0.0, |r| r.y) - h * 0.5;
@@ -357,7 +362,7 @@ fn frame_transform(f: &crate::frame::Frame, sort_idx: usize, sw: f32, sh: f32) -
     tf
 }
 
-fn frame_color(f: &crate::frame::Frame) -> Color {
+pub(crate) fn frame_color(f: &crate::frame::Frame) -> Color {
     let base = f
         .background_color
         .or_else(|| f.backdrop.as_ref().and_then(|b| b.bg_color));
@@ -617,8 +622,7 @@ fn backdrop_part_geometry_for_id(
     backdrop::backdrop_part_geometry_for_id(state, backdrop_part, sort_idx, screen_w, screen_h)
 }
 
-#[cfg(test)]
-fn backdrop_part_geometry(
+pub(crate) fn backdrop_part_geometry(
     frame: &crate::frame::Frame,
     part: u8,
     sort_idx: usize,

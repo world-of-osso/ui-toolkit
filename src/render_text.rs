@@ -205,7 +205,7 @@ fn spawn_missing_text(
     }
 }
 
-fn has_text(frame: &crate::frame::Frame) -> bool {
+pub(crate) fn has_text(frame: &crate::frame::Frame) -> bool {
     match &frame.widget_data {
         Some(WidgetData::FontString(fs)) => !fs.text.is_empty(),
         Some(WidgetData::EditBox(_)) => true,
@@ -241,7 +241,7 @@ pub(crate) fn extract_text_props_pub(frame: &crate::frame::Frame) -> TextProps<'
     extract_text_props(frame)
 }
 
-fn extract_text_props(frame: &crate::frame::Frame) -> TextProps<'_> {
+pub(crate) fn extract_text_props(frame: &crate::frame::Frame) -> TextProps<'_> {
     match &frame.widget_data {
         Some(WidgetData::FontString(fs)) => extract_fontstring_text(fs, frame.effective_alpha),
         Some(WidgetData::EditBox(eb)) => extract_editbox_text(eb, frame.effective_alpha),

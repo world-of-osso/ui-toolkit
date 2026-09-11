@@ -243,7 +243,11 @@ fn compute_uv_rect(
     }
 }
 
-fn explicit_uv_rect_for_part(uv_rects: &[[f32; 4]; 9], part: u8, atlas_rect: Rect) -> Rect {
+pub(crate) fn explicit_uv_rect_for_part(
+    uv_rects: &[[f32; 4]; 9],
+    part: u8,
+    atlas_rect: Rect,
+) -> Rect {
     let [left, right, top, bottom] = uv_rects[part as usize];
     let size = atlas_rect.max - atlas_rect.min;
     Rect {
@@ -258,7 +262,7 @@ fn explicit_uv_rect_for_part(uv_rects: &[[f32; 4]; 9], part: u8, atlas_rect: Rec
     }
 }
 
-fn uv_rect_for_part(
+pub(crate) fn uv_rect_for_part(
     part: u8,
     w: f32,
     h: f32,
@@ -350,7 +354,7 @@ fn layout_edges(ns: &NineSlice) -> (f32, f32, f32, f32) {
     }
 }
 
-fn uv_edges(ns: &NineSlice) -> (f32, f32, f32, f32) {
+pub(crate) fn uv_edges(ns: &NineSlice) -> (f32, f32, f32, f32) {
     if let Some([left, top, right, bottom]) = ns.uv_edge_sizes {
         (left, top, right, bottom)
     } else if let Some([left, top, right, bottom]) = ns.edge_sizes {

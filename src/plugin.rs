@@ -75,6 +75,15 @@ impl Plugin for UiPlugin {
         app.init_resource::<crate::render::UiFrameOrder>();
         register_ui_startup_systems(app);
         register_ui_update_systems(app);
+        app.init_resource::<crate::native_render::caret::UiCaretBlocked>();
+        app.add_systems(
+            PostUpdate,
+            crate::native_render::caret::sync_carets
+                .after(bevy::ui::UiSystems::PostLayout)
+                .run_if(ui_processing_enabled)
+                .run_if(ui_render_enabled)
+                .run_if(ui_text_render_enabled),
+        );
     }
 }
 
@@ -104,26 +113,7 @@ fn register_ui_update_systems(app: &mut App) {
             crate::render_button::sync_button_nine_slices.in_set(UiRenderSet::Prepare),
             (
                 crate::render::prepare_ui_frame_order.in_set(UiRenderSet::Prepare),
-                crate::render::sync_ui_quads_prepared.in_set(UiRenderSet::Quads),
-                crate::render_button::sync_ui_button_highlights,
-                crate::render_text::sync_ui_text_prepared
-                    .in_set(UiRenderSet::Text)
-                    .run_if(ui_text_render_enabled),
-                crate::render_border::sync_ui_borders,
-                crate::render_border::sync_css_borders,
-                crate::render_nine_slice::sync_ui_nine_slices_prepared
-                    .in_set(UiRenderSet::NineSlices),
-                crate::render_three_slice::sync_ui_three_slices_prepared
-                    .in_set(UiRenderSet::ThreeSlices),
-                crate::render_tiled::sync_ui_tiled_textures,
-                (
-                    crate::render_text_fx::sync_ui_text_shadows_prepared
-                        .in_set(UiRenderSet::Shadows),
-                    crate::render_text_fx::sync_ui_text_outlines_prepared
-                        .in_set(UiRenderSet::Outlines),
-                )
-                    .chain()
-                    .run_if(ui_text_render_enabled),
+                crate::native_render::sync_registry.in_set(UiRenderSet::Quads),
             )
                 .chain()
                 .run_if(ui_render_enabled),
