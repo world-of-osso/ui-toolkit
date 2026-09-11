@@ -1,5 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+use bevy::ui::{PositionType, UiRect, Val};
+
+use crate::anchor::AnchorTarget;
 use crate::frame::{Frame, NineSlice, ThreeSlice, WidgetData, WidgetType};
 use crate::layout::LayoutRect;
 
@@ -12,7 +15,6 @@ pub struct FrameRegistry {
     pub screen_height: f32,
     pub render_dirty: HashSet<u64>,
     pub rect_dirty: HashSet<u64>,
-    pub anchor_dependents: HashMap<u64, HashSet<u64>>,
     pub focused_frame: Option<u64>,
     pub(crate) panel_styles: HashMap<String, NineSlice>,
     pub(crate) three_slice_styles: HashMap<String, ThreeSlice>,
@@ -28,7 +30,6 @@ impl FrameRegistry {
             screen_height,
             render_dirty: HashSet::new(),
             rect_dirty: HashSet::new(),
-            anchor_dependents: HashMap::new(),
             focused_frame: None,
             panel_styles: HashMap::new(),
             three_slice_styles: HashMap::new(),
@@ -93,9 +94,6 @@ impl FrameRegistry {
             self.names.insert(n.clone(), id);
         }
         self.render_dirty.insert(id);
-        for &anchor in &frame.anchors {
-            self.register_anchor_dependency(id, anchor);
-        }
         self.frames.insert(id, frame);
 
         if let Some(pid) = parent_id
@@ -116,13 +114,6 @@ impl FrameRegistry {
                 && let Some(parent) = self.frames.get_mut(&pid)
             {
                 parent.children.retain(|&c| c != id);
-            }
-            for anchor in frame.anchors {
-                self.unregister_anchor_dependency(id, anchor);
-            }
-            let dependents = self.anchor_dependents.remove(&id).unwrap_or_default();
-            for dependent in dependents {
-                self.mark_rect_dirty(dependent);
             }
             if let Some(parent_id) = frame.parent_id {
                 self.mark_rect_dirty(parent_id);
@@ -203,88 +194,56 @@ impl FrameRegistry {
         self.frames.values()
     }
 
-    pub fn set_point(
-        &mut self,
-        id: u64,
-        anchor: crate::anchor::Anchor,
-    ) -> Result<(), &'static str> {
-        if !self.frames.contains_key(&id) {
-            return Err("frame not found");
+    /// Set parent/screen-space offsets without changing position type or logical parent.
+    pub fn set_pos(&mut self, id: u64, x: f32, y: f32) -> Result<(), &'static str> {
+        if !x.is_finite() || !y.is_finite() {
+            return Err("position must be finite");
         }
-        if anchor.relative_to == Some(id) {
-            return Err("frame cannot anchor to itself");
-        }
-        if let Some(target_id) = anchor.relative_to
-            && self.depends_on(target_id, id)
-        {
-            return Err("anchor cycle detected");
-        }
-
-        let previous_anchor = {
-            let frame = self.frames.get_mut(&id).expect("checked above");
-            if let Some(existing) = frame
-                .anchors
-                .iter_mut()
-                .find(|existing| existing.point == anchor.point)
-            {
-                let previous = *existing;
-                *existing = anchor;
-                Some(previous)
-            } else {
-                frame.anchors.push(anchor);
-                None
-            }
+        let frame = self.frames.get_mut(&id).ok_or("frame not found")?;
+        let position = UiRect {
+            left: Val::Px(x),
+            top: Val::Px(y),
+            right: Val::Auto,
+            bottom: Val::Auto,
         };
-
-        if let Some(previous) = previous_anchor {
-            self.unregister_anchor_dependency(id, previous);
+        if frame.position != position {
+            frame.position = position;
+            self.mark_rect_dirty(id);
         }
-        self.register_anchor_dependency(id, anchor);
-        self.mark_rect_dirty(id);
         Ok(())
     }
 
-    pub fn clear_all_points(&mut self, id: u64) {
-        let anchors = self
-            .frames
-            .get(&id)
-            .map(|frame| frame.anchors.clone())
-            .unwrap_or_default();
-        for anchor in anchors {
-            self.unregister_anchor_dependency(id, anchor);
-        }
-        if let Some(frame) = self.frames.get_mut(&id) {
-            frame.anchors.clear();
-        }
-        self.mark_rect_dirty(id);
-    }
-
-    pub fn stretch_to_fill(
+    pub fn set_pos_type(
         &mut self,
         id: u64,
-        relative_to: Option<u64>,
+        position_type: PositionType,
     ) -> Result<(), &'static str> {
-        self.clear_all_points(id);
-        self.set_point(
-            id,
-            crate::anchor::Anchor {
-                point: crate::anchor::AnchorPoint::TopLeft,
-                relative_to,
-                relative_point: crate::anchor::AnchorPoint::TopLeft,
-                x_offset: 0.0,
-                y_offset: 0.0,
-            },
-        )?;
-        self.set_point(
-            id,
-            crate::anchor::Anchor {
-                point: crate::anchor::AnchorPoint::BottomRight,
-                relative_to,
-                relative_point: crate::anchor::AnchorPoint::BottomRight,
-                x_offset: 0.0,
-                y_offset: 0.0,
-            },
-        )
+        let frame = self.frames.get_mut(&id).ok_or("frame not found")?;
+        if frame.position_type != position_type {
+            frame.position_type = position_type;
+            self.mark_rect_dirty(id);
+        }
+        Ok(())
+    }
+
+    /// Select a layout reference space without reparenting the logical frame.
+    pub fn set_anchor(&mut self, id: u64, anchor: AnchorTarget) -> Result<(), &'static str> {
+        let frame = self.frames.get_mut(&id).ok_or("frame not found")?;
+        if frame.anchor != anchor {
+            frame.anchor = anchor;
+            self.mark_rect_dirty(id);
+        }
+        Ok(())
+    }
+
+    /// Store layout readback without invalidating authored layout or its relatives.
+    pub fn set_computed_layout(&mut self, id: u64, rect: LayoutRect) -> Result<(), &'static str> {
+        let frame = self.frames.get_mut(&id).ok_or("frame not found")?;
+        if frame.layout_rect.as_ref() != Some(&rect) {
+            frame.layout_rect = Some(rect);
+            self.render_dirty.insert(id);
+        }
+        Ok(())
     }
 
     /// Set a frame's alpha and propagate effective_alpha down the subtree.
@@ -484,37 +443,13 @@ impl FrameRegistry {
         }
     }
 
-    fn register_anchor_dependency(&mut self, frame_id: u64, anchor: crate::anchor::Anchor) {
-        if let Some(target_id) = anchor.relative_to {
-            self.anchor_dependents
-                .entry(target_id)
-                .or_default()
-                .insert(frame_id);
-        }
-    }
-
-    fn unregister_anchor_dependency(&mut self, frame_id: u64, anchor: crate::anchor::Anchor) {
-        let Some(target_id) = anchor.relative_to else {
-            return;
-        };
-        let remove_entry = if let Some(dependents) = self.anchor_dependents.get_mut(&target_id) {
-            dependents.remove(&frame_id);
-            dependents.is_empty()
-        } else {
-            false
-        };
-        if remove_entry {
-            self.anchor_dependents.remove(&target_id);
-        }
-    }
-
-    /// Invalidate layout after changing geometry, including dependent frames.
-    /// Explicit cached rectangles are preserved; callers own their invalidation.
+    /// Invalidate authored layout for the logical subtree and flex parent.
+    /// Computed rectangles are retained until Bevy publishes new observations.
     pub fn mark_rect_dirty(&mut self, id: u64) {
         if !self.rect_dirty.insert(id) {
             return;
         }
-
+        self.render_dirty.insert(id);
         if let Some(parent_id) = self.frames.get(&id).and_then(|frame| frame.parent_id)
             && self
                 .frames
@@ -523,220 +458,189 @@ impl FrameRegistry {
         {
             self.mark_rect_dirty(parent_id);
         }
-
-        let mut dependents = self
-            .anchor_dependents
-            .get(&id)
-            .map(|items| items.iter().copied().collect::<Vec<_>>())
-            .unwrap_or_default();
-        dependents.extend(self.child_ids(id));
-        for dependent_id in dependents {
-            self.mark_rect_dirty(dependent_id);
+        for child_id in self.child_ids(id) {
+            self.mark_rect_dirty(child_id);
         }
-    }
-
-    fn depends_on(&self, start_id: u64, target_id: u64) -> bool {
-        if start_id == target_id {
-            return true;
-        }
-
-        let mut stack = vec![start_id];
-        let mut visited = HashSet::new();
-        while let Some(current) = stack.pop() {
-            if !visited.insert(current) {
-                continue;
-            }
-            if current == target_id {
-                return true;
-            }
-            if let Some(frame) = self.frames.get(&current) {
-                for anchor in &frame.anchors {
-                    if let Some(next) = anchor.relative_to {
-                        stack.push(next);
-                    }
-                }
-            }
-        }
-        false
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::anchor::{Anchor, AnchorPoint};
     use crate::strata::FrameStrata;
 
-    fn dirty_layout_anchor(target: Option<u64>, x: f32) -> Anchor {
-        Anchor {
-            point: AnchorPoint::TopLeft,
-            relative_to: target,
-            relative_point: AnchorPoint::TopLeft,
-            x_offset: x,
-            y_offset: 0.0,
-        }
-    }
-
-    fn dirty_layout_frame(reg: &mut FrameRegistry, name: &str, parent: Option<u64>) -> u64 {
-        let id = reg.create_frame(name, parent);
-        let frame = reg.get_mut(id).unwrap();
-        frame.width = crate::frame::Dimension::Fixed(50.0);
-        frame.height = crate::frame::Dimension::Fixed(20.0);
-        id
-    }
-
     #[test]
-    fn dirty_layout_clean_pass_leaves_render_state_untouched() {
+    fn set_pos_replaces_edges_and_preserves_position_mode() {
         let mut reg = FrameRegistry::new(800.0, 600.0);
-        let id = dirty_layout_frame(&mut reg, "Root", None);
-        reg.set_point(id, dirty_layout_anchor(None, 12.0)).unwrap();
-        crate::layout::recompute_layouts(&mut reg);
-        let expected = reg.get(id).unwrap().layout_rect.clone();
-        assert!(reg.rect_dirty.is_empty());
+        let id = reg.create_frame("Panel", None);
+        reg.get_mut(id).unwrap().position = UiRect::all(Val::Px(8.0));
+        reg.rect_dirty.clear();
         reg.render_dirty.clear();
-        crate::layout::recompute_layouts(&mut reg);
-        assert_eq!(reg.get(id).unwrap().layout_rect, expected);
-        assert!(
-            reg.render_dirty.is_empty(),
-            "clean layout must not invalidate rendering"
+        reg.set_pos(id, 12.0, -7.0).unwrap();
+        let frame = reg.get(id).unwrap();
+        assert_eq!(
+            frame.position,
+            UiRect {
+                left: Val::Px(12.0),
+                top: Val::Px(-7.0),
+                right: Val::Auto,
+                bottom: Val::Auto,
+            }
         );
+        assert_eq!(frame.position_type, PositionType::Relative);
+        assert_eq!(reg.rect_dirty, HashSet::from([id]));
+        assert_eq!(reg.render_dirty, HashSet::from([id]));
     }
 
     #[test]
-    fn dirty_layout_resize_and_anchor_chain_still_update() {
+    fn set_pos_rejects_nonfinite_values_without_mutation() {
         let mut reg = FrameRegistry::new(800.0, 600.0);
-        let root = dirty_layout_frame(&mut reg, "Root", None);
-        reg.get_mut(root).unwrap().width = crate::frame::Dimension::Fill;
-        reg.set_point(root, dirty_layout_anchor(None, 0.0)).unwrap();
-        let child = dirty_layout_frame(&mut reg, "Child", Some(root));
-        reg.get_mut(child).unwrap().width = crate::frame::Dimension::Fill;
-        reg.set_point(child, dirty_layout_anchor(Some(root), 5.0))
-            .unwrap();
-        let follower = dirty_layout_frame(&mut reg, "Follower", None);
-        reg.set_point(follower, dirty_layout_anchor(Some(child), 7.0))
-            .unwrap();
-        crate::layout::recompute_layouts(&mut reg);
-        reg.screen_width = 1000.0;
-        reg.mark_all_rects_dirty();
-        crate::layout::recompute_layouts(&mut reg);
-        assert_eq!(
-            reg.get(child).unwrap().layout_rect.as_ref().unwrap().width,
-            1000.0
-        );
-        reg.set_point(root, dirty_layout_anchor(None, 40.0))
-            .unwrap();
-        crate::layout::recompute_layouts(&mut reg);
-        assert_eq!(
-            reg.get(follower).unwrap().layout_rect.as_ref().unwrap().x,
-            52.0
-        );
+        let id = reg.create_frame("Panel", None);
+        reg.set_pos(id, 12.0, 9.0).unwrap();
+        reg.rect_dirty.clear();
+        reg.render_dirty.clear();
+        let before = reg.get(id).unwrap().position;
+        for (x, y) in [
+            (f32::NAN, 0.0),
+            (0.0, f32::NAN),
+            (f32::INFINITY, 0.0),
+            (0.0, f32::NEG_INFINITY),
+        ] {
+            assert_eq!(reg.set_pos(id, x, y), Err("position must be finite"));
+            assert_eq!(reg.get(id).unwrap().position, before);
+        }
+        assert!(reg.rect_dirty.is_empty());
+        assert!(reg.render_dirty.is_empty());
     }
 
     #[test]
-    fn dirty_layout_removal_reflows_flex_with_other_dirty_frames() {
+    fn authored_setters_reject_missing_frames() {
         let mut reg = FrameRegistry::new(800.0, 600.0);
-        let parent = dirty_layout_frame(&mut reg, "Row", None);
-        reg.get_mut(parent).unwrap().flex_layout = Some(crate::frame::FlexLayout {
-            direction: crate::frame::FlexDirection::Row,
-            align: crate::frame::FlexAlign::Start,
-            ..Default::default()
-        });
-        let first = dirty_layout_frame(&mut reg, "First", Some(parent));
-        let second = dirty_layout_frame(&mut reg, "Second", Some(parent));
-        crate::layout::recompute_layouts(&mut reg);
+        assert_eq!(reg.set_pos(42, 1.0, 2.0), Err("frame not found"));
         assert_eq!(
-            reg.get(second).unwrap().layout_rect.as_ref().unwrap().x,
-            50.0
+            reg.set_pos_type(42, PositionType::Absolute),
+            Err("frame not found")
         );
-        reg.remove_frame(first);
-        dirty_layout_frame(&mut reg, "Unrelated", None);
-        crate::layout::recompute_layouts(&mut reg);
         assert_eq!(
-            reg.get(second).unwrap().layout_rect.as_ref().unwrap().x,
-            0.0
+            reg.set_anchor(42, AnchorTarget::Screen),
+            Err("frame not found")
         );
-        let replacement = dirty_layout_frame(&mut reg, "Replacement", Some(parent));
-        crate::layout::recompute_layouts(&mut reg);
         assert_eq!(
-            reg.get(replacement)
-                .unwrap()
-                .layout_rect
-                .as_ref()
-                .unwrap()
-                .x,
-            50.0
+            reg.set_computed_layout(42, reg.screen_rect()),
+            Err("frame not found")
         );
+        assert!(reg.rect_dirty.is_empty());
+        assert!(reg.render_dirty.is_empty());
     }
 
     #[test]
-    fn dirty_layout_child_resize_reflows_flex_parent() {
+    fn screen_target_and_absolute_position_preserve_logical_parentage() {
         let mut reg = FrameRegistry::new(800.0, 600.0);
-        let parent = dirty_layout_frame(&mut reg, "Row", None);
-        reg.get_mut(parent).unwrap().width = crate::frame::Dimension::Fixed(0.0);
-        reg.get_mut(parent).unwrap().flex_layout = Some(crate::frame::FlexLayout {
-            direction: crate::frame::FlexDirection::Row,
-            align: crate::frame::FlexAlign::Start,
-            ..Default::default()
-        });
-        let first = dirty_layout_frame(&mut reg, "First", Some(parent));
-        let second = dirty_layout_frame(&mut reg, "Second", Some(parent));
-        crate::layout::recompute_layouts(&mut reg);
-        let follower = dirty_layout_frame(&mut reg, "WidthFollower", None);
-        let mut anchor = dirty_layout_anchor(Some(parent), 0.0);
-        anchor.relative_point = AnchorPoint::TopRight;
-        reg.set_point(follower, anchor).unwrap();
-        crate::layout::recompute_layouts(&mut reg);
-        assert_eq!(
-            reg.get(follower).unwrap().layout_rect.as_ref().unwrap().x,
-            100.0
-        );
-        reg.get_mut(first).unwrap().width = crate::frame::Dimension::Fixed(80.0);
-        reg.mark_rect_dirty(first);
-        dirty_layout_frame(&mut reg, "Unrelated", None);
-        crate::layout::recompute_layouts(&mut reg);
-        assert_eq!(
-            reg.get(second).unwrap().layout_rect.as_ref().unwrap().x,
-            80.0
-        );
-        assert_eq!(
-            reg.get(follower).unwrap().layout_rect.as_ref().unwrap().x,
-            130.0
-        );
+        let root = reg.create_frame("Root", None);
+        let child = reg.create_frame("Child", Some(root));
+        reg.set_pos(child, 30.0, 40.0).unwrap();
+        reg.set_pos_type(child, PositionType::Absolute).unwrap();
+        reg.set_anchor(child, AnchorTarget::Screen).unwrap();
+        let frame = reg.get(child).unwrap();
+        assert_eq!(frame.anchor, AnchorTarget::Screen);
+        assert_eq!(frame.position_type, PositionType::Absolute);
+        assert_eq!(frame.parent_id, Some(root));
+        assert_eq!(reg.children_of(root), vec![child]);
+        assert_eq!(reg.get_by_name("Child"), Some(child));
+        reg.set_anchor(child, AnchorTarget::Parent).unwrap();
+        reg.set_pos_type(child, PositionType::Relative).unwrap();
+        assert_eq!(reg.get(child).unwrap().position.left, Val::Px(30.0));
+        assert_eq!(reg.parent_of(child), Some(root));
     }
 
     #[test]
-    fn dirty_layout_inserted_anchors_follow_target_updates() {
+    fn repeated_authored_values_leave_dirty_sets_empty() {
         let mut reg = FrameRegistry::new(800.0, 600.0);
-        let target = dirty_layout_frame(&mut reg, "Target", None);
-        reg.set_point(target, dirty_layout_anchor(None, 10.0))
-            .unwrap();
-        let id = reg.next_id();
-        let mut frame = Frame::new(id, Some("Inserted".to_string()), WidgetType::Frame);
-        frame.width = crate::frame::Dimension::Fixed(20.0);
-        frame.height = crate::frame::Dimension::Fixed(10.0);
-        frame.anchors.push(dirty_layout_anchor(Some(target), 3.0));
-        reg.insert_frame(frame);
-        crate::layout::recompute_layouts(&mut reg);
-        reg.set_point(target, dirty_layout_anchor(None, 30.0))
-            .unwrap();
-        crate::layout::recompute_layouts(&mut reg);
-        assert_eq!(reg.get(id).unwrap().layout_rect.as_ref().unwrap().x, 33.0);
+        let id = reg.create_frame("Panel", None);
+        reg.set_pos(id, 12.0, 7.0).unwrap();
+        reg.set_pos_type(id, PositionType::Absolute).unwrap();
+        reg.set_anchor(id, AnchorTarget::Screen).unwrap();
+        reg.rect_dirty.clear();
+        reg.render_dirty.clear();
+        reg.set_pos(id, 12.0, 7.0).unwrap();
+        reg.set_pos_type(id, PositionType::Absolute).unwrap();
+        reg.set_anchor(id, AnchorTarget::Screen).unwrap();
+        assert!(reg.rect_dirty.is_empty());
+        assert!(reg.render_dirty.is_empty());
     }
 
     #[test]
-    fn dirty_layout_removed_anchor_target_updates_dependents() {
+    fn authored_geometry_invalidates_subtree_and_flex_parent() {
         let mut reg = FrameRegistry::new(800.0, 600.0);
-        let target = dirty_layout_frame(&mut reg, "Target", None);
-        reg.set_point(target, dirty_layout_anchor(None, 30.0))
-            .unwrap();
-        let child = dirty_layout_frame(&mut reg, "Follower", None);
-        reg.set_point(child, dirty_layout_anchor(Some(target), 3.0))
-            .unwrap();
-        crate::layout::recompute_layouts(&mut reg);
-        reg.remove_frame(target);
-        dirty_layout_frame(&mut reg, "Unrelated", None);
-        crate::layout::recompute_layouts(&mut reg);
-        assert_eq!(reg.get(child).unwrap().layout_rect.as_ref().unwrap().x, 3.0);
+        let root = reg.create_frame("Row", None);
+        reg.get_mut(root).unwrap().flex_layout = Some(crate::frame::FlexLayout::default());
+        let child = reg.create_frame("Child", Some(root));
+        let sibling = reg.create_frame("Sibling", Some(root));
+        let unrelated = reg.create_frame("Other", None);
+        reg.rect_dirty.clear();
+        reg.render_dirty.clear();
+        reg.set_pos(child, 5.0, 6.0).unwrap();
+        assert_eq!(reg.rect_dirty, HashSet::from([root, child, sibling]));
+        assert!(!reg.render_dirty.contains(&unrelated));
+    }
+
+    #[test]
+    fn computed_layout_updates_observation_without_authored_invalidation() {
+        use crate::frame::Dimension;
+        use bevy::ui::Val2;
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let root = reg.create_frame("Root", None);
+        let child = reg.create_frame("Child", Some(root));
+        reg.set_pos(child, 10.0, 20.0).unwrap();
+        reg.set_anchor(child, AnchorTarget::Screen).unwrap();
+        reg.set_pos_type(child, PositionType::Absolute).unwrap();
+        let frame = reg.get_mut(child).unwrap();
+        frame.width = Dimension::Auto;
+        frame.height = Dimension::Fill;
+        frame.translation = Val2::percent(-50.0, -50.0);
+        frame.margin = UiRect::all(Val::Px(3.0));
+        reg.rect_dirty.clear();
+        reg.render_dirty.clear();
+        let rect = LayoutRect {
+            x: 41.0,
+            y: 52.0,
+            width: 123.0,
+            height: 234.0,
+        };
+        reg.set_computed_layout(child, rect.clone()).unwrap();
+        let frame = reg.get(child).unwrap();
+        assert_eq!(frame.layout_rect, Some(rect.clone()));
+        assert_eq!(
+            (frame.resolved_width(), frame.resolved_height()),
+            (123.0, 234.0)
+        );
+        assert_eq!(
+            (frame.width, frame.height),
+            (Dimension::Auto, Dimension::Fill)
+        );
+        assert_eq!(frame.position.left, Val::Px(10.0));
+        assert_eq!(frame.position.top, Val::Px(20.0));
+        assert_eq!(frame.anchor, AnchorTarget::Screen);
+        assert_eq!(frame.position_type, PositionType::Absolute);
+        assert_eq!(frame.translation, Val2::percent(-50.0, -50.0));
+        assert_eq!(frame.margin, UiRect::all(Val::Px(3.0)));
+        assert_eq!(frame.parent_id, Some(root));
+        assert!(reg.rect_dirty.is_empty());
+        assert_eq!(reg.render_dirty, HashSet::from([child]));
+        reg.render_dirty.clear();
+        reg.set_computed_layout(child, rect).unwrap();
+        assert!(reg.rect_dirty.is_empty());
+        assert!(reg.render_dirty.is_empty());
+    }
+
+    #[test]
+    fn computed_layout_does_not_clear_existing_authored_invalidation() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let id = reg.create_frame("Panel", None);
+        reg.set_pos(id, 8.0, 9.0).unwrap();
+        let dirty = reg.rect_dirty.clone();
+        reg.set_computed_layout(id, reg.screen_rect()).unwrap();
+        assert_eq!(reg.rect_dirty, dirty);
     }
 
     fn visibility_alpha_tree() -> (FrameRegistry, [u64; 3]) {
@@ -1032,109 +936,5 @@ mod tests {
         let frame = reg.get(id).unwrap();
         assert!(frame.name.is_none());
         assert_eq!(reg.get_by_name(""), None);
-    }
-
-    fn test_anchor(
-        point: AnchorPoint,
-        relative_to: Option<u64>,
-        relative_point: AnchorPoint,
-    ) -> Anchor {
-        Anchor {
-            point,
-            relative_to,
-            relative_point,
-            x_offset: 0.0,
-            y_offset: 0.0,
-        }
-    }
-
-    #[test]
-    fn set_point_tracks_dependents_and_marks_rect_dirty() {
-        let mut reg = FrameRegistry::new(1024.0, 768.0);
-        let target = reg.create_frame("Target", None);
-        let child = reg.create_frame("Child", None);
-
-        reg.set_point(
-            child,
-            test_anchor(AnchorPoint::TopLeft, Some(target), AnchorPoint::BottomRight),
-        )
-        .unwrap();
-
-        let frame = reg.get(child).unwrap();
-        assert_eq!(frame.anchors.len(), 1);
-        assert_eq!(frame.anchors[0].point, AnchorPoint::TopLeft);
-        assert_eq!(frame.anchors[0].relative_to, Some(target));
-        assert!(reg.rect_dirty.contains(&child));
-        assert!(reg.anchor_dependents[&target].contains(&child));
-    }
-
-    #[test]
-    fn set_point_replaces_existing_point_and_updates_dependents() {
-        let mut reg = FrameRegistry::new(1024.0, 768.0);
-        let first = reg.create_frame("First", None);
-        let second = reg.create_frame("Second", None);
-        let child = reg.create_frame("Child", None);
-
-        reg.set_point(
-            child,
-            test_anchor(AnchorPoint::Center, Some(first), AnchorPoint::Center),
-        )
-        .unwrap();
-        reg.set_point(
-            child,
-            test_anchor(AnchorPoint::Center, Some(second), AnchorPoint::TopLeft),
-        )
-        .unwrap();
-
-        let frame = reg.get(child).unwrap();
-        assert_eq!(frame.anchors.len(), 1);
-        assert_eq!(frame.anchors[0].relative_to, Some(second));
-        assert!(
-            reg.anchor_dependents
-                .get(&first)
-                .is_none_or(|dependents| !dependents.contains(&child))
-        );
-        assert!(reg.anchor_dependents[&second].contains(&child));
-    }
-
-    #[test]
-    fn clear_all_points_removes_dependencies() {
-        let mut reg = FrameRegistry::new(1024.0, 768.0);
-        let target = reg.create_frame("Target", None);
-        let child = reg.create_frame("Child", None);
-
-        reg.set_point(
-            child,
-            test_anchor(AnchorPoint::TopLeft, Some(target), AnchorPoint::TopLeft),
-        )
-        .unwrap();
-
-        reg.clear_all_points(child);
-
-        let frame = reg.get(child).unwrap();
-        assert!(frame.anchors.is_empty());
-        assert!(reg.rect_dirty.contains(&child));
-        assert!(
-            reg.anchor_dependents
-                .get(&target)
-                .is_none_or(|dependents| !dependents.contains(&child))
-        );
-    }
-
-    #[test]
-    fn stretch_to_fill_creates_stretch_anchors() {
-        let mut reg = FrameRegistry::new(1024.0, 768.0);
-        let target = reg.create_frame("Target", None);
-        let child = reg.create_frame("Child", None);
-
-        reg.stretch_to_fill(child, Some(target)).unwrap();
-
-        let frame = reg.get(child).unwrap();
-        assert_eq!(frame.anchors.len(), 2);
-        assert_eq!(frame.anchors[0].point, AnchorPoint::TopLeft);
-        assert_eq!(frame.anchors[1].point, AnchorPoint::BottomRight);
-        assert_eq!(frame.anchors[0].relative_to, Some(target));
-        assert_eq!(frame.anchors[1].relative_to, Some(target));
-        assert!(reg.anchor_dependents[&target].contains(&child));
     }
 }

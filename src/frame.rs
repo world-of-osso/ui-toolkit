@@ -1,4 +1,6 @@
-use crate::anchor::Anchor;
+use bevy::ui::{PositionType, UiRect, Val2};
+
+use crate::anchor::AnchorTarget;
 use crate::layout::LayoutRect;
 use crate::strata::{DrawLayer, FrameStrata};
 use crate::widgets::button::ButtonData;
@@ -137,6 +139,7 @@ impl Default for Backdrop {
 pub enum Dimension {
     Fixed(f32),
     Fill,
+    Auto,
 }
 
 impl Default for Dimension {
@@ -146,11 +149,11 @@ impl Default for Dimension {
 }
 
 impl Dimension {
-    /// Returns the explicit size, or 0.0 for Fill (resolved later by layout).
+    /// Returns the explicit size, or 0.0 for an unresolved Fill/Auto dimension.
     pub fn value(self) -> f32 {
         match self {
             Self::Fixed(v) => v,
-            Self::Fill => 0.0,
+            Self::Fill | Self::Auto => 0.0,
         }
     }
 
@@ -198,8 +201,7 @@ pub struct FlexLayout {
     pub padding: f32,
 }
 
-/// A UI frame in the WoW frame hierarchy.
-#[derive(Default)]
+/// A UI frame in the logical hierarchy, with authored native layout properties.
 pub struct Frame {
     pub id: u64,
     pub name: Option<String>,
@@ -212,7 +214,12 @@ pub struct Frame {
     // Layout
     pub width: Dimension,
     pub height: Dimension,
-    pub anchors: Vec<Anchor>,
+    pub position: UiRect,
+    pub position_type: PositionType,
+    pub anchor: AnchorTarget,
+    pub translation: Val2,
+    pub margin: UiRect,
+    /// Observational Bevy layout result; never an authored positioning input.
     pub layout_rect: Option<LayoutRect>,
 
     // Visibility
@@ -265,6 +272,53 @@ pub struct Frame {
     pub widget_data: Option<WidgetData>,
 }
 
+impl Default for Frame {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            name: None,
+            widget_type: WidgetType::default(),
+            parent_id: None,
+            children: Vec::new(),
+            width: Dimension::default(),
+            height: Dimension::default(),
+            position: UiRect::AUTO,
+            position_type: PositionType::Relative,
+            anchor: AnchorTarget::Parent,
+            translation: Val2::ZERO,
+            margin: UiRect::ZERO,
+            layout_rect: None,
+            hidden: false,
+            visible: false,
+            alpha: 0.0,
+            effective_alpha: 0.0,
+            scale: 0.0,
+            effective_scale: 0.0,
+            strata: FrameStrata::default(),
+            frame_level: 0,
+            raise_order: 0,
+            draw_layer: DrawLayer::default(),
+            draw_sub_layer: 0,
+            mouse_enabled: false,
+            keyboard_enabled: false,
+            hit_rect_insets: [0.0; 4],
+            background_color: None,
+            backdrop: None,
+            nine_slice: None,
+            three_slice: None,
+            border: None,
+            panel_style: None,
+            three_slice_style: None,
+            clamped_to_screen: false,
+            movable: false,
+            resizable: false,
+            onclick: None,
+            flex_layout: None,
+            widget_data: None,
+        }
+    }
+}
+
 impl Frame {
     pub fn new(id: u64, name: Option<String>, widget_type: WidgetType) -> Self {
         Self {
@@ -302,5 +356,57 @@ impl Frame {
     #[cfg(test)]
     pub fn default_for_test() -> Self {
         Self::new(0, None, WidgetType::Frame)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_layout_has_auto_edges_and_zero_explicit_dimensions() {
+        for frame in [
+            Frame::default(),
+            Frame::new(7, Some("Panel".into()), WidgetType::Frame),
+        ] {
+            assert_eq!(frame.position, UiRect::AUTO);
+            assert_eq!(frame.position_type, PositionType::Relative);
+            assert_eq!(frame.anchor, AnchorTarget::Parent);
+            assert_eq!(frame.translation, Val2::ZERO);
+            assert_eq!(frame.margin, UiRect::ZERO);
+            assert_eq!(frame.width, Dimension::Fixed(0.0));
+            assert_eq!(frame.height, Dimension::Fixed(0.0));
+            assert!(frame.layout_rect.is_none());
+        }
+    }
+
+    #[test]
+    fn auto_dimension_is_explicit_and_resolves_from_computed_layout() {
+        assert_eq!(Dimension::default(), Dimension::Fixed(0.0));
+        assert_eq!(Dimension::Auto.value(), 0.0);
+        assert_eq!(Dimension::Fill.value(), 0.0);
+        assert_eq!(Dimension::Fixed(32.0).value(), 32.0);
+        assert!(!Dimension::Auto.is_fill());
+        let mut frame = Frame::new(1, None, WidgetType::Frame);
+        frame.width = Dimension::Auto;
+        frame.height = Dimension::Auto;
+        assert_eq!(
+            (frame.resolved_width(), frame.resolved_height()),
+            (0.0, 0.0)
+        );
+        frame.layout_rect = Some(LayoutRect {
+            x: 1.0,
+            y: 2.0,
+            width: 60.0,
+            height: 24.0,
+        });
+        assert_eq!(
+            (frame.resolved_width(), frame.resolved_height()),
+            (60.0, 24.0)
+        );
+        assert_eq!(
+            (frame.width, frame.height),
+            (Dimension::Auto, Dimension::Auto)
+        );
     }
 }
