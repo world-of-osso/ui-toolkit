@@ -239,52 +239,65 @@ fn sync_frames(
         });
     }
     for frame in &ordered_frames {
-        let entity = entities[&frame.id];
-        let parent = match frame.anchor {
-            crate::anchor::AnchorTarget::Screen => canvas,
-            crate::anchor::AnchorTarget::Parent => {
-                frame.parent_id.map_or(canvas, |id| entities[&id])
-            }
-        };
-        let node = layout::node(frame);
-        let transform = UiTransform {
-            translation: frame.translation,
-            scale: Vec2::splat(frame.scale),
-            ..default()
-        };
-        if query
-            .transforms
-            .get(entity)
-            .map_or(true, |old| *old != transform)
-        {
-            commands.entity(entity).insert(transform);
-        };
-        let z = GlobalZIndex(order.indices.get(&frame.id).copied().unwrap_or(0) as i32);
-        if let Ok((_, _, old_node, old_parent, old_z, old_name)) = query.frames.get(entity) {
-            if *old_node != node {
-                commands.entity(entity).insert(node);
-            }
-            if old_parent.parent() != parent {
-                commands.entity(entity).insert(ChildOf(parent));
-            }
-            if *old_z != z {
-                commands.entity(entity).insert(z);
-            }
-            if old_name.map(Name::as_str) != frame.name.as_deref() {
-                set_frame_name(commands, entity, frame.name.as_deref());
-            }
-        } else {
-            commands.entity(entity).insert((node, ChildOf(parent), z));
-            set_frame_name(commands, entity, frame.name.as_deref());
-        }
+        update_frame(frame, order, canvas, &entities, commands, query);
     }
     synchronize_child_order(state, canvas, &entities, commands, query);
+    remove_frames(&removed, commands, query);
+    entities
+}
+
+fn update_frame(
+    frame: &Frame,
+    order: &UiFrameOrder,
+    canvas: Entity,
+    entities: &HashMap<u64, Entity>,
+    commands: &mut Commands,
+    query: &ProjectionQueries,
+) {
+    let entity = entities[&frame.id];
+    let parent = match frame.anchor {
+        crate::anchor::AnchorTarget::Screen => canvas,
+        crate::anchor::AnchorTarget::Parent => frame.parent_id.map_or(canvas, |id| entities[&id]),
+    };
+    let node = layout::node(frame);
+    let transform = UiTransform {
+        translation: frame.translation,
+        scale: Vec2::splat(frame.scale),
+        ..default()
+    };
+    if query
+        .transforms
+        .get(entity)
+        .map_or(true, |old| *old != transform)
+    {
+        commands.entity(entity).insert(transform);
+    };
+    let z = GlobalZIndex(order.indices.get(&frame.id).copied().unwrap_or(0) as i32);
+    if let Ok((_, _, old_node, old_parent, old_z, old_name)) = query.frames.get(entity) {
+        if *old_node != node {
+            commands.entity(entity).insert(node);
+        }
+        if old_parent.parent() != parent {
+            commands.entity(entity).insert(ChildOf(parent));
+        }
+        if *old_z != z {
+            commands.entity(entity).insert(z);
+        }
+        if old_name.map(Name::as_str) != frame.name.as_deref() {
+            set_frame_name(commands, entity, frame.name.as_deref());
+        }
+    } else {
+        commands.entity(entity).insert((node, ChildOf(parent), z));
+        set_frame_name(commands, entity, frame.name.as_deref());
+    }
+}
+
+fn remove_frames(removed: &HashSet<Entity>, commands: &mut Commands, query: &ProjectionQueries) {
     for (entity, _, _, parent, ..) in &query.frames {
         if removed.contains(&entity) && !removed.contains(&parent.parent()) {
             commands.entity(entity).despawn();
         }
     }
-    entities
 }
 
 fn synchronize_child_order(
@@ -378,40 +391,58 @@ fn sync_images(
         for part in images::project_images(&projected, assets) {
             let key = (frame.id, part.key);
             seen.insert(key);
-            if let Some(&entity) = existing.get(&key) {
-                let (_, _, node, image, transform, z) = query.images.get(entity).unwrap();
-                if *node != part.node {
-                    commands.entity(entity).insert(part.node);
-                }
-                if image.is_none_or(|image| !images_equal(image, &part.image)) {
-                    commands.entity(entity).insert(part.image);
-                }
-                if transform.is_none_or(|transform| *transform != part.transform) {
-                    commands.entity(entity).insert(part.transform);
-                }
-                if z.0 != part.z {
-                    commands.entity(entity).insert(GlobalZIndex(part.z));
-                }
-            } else {
-                commands.spawn((
-                    RegistryImage {
-                        frame_id: frame.id,
-                        key: part.key,
-                    },
-                    part.node,
-                    part.image,
-                    part.transform,
-                    GlobalZIndex(part.z),
-                    ChildOf(frames[&frame.id]),
-                    bevy::picking::Pickable::IGNORE,
-                ));
-            }
+            upsert_image(
+                frame.id,
+                frames[&frame.id],
+                part,
+                existing.get(&key).copied(),
+                commands,
+                query,
+            );
         }
     }
     for (key, entity) in existing {
         if !seen.contains(&key) && frames.contains_key(&key.0) {
             commands.entity(entity).despawn();
         }
+    }
+}
+
+fn upsert_image(
+    frame_id: u64,
+    parent: Entity,
+    part: ImagePart,
+    existing: Option<Entity>,
+    commands: &mut Commands,
+    query: &ProjectionQueries,
+) {
+    if let Some(entity) = existing {
+        let (_, _, node, image, transform, z) = query.images.get(entity).unwrap();
+        if *node != part.node {
+            commands.entity(entity).insert(part.node);
+        }
+        if image.is_none_or(|image| !images_equal(image, &part.image)) {
+            commands.entity(entity).insert(part.image);
+        }
+        if transform.is_none_or(|transform| *transform != part.transform) {
+            commands.entity(entity).insert(part.transform);
+        }
+        if z.0 != part.z {
+            commands.entity(entity).insert(GlobalZIndex(part.z));
+        }
+    } else {
+        commands.spawn((
+            RegistryImage {
+                frame_id,
+                key: part.key,
+            },
+            part.node,
+            part.image,
+            part.transform,
+            GlobalZIndex(part.z),
+            ChildOf(parent),
+            bevy::picking::Pickable::IGNORE,
+        ));
     }
 }
 
@@ -467,58 +498,9 @@ fn sync_texts(
             let key = (frame.id, part.key);
             seen.insert(key);
             if let Some(&(entity, bounds)) = existing.get(&key) {
-                let (_, _, old_text, font, layout, color) = query.texts.get(entity).unwrap();
-                if *query.nodes.get(entity).unwrap() != content_node {
-                    commands.entity(entity).insert(content_node);
-                }
-                if *query.nodes.get(bounds).unwrap() != part.node {
-                    commands.entity(bounds).insert(part.node);
-                }
-                if query.layers.get(bounds).unwrap().0 != part.z {
-                    commands.entity(bounds).insert(GlobalZIndex(part.z));
-                }
-                if old_text.0 != part.text {
-                    commands.entity(entity).insert(Text::new(part.text));
-                }
-                if *font != part.font {
-                    commands.entity(entity).insert(part.font);
-                }
-                if layout.justify != part.layout.justify
-                    || layout.linebreak != part.layout.linebreak
-                {
-                    commands.entity(entity).insert(part.layout);
-                }
-                if *color != part.color {
-                    commands.entity(entity).insert(part.color);
-                }
+                update_text(entity, bounds, content_node, part, commands, query);
             } else {
-                let bounds = commands
-                    .spawn((
-                        part.node,
-                        GlobalZIndex(part.z),
-                        ChildOf(frames[&frame.id]),
-                        bevy::picking::Pickable::IGNORE,
-                    ))
-                    .id();
-                let entity = commands
-                    .spawn((
-                        RegistryText {
-                            frame_id: frame.id,
-                            key: part.key,
-                            bounds,
-                        },
-                        Text::new(part.text),
-                        part.font,
-                        part.layout,
-                        part.color,
-                        content_node,
-                        ChildOf(bounds),
-                        bevy::picking::Pickable::IGNORE,
-                    ))
-                    .id();
-                if part.key == 0 && matches!(frame.widget_data, Some(WidgetData::EditBox(_))) {
-                    caret::spawn_caret(commands, entity, bounds, frame.id);
-                }
+                spawn_text(frame, frames[&frame.id], content_node, part, commands);
             }
         }
     }
@@ -526,5 +508,73 @@ fn sync_texts(
         if !seen.contains(&key) && frames.contains_key(&key.0) {
             commands.entity(bounds).despawn();
         }
+    }
+}
+
+fn update_text(
+    entity: Entity,
+    bounds: Entity,
+    content_node: Node,
+    part: TextPart,
+    commands: &mut Commands,
+    query: &ProjectionQueries,
+) {
+    let (_, _, old_text, font, layout, color) = query.texts.get(entity).unwrap();
+    if *query.nodes.get(entity).unwrap() != content_node {
+        commands.entity(entity).insert(content_node);
+    }
+    if *query.nodes.get(bounds).unwrap() != part.node {
+        commands.entity(bounds).insert(part.node);
+    }
+    if query.layers.get(bounds).unwrap().0 != part.z {
+        commands.entity(bounds).insert(GlobalZIndex(part.z));
+    }
+    if old_text.0 != part.text {
+        commands.entity(entity).insert(Text::new(part.text));
+    }
+    if *font != part.font {
+        commands.entity(entity).insert(part.font);
+    }
+    if layout.justify != part.layout.justify || layout.linebreak != part.layout.linebreak {
+        commands.entity(entity).insert(part.layout);
+    }
+    if *color != part.color {
+        commands.entity(entity).insert(part.color);
+    }
+}
+
+fn spawn_text(
+    frame: &Frame,
+    parent: Entity,
+    content_node: Node,
+    part: TextPart,
+    commands: &mut Commands,
+) {
+    let bounds = commands
+        .spawn((
+            part.node,
+            GlobalZIndex(part.z),
+            ChildOf(parent),
+            bevy::picking::Pickable::IGNORE,
+        ))
+        .id();
+    let entity = commands
+        .spawn((
+            RegistryText {
+                frame_id: frame.id,
+                key: part.key,
+                bounds,
+            },
+            Text::new(part.text),
+            part.font,
+            part.layout,
+            part.color,
+            content_node,
+            ChildOf(bounds),
+            bevy::picking::Pickable::IGNORE,
+        ))
+        .id();
+    if part.key == 0 && matches!(frame.widget_data, Some(WidgetData::EditBox(_))) {
+        caret::spawn_caret(commands, entity, bounds, frame.id);
     }
 }

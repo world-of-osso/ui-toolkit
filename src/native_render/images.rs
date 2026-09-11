@@ -50,35 +50,50 @@ fn project_background(
     parts: &mut Vec<ImagePart>,
 ) {
     if frame.nine_slice.is_some() && frame.background_color.is_some() {
-        for index in 0..5 {
-            let (mut transform, size, color) =
-                crate::render::backdrop_part_geometry(frame, index, 0, 0.0, 0.0);
-            transform.translation.z = z - 0.0002;
-            if size.x > 0.0 && size.y > 0.0 {
-                parts.push(from_geometry(
-                    frame,
-                    10 + u32::from(index),
-                    transform,
-                    size,
-                    solid(color),
-                ));
-            }
-        }
+        project_sliced_background(frame, z, parts);
         return;
     }
-    if frame.nine_slice.is_some() || frame.three_slice.is_some() {
-        if frame.background_color.is_none() {
-            return;
+    if !has_base_background(frame) {
+        return;
+    }
+    project_base_background(frame, z, load, parts);
+}
+
+fn project_sliced_background(frame: &Frame, z: f32, parts: &mut Vec<ImagePart>) {
+    for index in 0..5 {
+        let (mut transform, size, color) =
+            crate::render::backdrop_part_geometry(frame, index, 0, 0.0, 0.0);
+        transform.translation.z = z - 0.0002;
+        if size.x > 0.0 && size.y > 0.0 {
+            parts.push(from_geometry(
+                frame,
+                10 + u32::from(index),
+                transform,
+                size,
+                solid(color),
+            ));
         }
-    } else if frame.background_color.is_none()
-        && frame.backdrop.as_ref().and_then(|b| b.bg_color).is_none()
-        && !matches!(
+    }
+}
+
+fn has_base_background(frame: &Frame) -> bool {
+    if frame.nine_slice.is_some() || frame.three_slice.is_some() {
+        return frame.background_color.is_some();
+    }
+    frame.background_color.is_some()
+        || frame.backdrop.as_ref().and_then(|b| b.bg_color).is_some()
+        || matches!(
             frame.widget_data,
             Some(WidgetData::Texture(_) | WidgetData::Button(_) | WidgetData::StatusBar(_))
         )
-    {
-        return;
-    }
+}
+
+fn project_base_background(
+    frame: &Frame,
+    z: f32,
+    load: &mut impl FnMut(&TextureSource) -> Option<LoadedImage>,
+    parts: &mut Vec<ImagePart>,
+) {
     let Some(image) = base_image(frame, load) else {
         return;
     };
@@ -96,6 +111,11 @@ fn project_background(
         _ => percent(100),
     };
     part.node.height = percent(100);
+    apply_intrinsic_texture_size(frame, &mut part);
+    parts.push(part);
+}
+
+fn apply_intrinsic_texture_size(frame: &Frame, part: &mut ImagePart) {
     if matches!(frame.widget_data, Some(WidgetData::Texture(_)))
         && (frame.width == crate::frame::Dimension::Auto
             || frame.height == crate::frame::Dimension::Auto)
@@ -109,7 +129,6 @@ fn project_background(
         }
         part.image.image_mode = NodeImageMode::Auto;
     }
-    parts.push(part);
 }
 
 fn base_image(
