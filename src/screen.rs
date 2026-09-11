@@ -5,11 +5,9 @@ use std::path::PathBuf;
 #[cfg(debug_assertions)]
 use std::sync::{Mutex, OnceLock};
 
-use crate::frame::{Dimension, WidgetData};
 #[cfg(debug_assertions)]
 use crate::hotreload::HotReloadTemplate;
 use crate::registry::FrameRegistry;
-use crate::text_measure::measure_text;
 use crate::widget_def::WidgetChild;
 use crate::widget_def_diff::DiffContext;
 
@@ -134,11 +132,6 @@ impl Screen {
             self.diff.diff_roots(&tree, parent_id, registry);
             self.initialized = true;
         }
-
-        // 2. Auto-size
-        let frame_ids = collect_all_frame_ids(&self.diff.created_frames, registry);
-        auto_size_fontstrings(&frame_ids, registry);
-        auto_size_editboxes(&frame_ids, registry);
     }
 
     fn deps_changed(&self, ctx: &SharedContext) -> bool {
@@ -215,70 +208,6 @@ fn drain_global_hot_reload(diff: &mut DiffContext, registry: &mut FrameRegistry)
     diff.log_changes = false;
 }
 
-fn collect_all_frame_ids(roots: &[u64], registry: &FrameRegistry) -> Vec<u64> {
-    let mut all = Vec::new();
-    let mut stack: Vec<u64> = roots.iter().copied().collect();
-    while let Some(fid) = stack.pop() {
-        all.push(fid);
-        stack.extend(registry.children_of(fid));
-    }
-    all
-}
-
-fn auto_size_fontstrings(frame_ids: &[u64], registry: &mut FrameRegistry) {
-    for &fid in frame_ids {
-        let Some(frame) = registry.get(fid) else {
-            continue;
-        };
-        let Some(WidgetData::FontString(fs)) = &frame.widget_data else {
-            continue;
-        };
-        if frame.width == Dimension::Auto || frame.width.value() > 0.0 || fs.text.is_empty() {
-            continue;
-        }
-        let text = fs.text.clone();
-        let font = fs.font;
-        let font_size = fs.font_size;
-        if let Some((w, h)) = measure_text(&text, font, font_size) {
-            if frame.width == Dimension::Fixed(w) && frame.height == Dimension::Fixed(h) {
-                continue;
-            }
-            let frame = registry.get_mut(fid).unwrap();
-            frame.width = Dimension::Fixed(w);
-            if frame.height != Dimension::Auto {
-                frame.height = Dimension::Fixed(h);
-            }
-            registry.mark_rect_dirty(fid);
-        }
-    }
-}
-
-fn auto_size_editboxes(frame_ids: &[u64], registry: &mut FrameRegistry) {
-    for &fid in frame_ids {
-        let Some(frame) = registry.get(fid) else {
-            continue;
-        };
-        if frame.height == Dimension::Auto || frame.height.value() > 0.0 {
-            continue;
-        }
-        let Some(WidgetData::EditBox(eb)) = &frame.widget_data else {
-            continue;
-        };
-        let font_size = eb.font_size;
-        let v_inset = if eb.text_insets != [0.0; 4] {
-            eb.text_insets[2] + eb.text_insets[3]
-        } else {
-            0.0
-        };
-        let height = Dimension::Fixed(font_size + font_size * 0.5 + v_inset);
-        if frame.height == height {
-            continue;
-        }
-        registry.get_mut(fid).unwrap().height = height;
-        registry.mark_rect_dirty(fid);
-    }
-}
-
 #[cfg(all(test, debug_assertions))]
 #[path = "screen_hot_reload_tests.rs"]
 mod hot_reload_tests;
@@ -291,83 +220,6 @@ mod layout_tests;
 mod tests {
     use super::*;
     use crate::widget_def::WidgetChild;
-
-    fn sizing_widget(tag: &'static str, name: &str) -> crate::widget_def::WidgetDef {
-        let mut widget = crate::widget_def::WidgetDef::new(tag);
-        widget.name = Some(name.to_string());
-        widget
-    }
-
-    fn sizing_dimensions(registry: &FrameRegistry, id: u64) -> (f32, f32) {
-        let frame = registry.get(id).unwrap();
-        (frame.width.value(), frame.height.value())
-    }
-
-    #[test]
-    fn screen_sizing_preserves_nested_text_and_editbox_updates() {
-        let mut screen = Screen::new(|_| {
-            let mut nested = sizing_widget("Frame", "nested");
-            nested.children = vec![
-                WidgetChild::Widget(sizing_widget("FontString", "label")),
-                WidgetChild::Widget(sizing_widget("EditBox", "input")),
-            ];
-            let mut root = sizing_widget("Frame", "root");
-            root.children.push(WidgetChild::Widget(nested));
-            vec![WidgetChild::Widget(root)]
-        });
-        let ctx = SharedContext::new();
-        let mut registry = FrameRegistry::new(800.0, 600.0);
-        screen.sync(&ctx, &mut registry);
-        let label = registry.get_by_name("label").unwrap();
-        let input = registry.get_by_name("input").unwrap();
-        let (font, font_size) = {
-            let frame = registry.get_mut(label).unwrap();
-            frame.width = Dimension::Fixed(0.0);
-            let Some(WidgetData::FontString(text)) = &mut frame.widget_data else {
-                panic!("label must be text")
-            };
-            text.text = "Hi".to_string();
-            (text.font, text.font_size)
-        };
-        {
-            let frame = registry.get_mut(input).unwrap();
-            frame.width = Dimension::Fixed(120.0);
-            frame.height = Dimension::Fixed(0.0);
-            let Some(WidgetData::EditBox(editbox)) = &mut frame.widget_data else {
-                panic!("input must be an editbox")
-            };
-            editbox.font_size = 20.0;
-            editbox.text_insets = [1.0, 2.0, 3.0, 4.0];
-        }
-        screen.sync(&ctx, &mut registry);
-        let short_size = measure_text("Hi", font, font_size).expect("fixture font must load");
-        assert_eq!(sizing_dimensions(&registry, label), short_size);
-        assert_eq!(sizing_dimensions(&registry, input), (120.0, 37.0));
-        screen.sync(&ctx, &mut registry);
-        assert_eq!(sizing_dimensions(&registry, label), short_size);
-        assert_eq!(sizing_dimensions(&registry, input), (120.0, 37.0));
-        {
-            let frame = registry.get_mut(label).unwrap();
-            let Some(WidgetData::FontString(text)) = &mut frame.widget_data else {
-                unreachable!()
-            };
-            text.text = "A much longer label".to_string();
-        }
-        screen.sync(&ctx, &mut registry);
-        assert_eq!(sizing_dimensions(&registry, label), short_size);
-        registry.get_mut(label).unwrap().width = Dimension::Fixed(0.0);
-        registry.get_mut(input).unwrap().height = Dimension::Fixed(0.0);
-        if let Some(WidgetData::EditBox(editbox)) =
-            &mut registry.get_mut(input).unwrap().widget_data
-        {
-            editbox.font_size = 24.0;
-        }
-        screen.sync(&ctx, &mut registry);
-        let long_size = measure_text("A much longer label", font, font_size).unwrap();
-        assert!(long_size.0 > short_size.0);
-        assert_eq!(sizing_dimensions(&registry, label), long_size);
-        assert_eq!(sizing_dimensions(&registry, input), (120.0, 43.0));
-    }
 
     #[test]
     fn screen_with_no_deps_never_rebuilds_after_init() {
