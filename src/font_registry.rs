@@ -79,7 +79,8 @@ mod tests {
         for font in [GameFont::FrizQuadrata, GameFont::ArialNarrow] {
             let source = Path::new(font.path());
             let destination = directory.0.join(source.file_name().unwrap());
-            std::fs::copy(source, &destination).expect("copy existing real font fixture");
+            std::fs::write(&destination, bevy::text::DEFAULT_FONT_DATA)
+                .expect("write embedded real font fixture");
             let handle = registry.get(font, &mut assets);
             assert!(assets.get(&handle).is_some());
             std::fs::remove_file(destination).unwrap();
