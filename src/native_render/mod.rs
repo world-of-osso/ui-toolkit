@@ -25,9 +25,9 @@ pub struct RegistryNode(pub u64);
 #[derive(Component)]
 struct Canvas;
 #[derive(Component)]
-struct RegistryImage {
-    frame_id: u64,
-    key: u32,
+pub(crate) struct RegistryImage {
+    pub(crate) frame_id: u64,
+    pub(crate) key: u32,
 }
 #[derive(Component)]
 pub struct RegistryText {
