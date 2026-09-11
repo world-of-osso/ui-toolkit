@@ -233,7 +233,7 @@ fn auto_size_fontstrings(frame_ids: &[u64], registry: &mut FrameRegistry) {
         let Some(WidgetData::FontString(fs)) = &frame.widget_data else {
             continue;
         };
-        if frame.width.value() > 0.0 || fs.text.is_empty() {
+        if frame.width == Dimension::Auto || frame.width.value() > 0.0 || fs.text.is_empty() {
             continue;
         }
         let text = fs.text.clone();
@@ -245,7 +245,9 @@ fn auto_size_fontstrings(frame_ids: &[u64], registry: &mut FrameRegistry) {
             }
             let frame = registry.get_mut(fid).unwrap();
             frame.width = Dimension::Fixed(w);
-            frame.height = Dimension::Fixed(h);
+            if frame.height != Dimension::Auto {
+                frame.height = Dimension::Fixed(h);
+            }
             registry.mark_rect_dirty(fid);
         }
     }
@@ -256,7 +258,7 @@ fn auto_size_editboxes(frame_ids: &[u64], registry: &mut FrameRegistry) {
         let Some(frame) = registry.get(fid) else {
             continue;
         };
-        if frame.height.value() > 0.0 {
+        if frame.height == Dimension::Auto || frame.height.value() > 0.0 {
             continue;
         }
         let Some(WidgetData::EditBox(eb)) = &frame.widget_data else {
