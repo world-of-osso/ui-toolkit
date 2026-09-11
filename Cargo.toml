@@ -15,7 +15,7 @@ log = "0.4"
 notify = "7"
 
 [patch."ssh://git@github.com/world-of-osso/ui-toolkit-macros.git"]
-ui-toolkit-macros = { path = "../ui-toolkit-macros-rsx-login" }
+ui-toolkit-macros = { path = "../ui-toolkit-macros" }
 
 [profile.dev.package."*"]
 opt-level = 2
