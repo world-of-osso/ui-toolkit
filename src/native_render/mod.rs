@@ -115,8 +115,8 @@ pub(crate) struct ProjectionQueries<'w, 's> {
             Entity,
             &'static RegistryImage,
             &'static Node,
-            &'static ImageNode,
-            &'static UiTransform,
+            Option<&'static ImageNode>,
+            Option<&'static UiTransform>,
             &'static GlobalZIndex,
         ),
     >,
@@ -383,10 +383,10 @@ fn sync_images(
                 if *node != part.node {
                     commands.entity(entity).insert(part.node);
                 }
-                if !images_equal(image, &part.image) {
+                if image.is_none_or(|image| !images_equal(image, &part.image)) {
                     commands.entity(entity).insert(part.image);
                 }
-                if *transform != part.transform {
+                if transform.is_none_or(|transform| *transform != part.transform) {
                     commands.entity(entity).insert(part.transform);
                 }
                 if z.0 != part.z {
@@ -450,17 +450,16 @@ fn sync_texts(
     commands: &mut Commands,
     query: &ProjectionQueries,
 ) {
+    if !enabled {
+        return;
+    }
     let existing: HashMap<_, _> = query
         .texts
         .iter()
         .map(|(entity, part, ..)| ((part.frame_id, part.key), (entity, part.bounds)))
         .collect();
     let mut seen = HashSet::new();
-    for frame in state
-        .registry
-        .frames_iter()
-        .filter(|f| enabled && f.visible)
-    {
+    for frame in state.registry.frames_iter().filter(|f| f.visible) {
         *assets.frame_z = order.indices.get(&frame.id).copied().unwrap_or(0) as f32 * 0.001;
         let projected = projection_frame(frame, frames[&frame.id], query);
         for part in text::project_text(&projected, assets) {

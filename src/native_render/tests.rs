@@ -398,7 +398,7 @@ fn registry_reparent_and_removal_preserve_logical_identity_and_clean_native_subt
 
 fn caret_entity(world: &mut World, bounds: Entity) -> Entity {
     world
-        .query::<(Entity, &ChildOf, &BackgroundColor)>()
+        .query_filtered::<(Entity, &ChildOf, &BackgroundColor), Without<Text>>()
         .iter(world)
         .find(|(_, parent, _)| parent.parent() == bounds)
         .map(|(entity, _, _)| entity)

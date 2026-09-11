@@ -42,12 +42,16 @@ fn bounds(part: &ImagePart) -> [f32; 4] {
         part.node.width,
         part.node.height,
     ]
-    .map(|value| {
-        let Val::Px(value) = value else {
-            panic!("expected absolute local geometry")
-        };
-        value
+    .into_iter()
+    .zip([200.0, 100.0, 200.0, 100.0])
+    .map(|(value, parent_extent)| match value {
+        Val::Px(value) => value,
+        Val::Percent(value) => parent_extent * value / 100.0,
+        other => panic!("unexpected sizing mode in the 200x100 fixture: {other:?}"),
     })
+    .collect::<Vec<_>>()
+    .try_into()
+    .unwrap()
 }
 
 #[test]
