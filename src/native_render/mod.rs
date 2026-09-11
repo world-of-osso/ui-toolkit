@@ -225,18 +225,9 @@ fn sync_frames(
     let mut ordered_frames: Vec<_> = state.registry.frames_iter().collect();
     ordered_frames.sort_by_key(|frame| frame.id);
     for frame in &ordered_frames {
-        entities.entry(frame.id).or_insert_with(|| {
-            commands
-                .spawn((
-                    RegistryNode(frame.id),
-                    Node::default(),
-                    ChildOf(canvas),
-                    GlobalZIndex(0),
-                    bevy::picking::Pickable::IGNORE,
-                    bevy::ui::FocusPolicy::Pass,
-                ))
-                .id()
-        });
+        entities
+            .entry(frame.id)
+            .or_insert_with(|| spawn_registry_frame(commands, frame.id, canvas));
     }
     for frame in &ordered_frames {
         update_frame(frame, order, canvas, &entities, commands, query);
@@ -244,6 +235,19 @@ fn sync_frames(
     synchronize_child_order(state, canvas, &entities, commands, query);
     remove_frames(&removed, commands, query);
     entities
+}
+
+fn spawn_registry_frame(commands: &mut Commands, id: u64, canvas: Entity) -> Entity {
+    commands
+        .spawn((
+            RegistryNode(id),
+            Node::default(),
+            ChildOf(canvas),
+            GlobalZIndex(0),
+            bevy::picking::Pickable::IGNORE,
+            bevy::ui::FocusPolicy::Pass,
+        ))
+        .id()
 }
 
 fn update_frame(
@@ -260,18 +264,7 @@ fn update_frame(
         crate::anchor::AnchorTarget::Parent => frame.parent_id.map_or(canvas, |id| entities[&id]),
     };
     let node = layout::node(frame);
-    let transform = UiTransform {
-        translation: frame.translation,
-        scale: Vec2::splat(frame.scale),
-        ..default()
-    };
-    if query
-        .transforms
-        .get(entity)
-        .map_or(true, |old| *old != transform)
-    {
-        commands.entity(entity).insert(transform);
-    };
+    sync_frame_transform(frame, entity, commands, query);
     let z = GlobalZIndex(order.indices.get(&frame.id).copied().unwrap_or(0) as i32);
     if let Ok((_, _, old_node, old_parent, old_z, old_name)) = query.frames.get(entity) {
         if *old_node != node {
@@ -289,6 +282,26 @@ fn update_frame(
     } else {
         commands.entity(entity).insert((node, ChildOf(parent), z));
         set_frame_name(commands, entity, frame.name.as_deref());
+    }
+}
+
+fn sync_frame_transform(
+    frame: &Frame,
+    entity: Entity,
+    commands: &mut Commands,
+    query: &ProjectionQueries,
+) {
+    let transform = UiTransform {
+        translation: frame.translation,
+        scale: Vec2::splat(frame.scale),
+        ..default()
+    };
+    if query
+        .transforms
+        .get(entity)
+        .map_or(true, |old| *old != transform)
+    {
+        commands.entity(entity).insert(transform);
     }
 }
 
