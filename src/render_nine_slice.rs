@@ -46,33 +46,6 @@ pub fn sync_ui_nine_slices(
     sync_nine_slice_parts(&state, &order, &parts, &visuals, &mut sync);
 }
 
-pub(crate) fn sync_ui_nine_slices_prepared(
-    state: Res<UiState>,
-    order: Res<UiFrameOrder>,
-    mut commands: Commands,
-    mut images: Option<ResMut<Assets<Image>>>,
-    parts: Query<(Entity, &UiNineSlicePart)>,
-    visuals: Query<(&Transform, &Sprite)>,
-    mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
-    mut file_texture_cache: Local<HashMap<String, Handle<Image>>>,
-    mut missing_textures: Local<HashSet<u32>>,
-    mut missing_file_textures: Local<HashSet<String>>,
-    blp_loader: Option<Res<BlpLoaderRes>>,
-) {
-    let mut sync = NineSliceSyncContext {
-        screen_w: state.registry.screen_width,
-        screen_h: state.registry.screen_height,
-        commands: &mut commands,
-        images: &mut images,
-        texture_cache: &mut texture_cache,
-        file_texture_cache: &mut file_texture_cache,
-        missing_textures: &mut missing_textures,
-        missing_file_textures: &mut missing_file_textures,
-        blp_loader: blp_loader.as_deref(),
-    };
-    sync_nine_slice_parts(&state, &order, &parts, &visuals, &mut sync);
-}
-
 fn sync_nine_slice_parts(
     state: &UiState,
     order: &UiFrameOrder,

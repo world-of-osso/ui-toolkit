@@ -38,30 +38,6 @@ pub fn sync_ui_text(
     sync_ui_text_with_order(state, &order, commands, font_assets, font_registry, texts);
 }
 
-pub(crate) fn sync_ui_text_prepared(
-    state: Res<UiState>,
-    order: Res<UiFrameOrder>,
-    commands: Commands,
-    font_assets: ResMut<Assets<Font>>,
-    font_registry: ResMut<FontRegistry>,
-    texts: Query<
-        (
-            Entity,
-            &UiText,
-            &mut Text2d,
-            &mut TextLayout,
-            &mut TextBounds,
-            &mut TextFont,
-            &mut TextColor,
-            &mut Transform,
-            Option<&mut Anchor>,
-        ),
-        (Without<UiTextShadow>, Without<UiTextOutline>),
-    >,
-) {
-    sync_ui_text_with_order(state, &order, commands, font_assets, font_registry, texts);
-}
-
 fn sync_ui_text_with_order(
     state: Res<UiState>,
     order: &UiFrameOrder,

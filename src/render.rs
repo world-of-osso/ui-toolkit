@@ -108,36 +108,6 @@ pub fn sync_ui_quads(
     );
 }
 
-pub(crate) fn sync_ui_quads_prepared(
-    state: ResMut<UiState>,
-    order: Res<UiFrameOrder>,
-    commands: Commands,
-    images: Option<ResMut<Assets<Image>>>,
-    quads: Query<(Entity, &UiQuad)>,
-    backdrop_quads: Query<(Entity, &UiBackdropQuad)>,
-    visuals: Query<(&Transform, &Sprite)>,
-    texture_cache: Local<HashMap<u32, Handle<Image>>>,
-    file_texture_cache: Local<HashMap<String, Handle<Image>>>,
-    missing_textures: Local<HashSet<u32>>,
-    missing_file_textures: Local<HashSet<String>>,
-    blp_loader: Option<Res<BlpLoaderRes>>,
-) {
-    sync_ui_quads_with_order(
-        state,
-        &order,
-        commands,
-        images,
-        quads,
-        backdrop_quads,
-        visuals,
-        texture_cache,
-        file_texture_cache,
-        missing_textures,
-        missing_file_textures,
-        blp_loader,
-    );
-}
-
 fn sync_ui_quads_with_order(
     mut state: ResMut<UiState>,
     order: &UiFrameOrder,

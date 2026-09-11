@@ -11,6 +11,9 @@ use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 pub mod caret;
+#[cfg(test)]
+mod tests;
+
 mod images;
 mod text;
 
@@ -26,7 +29,7 @@ struct RegistryImage {
     key: u32,
 }
 #[derive(Component)]
-pub(crate) struct RegistryText {
+pub struct RegistryText {
     pub frame_id: u64,
     pub key: u32,
     bounds: Entity,
