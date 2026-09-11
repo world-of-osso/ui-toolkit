@@ -1,33 +1,28 @@
 use std::collections::BTreeMap;
 
-use bevy::asset::AssetPlugin;
-use bevy::ecs::system::RunSystemOnce;
+use bevy::asset::{AssetApp, AssetPlugin};
+use bevy::camera::{CameraPlugin, CameraUpdateSystems, ComputedCameraValues, RenderTargetInfo};
+use bevy::math::Affine2;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use ui_toolkit::anchor::{Anchor, AnchorPoint};
 use ui_toolkit::frame::{Dimension, NineSlice, ThreeSlice, WidgetData};
+use ui_toolkit::native_render::{RegistryNode, RegistryText};
 use ui_toolkit::plugin::{
     UiPlugin, UiProcessingEnabled, UiRenderEnabled, UiRenderSet, UiState, UiTextRenderEnabled,
 };
-use ui_toolkit::render::{UiQuad, UiText, sync_ui_quads};
-use ui_toolkit::render_nine_slice::{UiNineSlicePart, sync_ui_nine_slices};
-use ui_toolkit::render_text::sync_ui_text;
-use ui_toolkit::render_text_fx::{
-    UiTextOutline, UiTextShadow, sync_ui_text_outlines, sync_ui_text_shadows,
-};
-use ui_toolkit::render_three_slice::{UiThreeSlicePart, sync_ui_three_slices};
+use ui_toolkit::render::UiCamera;
 use ui_toolkit::strata::FrameStrata;
 use ui_toolkit::widgets::font_string::{FontStringData, Outline};
 use ui_toolkit::widgets::texture::TextureSource;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Snapshot {
-    quads: BTreeMap<u64, f32>,
-    text: BTreeMap<u64, f32>,
-    shadows: BTreeMap<u64, f32>,
-    outlines: BTreeMap<u64, Vec<f32>>,
-    nine: BTreeMap<u64, f32>,
-    three: BTreeMap<u64, f32>,
+    quads: BTreeMap<u64, i32>,
+    text: BTreeMap<u64, i32>,
+    shadows: BTreeMap<u64, i32>,
+    outlines: BTreeMap<u64, Vec<i32>>,
+    nine: BTreeMap<u64, i32>,
+    three: BTreeMap<u64, i32>,
 }
 
 struct Fixture {
@@ -40,35 +35,43 @@ struct Fixture {
     spacer: u64,
 }
 
-fn add_frame(ui: &mut UiState, name: &str, x: f32) -> u64 {
-    let id = ui.registry.create_frame(name, None);
-    let frame = ui.registry.get_mut(id).unwrap();
-    frame.width = Dimension::Fixed(80.0);
-    frame.height = Dimension::Fixed(24.0);
-    frame.strata = FrameStrata::Medium;
-    frame.frame_level = 0;
-    frame.raise_order = 0;
-    ui.registry
-        .set_point(
-            id,
-            Anchor {
-                point: AnchorPoint::TopLeft,
-                relative_to: None,
-                relative_point: AnchorPoint::TopLeft,
-                x_offset: x,
-                y_offset: -40.0,
-            },
-        )
-        .unwrap();
-    id
+fn update_camera_target(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut cameras: Query<&mut Camera, With<UiCamera>>,
+) {
+    let window = windows.single().unwrap();
+    for mut camera in &mut cameras {
+        camera.computed = ComputedCameraValues {
+            target_info: Some(RenderTargetInfo {
+                physical_size: UVec2::new(window.physical_width(), window.physical_height()),
+                scale_factor: window.scale_factor(),
+            }),
+            ..default()
+        };
+    }
 }
 
-fn fixture() -> Fixture {
+fn native_app() -> App {
     let mut app = App::new();
-    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-    app.init_asset::<Image>();
-    app.init_asset::<Font>();
-    app.add_plugins(UiPlugin);
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin::default(),
+        bevy::image::ImagePlugin::default(),
+        bevy::mesh::MeshPlugin,
+        bevy::window::WindowPlugin {
+            primary_window: None,
+            exit_condition: bevy::window::ExitCondition::DontExit,
+            ..default()
+        },
+        bevy::input::InputPlugin,
+        bevy::transform::TransformPlugin,
+        CameraPlugin,
+        bevy::text::TextPlugin,
+        bevy::picking::DefaultPickingPlugins,
+        bevy::ui::UiPlugin,
+        UiPlugin,
+    ));
+    app.init_asset::<TextureAtlasLayout>();
     app.world_mut().spawn((
         Window {
             resolution: (800, 600).into(),
@@ -76,6 +79,40 @@ fn fixture() -> Fixture {
         },
         PrimaryWindow,
     ));
+    app.add_systems(
+        PostUpdate,
+        update_camera_target
+            .after(CameraUpdateSystems)
+            .before(bevy::ui::UiSystems::Prepare),
+    );
+    app.finish();
+    app.cleanup();
+    app
+}
+
+fn add_frame(ui: &mut UiState, name: &str, x: f32) -> u64 {
+    let id = ui.registry.create_frame(name, None);
+    ui.registry
+        .set_pos_type(id, PositionType::Absolute)
+        .unwrap();
+    ui.registry.set_pos(id, x, 40.0).unwrap();
+    let frame = ui.registry.get_mut(id).unwrap();
+    frame.width = Dimension::Fixed(80.0);
+    frame.height = Dimension::Fixed(24.0);
+    frame.strata = FrameStrata::Medium;
+    frame.frame_level = 0;
+    frame.raise_order = 0;
+    id
+}
+
+fn settle(app: &mut App) {
+    for _ in 0..3 {
+        app.update();
+    }
+}
+
+fn fixture() -> Fixture {
+    let mut app = native_app();
     let (first, second, text, nine, three, spacer) = {
         let mut ui = app.world_mut().resource_mut::<UiState>();
         let first = add_frame(&mut ui, "OrderFirst", 10.0);
@@ -101,9 +138,7 @@ fn fixture() -> Fixture {
         let spacer = add_frame(&mut ui, "OrderSpacer", 460.0);
         (first, second, text, nine, three, spacer)
     };
-    for _ in 0..3 {
-        app.update();
-    }
+    settle(&mut app);
     Fixture {
         app,
         first,
@@ -115,51 +150,74 @@ fn fixture() -> Fixture {
     }
 }
 
+fn logical_rect(world: &World, entity: Entity) -> Rect {
+    let node = world.get::<ComputedNode>(entity).unwrap();
+    let transform = Affine2::from(world.get::<UiGlobalTransform>(entity).unwrap());
+    Rect::from_center_size(
+        transform.translation * node.inverse_scale_factor,
+        node.size * node.inverse_scale_factor,
+    )
+}
+
 fn snapshot(world: &mut World) -> Snapshot {
     let mut result = Snapshot::default();
-    for (id, transform) in world.query::<(&UiQuad, &Transform)>().iter(world) {
-        result.quads.insert(id.0, transform.translation.z);
-    }
-    for (id, transform, shadow, outline) in world
-        .query::<(
-            &UiText,
-            &Transform,
-            Option<&UiTextShadow>,
-            Option<&UiTextOutline>,
-        )>()
+    let frames: Vec<_> = world
+        .query::<(Entity, &RegistryNode)>()
         .iter(world)
-    {
-        if shadow.is_some() {
-            result.shadows.insert(id.0, transform.translation.z);
-        } else if outline.is_some() {
-            result
-                .outlines
-                .entry(id.0)
-                .or_default()
-                .push(transform.translation.z);
-        } else {
-            result.text.insert(id.0, transform.translation.z);
+        .map(|(entity, id)| (entity, id.0))
+        .collect();
+    for (entity, id) in frames {
+        let center = logical_rect(world, entity).center();
+        let images: Vec<_> = world
+            .get::<Children>(entity)
+            .into_iter()
+            .flat_map(|children| children.iter())
+            .filter(|child| world.get::<ImageNode>(*child).is_some())
+            .collect();
+        if images.is_empty() {
+            continue;
+        }
+        let central: Vec<_> = images
+            .iter()
+            .copied()
+            .filter(|child| logical_rect(world, *child).contains(center))
+            .collect();
+        assert_eq!(
+            central.len(),
+            1,
+            "one image covers center of registry frame {id}"
+        );
+        let z = world.get::<GlobalZIndex>(central[0]).unwrap().0;
+        match images.len() {
+            1 => {
+                result.quads.insert(id, z);
+            }
+            9 => {
+                result.nine.insert(id, z);
+            }
+            3 => {
+                result.three.insert(id, z);
+            }
+            count => panic!("unexpected image count {count} for fixture frame {id}"),
         }
     }
-    for (part, transform) in world.query::<(&UiNineSlicePart, &Transform)>().iter(world) {
-        if part.1 == 4 {
-            result.nine.insert(part.0, transform.translation.z);
-        }
-    }
-    for (part, transform) in world.query::<(&UiThreeSlicePart, &Transform)>().iter(world) {
-        if part.1 == 1 {
-            result.three.insert(part.0, transform.translation.z);
+    for (part, parent) in world.query::<(&RegistryText, &ChildOf)>().iter(world) {
+        let z = world.get::<GlobalZIndex>(parent.parent()).unwrap().0;
+        match part.key {
+            0 => {
+                result.text.insert(part.frame_id, z);
+            }
+            1 => {
+                result.shadows.insert(part.frame_id, z);
+            }
+            _ => result.outlines.entry(part.frame_id).or_default().push(z),
         }
     }
     result
 }
 
-fn assert_z(actual: f32, rank: usize, offset: f32) {
-    let expected = rank as f32 * 0.001 + offset;
-    assert!(
-        (actual - expected).abs() < 0.0000001,
-        "z={actual}, expected={expected}"
-    );
+fn assert_z(actual: i32, rank: usize, offset: i32) {
+    assert_eq!(actual, rank as i32 * 10 + offset);
 }
 
 fn assert_order(fixture: &mut Fixture, expected: &[u64]) {
@@ -170,27 +228,29 @@ fn assert_order(fixture: &mut Fixture, expected: &[u64]) {
 fn assert_snapshot_order(fixture: &Fixture, result: &Snapshot, expected: &[u64]) {
     for (rank, &id) in expected.iter().enumerate() {
         if id == fixture.first || id == fixture.second {
-            assert_z(result.quads[&id], rank, 0.0);
+            assert_z(result.quads[&id], rank, 0);
         } else if id == fixture.text {
-            assert_z(result.text[&id], rank, 0.0007);
-            assert_z(result.shadows[&id], rank, 0.0006);
+            assert_z(result.text[&id], rank, 7);
+            assert_z(result.shadows[&id], rank, 6);
             if let Some(outlines) = result.outlines.get(&id) {
                 assert_eq!(outlines.len(), 4);
                 for &z in outlines {
-                    assert_z(z, rank, 0.0005);
+                    assert_z(z, rank, 5);
                 }
             }
         } else if id == fixture.nine {
-            assert_z(result.nine[&id], rank, 0.0);
+            assert_z(result.nine[&id], rank, 0);
         } else if id == fixture.three {
-            assert_z(result.three[&id], rank, 0.0);
+            assert_z(result.three[&id], rank, 0);
         }
     }
-    let expected_quads = expected
-        .iter()
-        .filter(|&&id| id == fixture.first || id == fixture.second)
-        .count();
-    assert_eq!(result.quads.len(), expected_quads);
+    assert_eq!(
+        result.quads.len(),
+        expected
+            .iter()
+            .filter(|&&id| id == fixture.first || id == fixture.second)
+            .count()
+    );
     assert_eq!(result.text.len(), 1);
     assert_eq!(result.shadows.len(), 1);
     assert_eq!(result.nine.len(), 1);
@@ -201,9 +261,7 @@ fn change_order(fixture: &mut Fixture) {
     let mut ui = fixture.app.world_mut().resource_mut::<UiState>();
     ui.registry.get_mut(fixture.first).unwrap().frame_level = 5;
     ui.registry.set_hidden(fixture.second, true);
-    let spacer = ui.registry.get_mut(fixture.spacer).unwrap();
-    spacer.width = Dimension::Fixed(0.0);
-    spacer.layout_rect.as_mut().unwrap().width = 0.0;
+    ui.registry.get_mut(fixture.spacer).unwrap().width = Dimension::Fixed(0.0);
     ui.registry.mark_rect_dirty(fixture.spacer);
 }
 
@@ -212,7 +270,7 @@ fn enable_outline(fixture: &mut Fixture) {
     let Some(WidgetData::FontString(text)) =
         &mut ui.registry.get_mut(fixture.text).unwrap().widget_data
     else {
-        panic!("expected text fixture");
+        panic!("text fixture")
     };
     text.outline = Outline::Outline;
 }
@@ -229,7 +287,7 @@ fn plugin_refreshes_order_after_visibility_size_and_ordering_changes() {
         ui.registry.get_mut(f.nine).unwrap().strata = FrameStrata::High;
     }
     enable_outline(&mut f);
-    f.app.update();
+    settle(&mut f.app);
     let expected = [f.text, f.three, f.first, f.nine];
     assert_order(&mut f, &expected);
 }
@@ -252,7 +310,7 @@ fn render_and_processing_reenable_use_current_registry_order() {
         } else {
             f.app.world_mut().resource_mut::<UiRenderEnabled>().0 = true;
         }
-        f.app.update();
+        settle(&mut f.app);
         let expected = [f.text, f.nine, f.three, f.first];
         assert_order(&mut f, &expected);
     }
@@ -265,32 +323,30 @@ fn text_reenable_uses_new_order_while_nontext_rendering_continues() {
     f.app.world_mut().resource_mut::<UiTextRenderEnabled>().0 = false;
     change_order(&mut f);
     enable_outline(&mut f);
-    f.app.update();
+    settle(&mut f.app);
     let disabled = snapshot(f.app.world_mut());
+    // Pausing text synchronization must preserve previously rendered text.
     assert_eq!(disabled.text, before.text);
     assert_eq!(disabled.shadows, before.shadows);
     assert!(disabled.outlines.is_empty());
-    assert_z(disabled.nine[&f.nine], 1, 0.0);
+    assert_z(disabled.nine[&f.nine], 1, 0);
     assert!(!disabled.quads.contains_key(&f.second));
     f.app.world_mut().resource_mut::<UiTextRenderEnabled>().0 = true;
-    f.app.update();
+    settle(&mut f.app);
     let expected = [f.text, f.nine, f.three, f.first];
     assert_order(&mut f, &expected);
 }
 
 #[test]
-fn standalone_renderers_ignore_stale_plugin_preparation() {
+fn native_post_update_uses_current_order_without_running_update_schedule() {
     let mut f = fixture();
-    f.app.world_mut().resource_mut::<UiProcessingEnabled>().0 = false;
     change_order(&mut f);
     enable_outline(&mut f);
-    let world = f.app.world_mut();
-    world.run_system_once(sync_ui_quads).unwrap();
-    world.run_system_once(sync_ui_text).unwrap();
-    world.run_system_once(sync_ui_text_shadows).unwrap();
-    world.run_system_once(sync_ui_text_outlines).unwrap();
-    world.run_system_once(sync_ui_nine_slices).unwrap();
-    world.run_system_once(sync_ui_three_slices).unwrap();
+    // Native synchronization lives in PostUpdate; exercise that boundary directly
+    // instead of invoking the retired Sprite/Text2d synchronization functions.
+    for _ in 0..3 {
+        f.app.world_mut().run_schedule(PostUpdate);
+    }
     let expected = [f.text, f.nine, f.three, f.first];
     assert_order(&mut f, &expected);
 }
@@ -324,7 +380,7 @@ fn before_prepare_geometry_updates_reach_layout_and_render_in_same_update() {
     let mut f = fixture();
     let first = f.first;
     f.app.add_systems(
-        Update,
+        PostUpdate,
         (move |mut ui: ResMut<UiState>| {
             ui.registry.get_mut(first).unwrap().width = Dimension::Fixed(136.0);
             ui.registry.mark_rect_dirty(first);
@@ -333,9 +389,19 @@ fn before_prepare_geometry_updates_reach_layout_and_render_in_same_update() {
     );
     f.app.update();
     let world = f.app.world_mut();
-    let mut quads = world.query::<(&UiQuad, &Sprite)>();
-    let (_, sprite) = quads.iter(world).find(|(quad, _)| quad.0 == first).unwrap();
-    assert_eq!(sprite.custom_size, Some(Vec2::new(136.0, 24.0)));
+    let entity = world
+        .query::<(Entity, &RegistryNode)>()
+        .iter(world)
+        .find(|(_, id)| id.0 == first)
+        .unwrap()
+        .0;
+    let image = world
+        .get::<Children>(entity)
+        .unwrap()
+        .iter()
+        .find(|child| world.get::<ImageNode>(*child).is_some())
+        .unwrap();
+    assert_eq!(logical_rect(world, image).size(), Vec2::new(136.0, 24.0));
     let frame = world.resource::<UiState>().registry.get(first).unwrap();
     assert_eq!(frame.layout_rect.as_ref().unwrap().width, 136.0);
 }
@@ -350,19 +416,10 @@ fn named_sets_apply_input_before_preparation_and_publish_current_render_order() 
     });
     f.app.init_resource::<PublishedOrder>();
     f.app.add_systems(
-        Update,
+        PostUpdate,
         reorder_before_preparation.before(UiRenderSet::Prepare),
     );
-    f.app.add_systems(
-        Update,
-        publish_after_consumers
-            .after(UiRenderSet::Quads)
-            .after(UiRenderSet::Text)
-            .after(UiRenderSet::Shadows)
-            .after(UiRenderSet::Outlines)
-            .after(UiRenderSet::NineSlices)
-            .after(UiRenderSet::ThreeSlices),
-    );
+    f.app.add_systems(Last, publish_after_consumers);
     f.app.update();
     let expected = [f.text, f.nine, f.three, f.spacer, f.first, f.second];
     let published = &f.app.world().resource::<PublishedOrder>().0;

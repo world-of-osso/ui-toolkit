@@ -75,6 +75,23 @@ impl Plugin for UiPlugin {
         app.init_resource::<crate::render::UiFrameOrder>();
         register_ui_startup_systems(app);
         register_ui_update_systems(app);
+        app.init_resource::<crate::native_render::caret::UiCaretBlocked>();
+        app.add_systems(
+            PostUpdate,
+            crate::native_render::layout::read_bounds
+                .after(bevy::ui::UiSystems::PostLayout)
+                .before(crate::native_render::caret::sync_carets)
+                .run_if(ui_processing_enabled)
+                .run_if(ui_render_enabled),
+        );
+        app.add_systems(
+            PostUpdate,
+            crate::native_render::caret::sync_carets
+                .after(bevy::ui::UiSystems::PostLayout)
+                .run_if(ui_processing_enabled)
+                .run_if(ui_render_enabled)
+                .run_if(ui_text_render_enabled),
+        );
     }
 }
 
@@ -90,46 +107,28 @@ fn register_ui_update_systems(app: &mut App) {
     app.add_systems(
         Update,
         crate::screen::poll_hot_reload
-            .before(sync_screen_size)
             .run_if(bevy::time::common_conditions::on_real_timer(
                 std::time::Duration::from_secs(1),
             ))
             .run_if(ui_processing_enabled),
     );
     app.add_systems(
-        Update,
+        PostUpdate,
         (
             sync_screen_size.in_set(UiRenderSet::Prepare),
-            recompute_layout.in_set(UiRenderSet::Prepare),
             crate::render_button::sync_button_nine_slices.in_set(UiRenderSet::Prepare),
             (
                 crate::render::prepare_ui_frame_order.in_set(UiRenderSet::Prepare),
-                crate::render::sync_ui_quads_prepared.in_set(UiRenderSet::Quads),
-                crate::render_button::sync_ui_button_highlights,
-                crate::render_text::sync_ui_text_prepared
-                    .in_set(UiRenderSet::Text)
-                    .run_if(ui_text_render_enabled),
-                crate::render_border::sync_ui_borders,
-                crate::render_border::sync_css_borders,
-                crate::render_nine_slice::sync_ui_nine_slices_prepared
-                    .in_set(UiRenderSet::NineSlices),
-                crate::render_three_slice::sync_ui_three_slices_prepared
-                    .in_set(UiRenderSet::ThreeSlices),
-                crate::render_tiled::sync_ui_tiled_textures,
-                (
-                    crate::render_text_fx::sync_ui_text_shadows_prepared
-                        .in_set(UiRenderSet::Shadows),
-                    crate::render_text_fx::sync_ui_text_outlines_prepared
-                        .in_set(UiRenderSet::Outlines),
-                )
-                    .chain()
-                    .run_if(ui_text_render_enabled),
+                crate::native_render::sync_registry.in_set(UiRenderSet::Quads),
             )
                 .chain()
                 .run_if(ui_render_enabled),
             crate::button_input::sync_button_input,
         )
             .chain()
+            .after(bevy::camera::CameraUpdateSystems)
+            .before(bevy::ui::UiSystems::Prepare)
+            .before(bevy::ui::UiSystems::Stack)
             .run_if(ui_processing_enabled),
     );
 }
@@ -187,252 +186,6 @@ fn initialize_screen_size(
     sync_registry_to_primary_window(&mut state.registry, &windows);
 }
 
-fn recompute_layout(mut state: ResMut<UiState>) {
-    if state.registry.rect_dirty.is_empty() {
-        return;
-    }
-    crate::layout::recompute_layouts(&mut state.registry);
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[derive(Resource, Default)]
-    struct LayoutCallerChanged(bool);
-
-    fn observe_layout_caller_change(
-        state: Res<UiState>,
-        mut observed: ResMut<LayoutCallerChanged>,
-    ) {
-        observed.0 = state.is_changed();
-    }
-
-    fn layout_caller_app() -> (App, u64) {
-        use crate::anchor::{Anchor, AnchorPoint};
-        use crate::frame::Dimension;
-
-        let mut registry = FrameRegistry::new(800.0, 600.0);
-        let id = registry.create_frame("LayoutCaller", None);
-        let frame = registry.get_mut(id).unwrap();
-        frame.width = Dimension::Fixed(80.0);
-        frame.height = Dimension::Fixed(30.0);
-        registry
-            .set_point(
-                id,
-                Anchor {
-                    point: AnchorPoint::TopLeft,
-                    relative_to: None,
-                    relative_point: AnchorPoint::TopLeft,
-                    x_offset: 12.0,
-                    y_offset: 0.0,
-                },
-            )
-            .unwrap();
-        crate::layout::recompute_layouts(&mut registry);
-        registry.render_dirty.clear();
-        let mut app = App::new();
-        app.insert_resource(UiState {
-            registry,
-            event_bus: EventBus::new(),
-            focused_frame: None,
-        });
-        app.init_resource::<LayoutCallerChanged>();
-        app.add_systems(
-            Update,
-            (recompute_layout, observe_layout_caller_change).chain(),
-        );
-        app.update(); // Consume the initial resource insertion notification.
-        (app, id)
-    }
-
-    #[test]
-    fn layout_caller_clean_updates_do_not_mark_ui_state_changed() {
-        let (mut app, id) = layout_caller_app();
-        let expected = app
-            .world()
-            .resource::<UiState>()
-            .registry
-            .get(id)
-            .unwrap()
-            .layout_rect
-            .clone();
-        for _ in 0..3 {
-            app.update();
-            assert!(!app.world().resource::<LayoutCallerChanged>().0);
-            let state = app.world().resource::<UiState>();
-            assert!(state.registry.rect_dirty.is_empty());
-            assert!(state.registry.render_dirty.is_empty());
-            assert_eq!(state.registry.get(id).unwrap().layout_rect, expected);
-        }
-    }
-
-    #[test]
-    fn layout_caller_dirty_update_changes_geometry_and_ui_state() {
-        let (mut app, id) = layout_caller_app();
-        {
-            let mut state = app.world_mut().resource_mut::<UiState>();
-            // Observe the production callback's notification, not fixture mutation.
-            let state = state.bypass_change_detection();
-            state.registry.get_mut(id).unwrap().width = crate::frame::Dimension::Fixed(150.0);
-            state.registry.mark_rect_dirty(id);
-            state.registry.render_dirty.clear();
-        }
-        app.update();
-        assert!(app.world().resource::<LayoutCallerChanged>().0);
-        let state = app.world().resource::<UiState>();
-        let rect = state
-            .registry
-            .get(id)
-            .unwrap()
-            .layout_rect
-            .as_ref()
-            .unwrap();
-        assert_eq!((rect.x, rect.width, rect.height), (12.0, 150.0, 30.0));
-        assert!(state.registry.rect_dirty.is_empty());
-        assert!(state.registry.render_dirty.contains(&id));
-        app.update();
-        assert!(!app.world().resource::<LayoutCallerChanged>().0);
-    }
-
-    #[test]
-    fn plugin_adds_ui_state() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        app.add_plugins(bevy::asset::AssetPlugin::default());
-        app.init_asset::<bevy::text::Font>();
-        app.add_plugins(UiPlugin);
-        app.update();
-        assert!(app.world().get_resource::<UiState>().is_some());
-    }
-
-    #[test]
-    fn disabled_ui_processing_pauses_update_chain_until_reenabled() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        app.add_plugins(bevy::asset::AssetPlugin::default());
-        app.init_asset::<bevy::image::Image>();
-        app.init_asset::<bevy::text::Font>();
-        app.add_plugins(UiPlugin);
-        app.world_mut().spawn((
-            Window {
-                resolution: bevy::window::WindowResolution::new(800, 600),
-                ..Default::default()
-            },
-            bevy::window::PrimaryWindow,
-        ));
-        app.update();
-
-        {
-            let mut ui = app.world_mut().resource_mut::<UiState>();
-            ui.registry.screen_width = 123.0;
-            ui.registry.screen_height = 456.0;
-        }
-        app.world_mut().resource_mut::<UiProcessingEnabled>().0 = false;
-        app.update();
-
-        let ui = app.world().resource::<UiState>();
-        assert_eq!(ui.registry.screen_width, 123.0);
-        assert_eq!(ui.registry.screen_height, 456.0);
-
-        app.world_mut().resource_mut::<UiProcessingEnabled>().0 = true;
-        app.update();
-
-        let ui = app.world().resource::<UiState>();
-        assert_eq!(ui.registry.screen_width, 800.0);
-        assert_eq!(ui.registry.screen_height, 600.0);
-    }
-
-    #[test]
-    fn disabled_ui_render_keeps_registry_frame_until_reenabled() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        app.add_plugins(bevy::asset::AssetPlugin::default());
-        app.init_asset::<bevy::image::Image>();
-        app.init_asset::<bevy::text::Font>();
-        app.add_plugins(UiPlugin);
-
-        let frame_id = {
-            let mut ui = app.world_mut().resource_mut::<UiState>();
-            let frame_id = ui.registry.create_frame("VisiblePanel", None);
-            let frame = ui.registry.get_mut(frame_id).unwrap();
-            frame.width = crate::frame::Dimension::Fixed(100.0);
-            frame.height = crate::frame::Dimension::Fixed(40.0);
-            frame.background_color = Some([1.0, 0.0, 0.0, 1.0]);
-            frame_id
-        };
-        app.world_mut().resource_mut::<UiRenderEnabled>().0 = false;
-
-        app.update();
-
-        assert!(
-            app.world()
-                .resource::<UiState>()
-                .registry
-                .get(frame_id)
-                .is_some()
-        );
-        assert_eq!(ui_quad_count(&mut app, frame_id), 0);
-
-        app.world_mut().resource_mut::<UiRenderEnabled>().0 = true;
-        app.update();
-
-        assert_eq!(ui_quad_count(&mut app, frame_id), 1);
-    }
-
-    #[test]
-    fn disabled_ui_text_render_keeps_quad_until_reenabled() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        app.add_plugins(bevy::asset::AssetPlugin::default());
-        app.init_asset::<bevy::image::Image>();
-        app.init_asset::<bevy::text::Font>();
-        app.add_plugins(UiPlugin);
-
-        let frame_id = {
-            let mut ui = app.world_mut().resource_mut::<UiState>();
-            let frame_id = ui.registry.create_frame("TextPanel", None);
-            let frame = ui.registry.get_mut(frame_id).unwrap();
-            frame.width = crate::frame::Dimension::Fixed(100.0);
-            frame.height = crate::frame::Dimension::Fixed(40.0);
-            frame.background_color = Some([1.0, 0.0, 0.0, 1.0]);
-            frame.widget_data = Some(crate::frame::WidgetData::FontString(
-                crate::widgets::font_string::FontStringData {
-                    text: "Hello".into(),
-                    ..Default::default()
-                },
-            ));
-            frame_id
-        };
-        app.world_mut().resource_mut::<UiTextRenderEnabled>().0 = false;
-
-        app.update();
-
-        assert_eq!(ui_quad_count(&mut app, frame_id), 1);
-        assert_eq!(ui_text_count(&mut app, frame_id), 0);
-
-        app.world_mut().resource_mut::<UiTextRenderEnabled>().0 = true;
-        app.update();
-
-        assert_eq!(ui_text_count(&mut app, frame_id), 1);
-    }
-
-    fn ui_text_count(app: &mut App, frame_id: u64) -> usize {
-        let mut query = app.world_mut().query_filtered::<&crate::render::UiText, (
-            Without<crate::render_text_fx::UiTextShadow>,
-            Without<crate::render_text_fx::UiTextOutline>,
-        )>();
-        query
-            .iter(app.world())
-            .filter(|text| text.0 == frame_id)
-            .count()
-    }
-
-    fn ui_quad_count(app: &mut App, frame_id: u64) -> usize {
-        let mut query = app.world_mut().query::<&crate::render::UiQuad>();
-        query
-            .iter(app.world())
-            .filter(|quad| quad.0 == frame_id)
-            .count()
-    }
-}
+#[path = "plugin_tests.rs"]
+mod tests;

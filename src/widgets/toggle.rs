@@ -1,6 +1,5 @@
 use std::fmt;
 
-use crate::anchor::AnchorPoint;
 use crate::rsx;
 use crate::widget_def::Element;
 
@@ -38,11 +37,12 @@ pub fn toggle_widget(spec: ToggleWidget<'_>) -> Element {
             height: {spec.height},
             background_color: spec.background_color,
             border: spec.border,
-            anchor {
-                point: AnchorPoint::Right,
-                relative_point: AnchorPoint::Right,
-                x: {spec.x},
-            }
+            pos_type: "absolute",
+            left: "100%",
+            top: "50%",
+            translate_x: "-100%",
+            translate_y: "-50%",
+            margin_left: {spec.x},
             {toggle_active_panel(&spec, &active_x)}
             {toggle_segment(&spec, "Left", spec.left_label, !spec.right_selected)}
             {toggle_segment(&spec, "Right", spec.right_label, spec.right_selected)}
@@ -57,11 +57,10 @@ fn toggle_active_panel(spec: &ToggleWidget<'_>, active_x: &str) -> Element {
             width: {segment_width(spec.width)},
             height: {spec.height},
             background_color: spec.active_color,
-            anchor {
-                point: AnchorPoint::Left,
-                relative_point: AnchorPoint::Left,
-                x: {active_x},
-            }
+            pos_type: "absolute",
+            left: {active_x},
+            top: "50%",
+            translate_y: "-50%",
         }
     }
 }
@@ -73,11 +72,10 @@ fn toggle_segment(spec: &ToggleWidget<'_>, side: &str, label: &str, active: bool
             name: {DynName(format!("{}{side}", spec.name))},
             width: {segment_width(spec.width)},
             height: {spec.height},
-            anchor {
-                point: AnchorPoint::Left,
-                relative_point: AnchorPoint::Left,
-                x: {x},
-            }
+            pos_type: "absolute",
+            left: {x},
+            top: "50%",
+            translate_y: "-50%",
             {toggle_segment_label(spec, side, label, active)}
             {toggle_segment_hitbox(spec, side, active)}
         }
@@ -95,10 +93,11 @@ fn toggle_segment_label(spec: &ToggleWidget<'_>, side: &str, label: &str, active
             font_size: 14.0,
             color: color,
             justify_h: "CENTER",
-            anchor {
-                point: AnchorPoint::Center,
-                relative_point: AnchorPoint::Center,
-            }
+            pos_type: "absolute",
+            left: "50%",
+            top: "50%",
+            translate_x: "-50%",
+            translate_y: "-50%",
         }
     }
 }

@@ -14,7 +14,7 @@ const DEFAULT_TILE_SIZE: f32 = 64.0;
 #[derive(Component)]
 pub struct UiTile(pub u64, pub u32);
 
-fn frame_tiling(f: &crate::frame::Frame) -> Option<(bool, bool)> {
+pub(crate) fn frame_tiling(f: &crate::frame::Frame) -> Option<(bool, bool)> {
     let WidgetData::Texture(tex) = f.widget_data.as_ref()? else {
         return None;
     };
@@ -25,7 +25,7 @@ fn frame_tiling(f: &crate::frame::Frame) -> Option<(bool, bool)> {
     }
 }
 
-fn frame_tiled_fdid(f: &crate::frame::Frame) -> Option<u32> {
+pub(crate) fn frame_tiled_fdid(f: &crate::frame::Frame) -> Option<u32> {
     let WidgetData::Texture(tex) = f.widget_data.as_ref()? else {
         return None;
     };
@@ -35,7 +35,7 @@ fn frame_tiled_fdid(f: &crate::frame::Frame) -> Option<u32> {
     }
 }
 
-fn tile_size(frame: &crate::frame::Frame, horiz: bool, vert: bool) -> Vec2 {
+pub(crate) fn tile_size(frame: &crate::frame::Frame, horiz: bool, vert: bool) -> Vec2 {
     Vec2::new(
         if !vert {
             frame.resolved_width()
@@ -50,7 +50,7 @@ fn tile_size(frame: &crate::frame::Frame, horiz: bool, vert: bool) -> Vec2 {
     )
 }
 
-fn tile_positions(frame: &crate::frame::Frame, horiz: bool, vert: bool) -> Vec<Vec2> {
+pub(crate) fn tile_positions(frame: &crate::frame::Frame, horiz: bool, vert: bool) -> Vec<Vec2> {
     let tile = tile_size(frame, horiz, vert);
     let cols = (frame.resolved_width() / tile.x).ceil() as u32;
     let rows = (frame.resolved_height() / tile.y).ceil() as u32;

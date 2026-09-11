@@ -1,14 +1,14 @@
-use bevy::asset::AssetPlugin;
+use bevy::asset::{AssetApp, AssetPlugin, RenderAssetUsages};
+use bevy::camera::{CameraPlugin, CameraUpdateSystems, ComputedCameraValues, RenderTargetInfo};
+use bevy::math::Affine2;
 use bevy::prelude::*;
-use bevy::sprite::Anchor as TextAnchor;
-use bevy::text::TextBounds;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::window::PrimaryWindow;
-use ui_toolkit::anchor::{Anchor, AnchorPoint};
-use ui_toolkit::button_input::sync_button_input;
+use ui_toolkit::anchor::AnchorTarget;
 use ui_toolkit::frame::{Dimension, NineSlice, WidgetData};
+use ui_toolkit::native_render::{RegistryNode, RegistryText};
 use ui_toolkit::plugin::{UiPlugin, UiState};
-use ui_toolkit::render::UiText;
-use ui_toolkit::render_nine_slice::UiNineSlicePart;
+use ui_toolkit::render::UiCamera;
 use ui_toolkit::widgets::button::ButtonData;
 use ui_toolkit::widgets::font_string::FontStringData;
 use ui_toolkit::widgets::texture::TextureSource;
@@ -16,44 +16,108 @@ use ui_toolkit::widgets::texture::TextureSource;
 #[derive(Resource, Default)]
 struct Observed {
     ui_changed: bool,
-    sprite_changes: usize,
+    image_changes: usize,
     text_changes: usize,
 }
 
 fn observe(
     ui: Res<UiState>,
-    sprites: Query<(Ref<Transform>, Ref<Sprite>), With<UiNineSlicePart>>,
-    texts: Query<
-        (
-            Ref<Text2d>,
-            Ref<TextLayout>,
-            Ref<TextBounds>,
-            Ref<TextFont>,
-            Ref<TextColor>,
-            Ref<Transform>,
-            Ref<TextAnchor>,
-        ),
-        With<UiText>,
-    >,
+    images: Query<(
+        Ref<Node>,
+        Ref<ImageNode>,
+        Ref<UiTransform>,
+        Ref<GlobalZIndex>,
+    )>,
+    texts: Query<(Ref<Text>, Ref<TextLayout>, Ref<TextFont>, Ref<TextColor>), With<RegistryText>>,
     mut observed: ResMut<Observed>,
 ) {
     observed.ui_changed = ui.is_changed();
-    observed.sprite_changes = sprites
+    observed.image_changes = images
         .iter()
-        .filter(|(transform, sprite)| transform.is_changed() || sprite.is_changed())
+        .filter(|(node, image, transform, z)| {
+            node.is_changed() || image.is_changed() || transform.is_changed() || z.is_changed()
+        })
         .count();
     observed.text_changes = texts
         .iter()
-        .filter(|(text, layout, bounds, font, color, transform, anchor)| {
-            text.is_changed()
-                || layout.is_changed()
-                || bounds.is_changed()
-                || font.is_changed()
-                || color.is_changed()
-                || transform.is_changed()
-                || anchor.is_changed()
+        .filter(|(text, layout, font, color)| {
+            text.is_changed() || layout.is_changed() || font.is_changed() || color.is_changed()
         })
         .count();
+}
+
+fn update_camera_target(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut cameras: Query<&mut Camera, With<UiCamera>>,
+) {
+    let window = windows.single().unwrap();
+    for mut camera in &mut cameras {
+        camera.computed = ComputedCameraValues {
+            target_info: Some(RenderTargetInfo {
+                physical_size: UVec2::new(window.physical_width(), window.physical_height()),
+                scale_factor: window.scale_factor(),
+            }),
+            ..default()
+        };
+    }
+}
+
+fn native_app() -> (App, Entity) {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin::default(),
+        bevy::image::ImagePlugin::default(),
+        bevy::mesh::MeshPlugin,
+        bevy::window::WindowPlugin {
+            primary_window: None,
+            exit_condition: bevy::window::ExitCondition::DontExit,
+            ..default()
+        },
+        bevy::input::InputPlugin,
+        bevy::transform::TransformPlugin,
+        CameraPlugin,
+        bevy::text::TextPlugin,
+        bevy::picking::DefaultPickingPlugins,
+        bevy::ui::UiPlugin,
+        UiPlugin,
+    ));
+    app.init_asset::<TextureAtlasLayout>();
+    let window = app
+        .world_mut()
+        .spawn((
+            Window {
+                resolution: (800, 600).into(),
+                ..default()
+            },
+            PrimaryWindow,
+        ))
+        .id();
+    app.add_systems(
+        PostUpdate,
+        update_camera_target
+            .after(CameraUpdateSystems)
+            .before(bevy::ui::UiSystems::Prepare),
+    );
+    app.init_resource::<Observed>();
+    app.add_systems(Last, observe);
+    app.finish();
+    app.cleanup();
+    (app, window)
+}
+
+fn image() -> Image {
+    Image::new_fill(
+        Extent3d {
+            width: 64,
+            height: 64,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        &[255, 255, 255, 255],
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    )
 }
 
 struct Fixture {
@@ -66,46 +130,23 @@ struct Fixture {
 }
 
 fn place(ui: &mut UiState, id: u64, x: f32, y: f32) {
+    ui.registry.set_anchor(id, AnchorTarget::Parent).unwrap();
     ui.registry
-        .set_point(
-            id,
-            Anchor {
-                point: AnchorPoint::TopLeft,
-                relative_to: None,
-                relative_point: AnchorPoint::TopLeft,
-                x_offset: x,
-                y_offset: -y,
-            },
-        )
+        .set_pos_type(id, PositionType::Absolute)
         .unwrap();
+    ui.registry.set_pos(id, x, y).unwrap();
+}
+
+fn settle(app: &mut App) {
+    for _ in 0..4 {
+        app.update();
+    }
 }
 
 fn fixture() -> Fixture {
-    let mut app = App::new();
-    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-    app.init_asset::<Image>();
-    app.init_asset::<Font>();
-    app.add_plugins(UiPlugin);
-    app.init_resource::<Observed>();
-    app.add_systems(Update, observe.after(sync_button_input));
-    let window = app
-        .world_mut()
-        .spawn((
-            Window {
-                resolution: (800, 600).into(),
-                ..default()
-            },
-            PrimaryWindow,
-        ))
-        .id();
-    let normal = app
-        .world_mut()
-        .resource_mut::<Assets<Image>>()
-        .add(Image::default());
-    let hover = app
-        .world_mut()
-        .resource_mut::<Assets<Image>>()
-        .add(Image::default());
+    let (mut app, window) = native_app();
+    let normal = app.world_mut().resource_mut::<Assets<Image>>().add(image());
+    let hover = app.world_mut().resource_mut::<Assets<Image>>().add(image());
     let (button, panel) = {
         let mut ui = app.world_mut().resource_mut::<UiState>();
         let button = ui.registry.create_frame("PluginButton", None);
@@ -139,18 +180,19 @@ fn fixture() -> Fixture {
         place(&mut ui, panel, 200.0, 100.0);
         (button, panel)
     };
-    for _ in 0..4 {
-        app.update();
-    }
+    settle(&mut app);
     assert_eq!(
         app.world_mut()
-            .query::<&UiNineSlicePart>()
+            .query::<&ImageNode>()
             .iter(app.world())
             .count(),
         18
     );
     assert_eq!(
-        app.world_mut().query::<&UiText>().iter(app.world()).count(),
+        app.world_mut()
+            .query::<&RegistryText>()
+            .iter(app.world())
+            .count(),
         1
     );
     Fixture {
@@ -163,35 +205,54 @@ fn fixture() -> Fixture {
     }
 }
 
-fn center(app: &mut App, frame: u64) -> Entity {
-    app.world_mut()
-        .query::<(Entity, &UiNineSlicePart)>()
-        .iter(app.world())
-        .find(|(_, part)| part.0 == frame && part.1 == 4)
+fn frame_entity(world: &mut World, id: u64) -> Entity {
+    world
+        .query::<(Entity, &RegistryNode)>()
+        .iter(world)
+        .find(|(_, frame)| frame.0 == id)
         .unwrap()
         .0
+}
+
+fn rect(world: &World, entity: Entity) -> Rect {
+    let node = world.get::<ComputedNode>(entity).unwrap();
+    let transform = Affine2::from(world.get::<UiGlobalTransform>(entity).unwrap());
+    Rect::from_center_size(
+        transform.translation * node.inverse_scale_factor,
+        node.size * node.inverse_scale_factor,
+    )
+}
+
+fn center(app: &mut App, id: u64) -> Entity {
+    let frame = frame_entity(app.world_mut(), id);
+    let midpoint = rect(app.world(), frame).center();
+    let parts: Vec<_> = app
+        .world()
+        .get::<Children>(frame)
+        .unwrap()
+        .iter()
+        .filter(|entity| app.world().get::<ImageNode>(*entity).is_some())
+        .collect();
+    let matches: Vec<_> = parts
+        .into_iter()
+        .filter(|entity| rect(app.world(), *entity).contains(midpoint))
+        .collect();
+    assert_eq!(matches.len(), 1, "one slice covers the frame center");
+    matches[0]
 }
 
 fn resize_fixture() -> Fixture {
     let mut fixture = fixture();
     {
         let mut ui = fixture.app.world_mut().resource_mut::<UiState>();
-        ui.registry.clear_all_points(fixture.panel);
-        ui.registry
-            .set_point(
-                fixture.panel,
-                Anchor {
-                    point: AnchorPoint::BottomRight,
-                    relative_to: None,
-                    relative_point: AnchorPoint::BottomRight,
-                    x_offset: -20.0,
-                    y_offset: 20.0,
-                },
-            )
-            .unwrap();
+        let panel = ui.registry.get_mut(fixture.panel).unwrap();
+        panel.position = UiRect {
+            right: px(20),
+            bottom: px(20),
+            ..UiRect::AUTO
+        };
     }
-    fixture.app.update();
-    fixture.app.update();
+    settle(&mut fixture.app);
     fixture
 }
 
@@ -207,87 +268,75 @@ fn set_window_quarter_pixels(fixture: &mut Fixture, width: u32, height: u32) {
     assert_eq!(window.height(), height as f32 / 4.0);
 }
 
-fn panel_rect(fixture: &Fixture) -> (f32, f32, f32, f32) {
+fn assert_panel_rect(fixture: &Fixture, width: f32, height: f32, tolerance: f32) {
     let ui = fixture.app.world().resource::<UiState>();
-    let rect = ui
+    let actual = ui
         .registry
         .get(fixture.panel)
         .unwrap()
         .layout_rect
         .as_ref()
         .unwrap();
-    (rect.x, rect.y, rect.width, rect.height)
-}
-
-#[test]
-fn real_plugin_resize_ignores_deltas_at_or_below_half_pixel() {
-    let mut fixture = resize_fixture();
-    let entity = center(&mut fixture.app, fixture.panel);
-    let before = *fixture.app.world().get::<Transform>(entity).unwrap();
-    assert_eq!(panel_rect(&fixture), (680.0, 520.0, 100.0, 60.0));
-    for (width, height) in [(3201, 2400), (3202, 2400), (3200, 2401), (3200, 2402)] {
-        set_window_quarter_pixels(&mut fixture, width, height);
-        fixture.app.update();
-        let ui = fixture.app.world().resource::<UiState>();
-        assert_eq!(
-            (ui.registry.screen_width, ui.registry.screen_height),
-            (800.0, 600.0)
+    for (actual, expected) in [
+        (actual.x, width - 120.0),
+        (actual.y, height - 80.0),
+        (actual.width, 100.0),
+        (actual.height, 60.0),
+    ] {
+        assert!(
+            (actual - expected).abs() <= tolerance,
+            "{actual} != {expected}"
         );
-        assert!(ui.registry.rect_dirty.is_empty());
-        assert_eq!(panel_rect(&fixture), (680.0, 520.0, 100.0, 60.0));
-        assert_eq!(
-            *fixture.app.world().get::<Transform>(entity).unwrap(),
-            before
-        );
-        let observed = fixture.app.world().resource::<Observed>();
-        assert_eq!(observed.sprite_changes, 0);
-        assert_eq!(observed.text_changes, 0);
     }
 }
 
 #[test]
-fn real_plugin_resize_above_half_pixel_updates_registry_and_anchored_layout() {
+fn real_native_layout_reads_subpixel_resize_without_authored_size_changes() {
+    let mut fixture = resize_fixture();
+    let entity = center(&mut fixture.app, fixture.panel);
+    for (width, height) in [(3201, 2400), (3202, 2400), (3200, 2401), (3200, 2402)] {
+        set_window_quarter_pixels(&mut fixture, width, height);
+        settle(&mut fixture.app);
+        // The registry's window-change threshold is not a second layout solver:
+        // Bevy still positions against the actual render-target dimensions.
+        assert_panel_rect(&fixture, width as f32 / 4.0, height as f32 / 4.0, 0.25);
+        assert_eq!(center(&mut fixture.app, fixture.panel), entity);
+        let ui = fixture.app.world().resource::<UiState>();
+        let panel = ui.registry.get(fixture.panel).unwrap();
+        assert_eq!(
+            (panel.width, panel.height),
+            (Dimension::Fixed(100.0), Dimension::Fixed(60.0))
+        );
+        assert_eq!(panel.position.right, px(20));
+        assert_eq!(panel.position.bottom, px(20));
+        assert!(ui.registry.rect_dirty.is_empty());
+    }
+}
+
+#[test]
+fn real_plugin_resize_above_half_pixel_updates_registry_and_native_layout() {
     for (width, height) in [(3203, 2400), (3200, 2403), (3203, 2401), (3197, 2399)] {
         let mut fixture = resize_fixture();
         let entity = center(&mut fixture.app, fixture.panel);
-        let before = fixture
-            .app
-            .world()
-            .get::<Transform>(entity)
-            .unwrap()
-            .translation;
+        let before = rect(fixture.app.world(), entity);
         set_window_quarter_pixels(&mut fixture, width, height);
-        fixture.app.update();
-        let expected_width = width as f32 / 4.0;
-        let expected_height = height as f32 / 4.0;
+        settle(&mut fixture.app);
+        let (w, h) = (width as f32 / 4.0, height as f32 / 4.0);
         let ui = fixture.app.world().resource::<UiState>();
         assert_eq!(
             (ui.registry.screen_width, ui.registry.screen_height),
-            (expected_width, expected_height)
+            (w, h)
         );
         assert!(ui.registry.rect_dirty.is_empty());
-        assert_eq!(
-            panel_rect(&fixture),
-            (expected_width - 120.0, expected_height - 80.0, 100.0, 60.0)
-        );
+        assert_panel_rect(&fixture, w, h, 0.25);
         assert_eq!(center(&mut fixture.app, fixture.panel), entity);
-        let after = fixture
-            .app
-            .world()
-            .get::<Transform>(entity)
-            .unwrap()
-            .translation;
-        assert_eq!(
-            after - before,
-            Vec3::new(
-                (expected_width - 800.0) * 0.5,
-                -(expected_height - 600.0) * 0.5,
-                0.0
-            )
+        let after = rect(fixture.app.world(), entity);
+        assert!(
+            (after.min - before.min - Vec2::new(w - 800.0, h - 600.0))
+                .abs()
+                .max_element()
+                <= 0.25
         );
-        let observed = fixture.app.world().resource::<Observed>();
-        assert!(observed.ui_changed);
-        assert!(observed.sprite_changes > 0);
     }
 }
 
@@ -296,15 +345,15 @@ fn real_plugin_settled_components_and_resource_are_clean() {
     let mut fixture = fixture();
     fixture.app.update();
     let observed = fixture.app.world().resource::<Observed>();
-    assert_eq!(observed.sprite_changes, 0);
+    assert_eq!(observed.image_changes, 0);
     assert_eq!(observed.text_changes, 0);
+    assert!(
+        !observed.ui_changed,
+        "native projection changed settled UiState"
+    );
     let ui = fixture.app.world().resource::<UiState>();
     assert!(ui.registry.rect_dirty.is_empty());
     assert!(ui.registry.render_dirty.is_empty());
-    assert!(
-        !observed.ui_changed,
-        "actual UiPlugin chain changed settled UiState"
-    );
 }
 
 #[test]
@@ -325,13 +374,13 @@ fn real_plugin_input_last_updates_hover_visuals_on_next_frame() {
     };
     assert!(button.hovered);
     assert_eq!(
-        fixture.app.world().get::<Sprite>(entity).unwrap().image,
+        fixture.app.world().get::<ImageNode>(entity).unwrap().image,
         fixture.normal
     );
     fixture.app.update();
     assert_eq!(center(&mut fixture.app, fixture.button), entity);
     assert_eq!(
-        fixture.app.world().get::<Sprite>(entity).unwrap().image,
+        fixture.app.world().get::<ImageNode>(entity).unwrap().image,
         fixture.hover
     );
 }
@@ -340,26 +389,14 @@ fn real_plugin_input_last_updates_hover_visuals_on_next_frame() {
 fn real_plugin_layout_and_missing_component_repair_preserve_entities() {
     let mut fixture = fixture();
     let entity = center(&mut fixture.app, fixture.panel);
-    let before = fixture
-        .app
-        .world()
-        .get::<Sprite>(entity)
-        .unwrap()
-        .custom_size
-        .unwrap();
+    let before = rect(fixture.app.world(), entity).size();
     {
         let mut ui = fixture.app.world_mut().resource_mut::<UiState>();
         ui.registry.get_mut(fixture.panel).unwrap().width = Dimension::Fixed(180.0);
         ui.registry.mark_rect_dirty(fixture.panel);
     }
-    fixture.app.update();
-    let after = fixture
-        .app
-        .world()
-        .get::<Sprite>(entity)
-        .unwrap()
-        .custom_size
-        .unwrap();
+    settle(&mut fixture.app);
+    let after = rect(fixture.app.world(), entity).size();
     assert_eq!(after.x - before.x, 80.0);
     assert_eq!(after.y, before.y);
     assert_eq!(
@@ -376,32 +413,28 @@ fn real_plugin_layout_and_missing_component_repair_preserve_entities() {
             .width,
         180.0
     );
-    let expected = *fixture.app.world().get::<Transform>(entity).unwrap();
+    let expected = *fixture.app.world().get::<UiTransform>(entity).unwrap();
     fixture
         .app
         .world_mut()
         .entity_mut(entity)
-        .remove::<Transform>();
-    fixture.app.update();
+        .remove::<UiTransform>();
+    settle(&mut fixture.app);
     assert_eq!(center(&mut fixture.app, fixture.panel), entity);
     assert_eq!(
-        *fixture.app.world().get::<Transform>(entity).unwrap(),
+        *fixture.app.world().get::<UiTransform>(entity).unwrap(),
         expected
     );
     fixture
         .app
         .world_mut()
         .entity_mut(entity)
-        .remove::<Sprite>();
-    fixture.app.update();
+        .remove::<ImageNode>();
+    settle(&mut fixture.app);
     assert_eq!(center(&mut fixture.app, fixture.panel), entity);
+    assert_eq!(rect(fixture.app.world(), entity).size(), after);
     assert_eq!(
-        fixture
-            .app
-            .world()
-            .get::<Sprite>(entity)
-            .unwrap()
-            .custom_size,
-        Some(after)
+        fixture.app.world().get::<ImageNode>(entity).unwrap().image,
+        fixture.normal
     );
 }

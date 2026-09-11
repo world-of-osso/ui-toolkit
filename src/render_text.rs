@@ -38,30 +38,6 @@ pub fn sync_ui_text(
     sync_ui_text_with_order(state, &order, commands, font_assets, font_registry, texts);
 }
 
-pub(crate) fn sync_ui_text_prepared(
-    state: Res<UiState>,
-    order: Res<UiFrameOrder>,
-    commands: Commands,
-    font_assets: ResMut<Assets<Font>>,
-    font_registry: ResMut<FontRegistry>,
-    texts: Query<
-        (
-            Entity,
-            &UiText,
-            &mut Text2d,
-            &mut TextLayout,
-            &mut TextBounds,
-            &mut TextFont,
-            &mut TextColor,
-            &mut Transform,
-            Option<&mut Anchor>,
-        ),
-        (Without<UiTextShadow>, Without<UiTextOutline>),
-    >,
-) {
-    sync_ui_text_with_order(state, &order, commands, font_assets, font_registry, texts);
-}
-
 fn sync_ui_text_with_order(
     state: Res<UiState>,
     order: &UiFrameOrder,
@@ -205,7 +181,7 @@ fn spawn_missing_text(
     }
 }
 
-fn has_text(frame: &crate::frame::Frame) -> bool {
+pub(crate) fn has_text(frame: &crate::frame::Frame) -> bool {
     match &frame.widget_data {
         Some(WidgetData::FontString(fs)) => !fs.text.is_empty(),
         Some(WidgetData::EditBox(_)) => true,
@@ -241,7 +217,7 @@ pub(crate) fn extract_text_props_pub(frame: &crate::frame::Frame) -> TextProps<'
     extract_text_props(frame)
 }
 
-fn extract_text_props(frame: &crate::frame::Frame) -> TextProps<'_> {
+pub(crate) fn extract_text_props(frame: &crate::frame::Frame) -> TextProps<'_> {
     match &frame.widget_data {
         Some(WidgetData::FontString(fs)) => extract_fontstring_text(fs, frame.effective_alpha),
         Some(WidgetData::EditBox(eb)) => extract_editbox_text(eb, frame.effective_alpha),

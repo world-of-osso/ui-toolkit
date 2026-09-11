@@ -1,5 +1,5 @@
 use super::HotReloadTemplate;
-use crate::widget_def::{AnchorDef, Attr, AttrValue, WidgetChild, WidgetDef};
+use crate::widget_def::{Attr, AttrValue, WidgetChild, WidgetDef};
 
 /// Parse all `rsx! { ... }` blocks in a source file.
 pub fn parse_rsx_blocks(source: &str, file_path: &str) -> Vec<HotReloadTemplate> {
@@ -21,10 +21,17 @@ pub fn parse_rsx_blocks(source: &str, file_path: &str) -> Vec<HotReloadTemplate>
         let line = source[..abs_pos].matches('\n').count() as u32 + 1;
         let col = (abs_pos - source[..abs_pos].rfind('\n').map(|p| p + 1).unwrap_or(0)) as u32 + 1;
         let consts = parse_const_declarations(source);
-        results.push(HotReloadTemplate {
-            key: (file_path.to_string(), line, col),
-            defs: parse_children(block.trim(), &consts),
-        });
+        let defs = parse_children(block.trim(), &consts);
+        if contains_legacy_anchor(&defs) {
+            bevy::log::warn!(
+                "{file_path}:{line}:{col}: legacy anchor {{ ... }} is unsupported; use native layout attributes"
+            );
+        } else {
+            results.push(HotReloadTemplate {
+                key: (file_path.to_string(), line, col),
+                defs,
+            });
+        }
         search_from = brace_pos + block.len() + 2;
     }
     results
@@ -203,7 +210,7 @@ fn parse_named_child(
         return (pos + 1, None);
     };
     let consumed = block.len() + 2;
-    let child = dispatch_element(ident, block.trim(), consts);
+    let child = parse_element(ident, block.trim(), consts);
     (pos + consumed, Some(child))
 }
 
@@ -246,34 +253,6 @@ fn skip_to_brace(s: &str) -> &str {
     }
 }
 
-fn dispatch_element(tag: &str, block: &str, consts: &[(String, String)]) -> WidgetChild {
-    if tag == "anchor" {
-        parse_anchor_element(block, consts)
-    } else {
-        parse_element(tag, block, consts)
-    }
-}
-
-fn parse_anchor_element(block: &str, consts: &[(String, String)]) -> WidgetChild {
-    let mut def = AnchorDef::default();
-    let attrs = collect_attrs(block, consts);
-    for a in &attrs {
-        match a.effective_name() {
-            "point" => def.point = a.value_str().to_string(),
-            "relative_to" => def.relative_to = a.value_str().to_string(),
-            "relative_point" => def.relative_point = a.value_str().to_string(),
-            "x" => def.x = a.value_str().to_string(),
-            "y" => def.y = a.value_str().to_string(),
-            _ => {}
-        }
-    }
-    let mut widget = WidgetDef::new("");
-    widget.tag_owned = Some("anchor".to_string());
-    widget.attrs = attrs;
-    let _ = def;
-    WidgetChild::Widget(widget)
-}
-
 fn parse_element(tag: &str, block: &str, consts: &[(String, String)]) -> WidgetChild {
     let mut widget = WidgetDef::new("");
     widget.tag_owned = Some(tag.to_string());
@@ -283,34 +262,19 @@ fn parse_element(tag: &str, block: &str, consts: &[(String, String)]) -> WidgetC
             widget.name = Some(s.clone());
         }
     }
-    attach_children_and_anchors(&mut widget, block, consts);
+    widget.children = parse_children(block, consts);
     WidgetChild::Widget(widget)
 }
 
-fn attach_children_and_anchors(widget: &mut WidgetDef, block: &str, consts: &[(String, String)]) {
-    for child in parse_children(block, consts) {
-        match child {
-            WidgetChild::Widget(ref w) if w.tag_owned.as_deref() == Some("anchor") => {
-                widget.anchors.push(anchor_from_widget(w));
-            }
-            other => widget.children.push(other),
+fn contains_legacy_anchor(children: &[WidgetChild]) -> bool {
+    children.iter().any(|child| match child {
+        WidgetChild::Widget(widget) => {
+            widget.effective_tag().eq_ignore_ascii_case("anchor")
+                || contains_legacy_anchor(&widget.children)
         }
-    }
-}
-
-fn anchor_from_widget(w: &WidgetDef) -> AnchorDef {
-    let mut a = AnchorDef::default();
-    for attr in &w.attrs {
-        match attr.effective_name() {
-            "point" => a.point = attr.value_str().to_string(),
-            "relative_to" => a.relative_to = attr.value_str().to_string(),
-            "relative_point" => a.relative_point = attr.value_str().to_string(),
-            "x" => a.x = attr.value_str().to_string(),
-            "y" => a.y = attr.value_str().to_string(),
-            _ => {}
-        }
-    }
-    a
+        WidgetChild::Fragment(children) => contains_legacy_anchor(children),
+        WidgetChild::Dynamic => false,
+    })
 }
 
 /// Collect all `name: value,` attribute pairs from a block.
@@ -465,9 +429,6 @@ fn try_parse_known_ident(
     if let Some(v) = ident.strip_prefix("GameFont::") {
         return Some((v.to_string(), ident_len));
     }
-    if let Some(v) = ident.strip_prefix("AnchorPoint::") {
-        return Some((map_anchor_point(v).to_string(), ident_len));
-    }
     if let Some(v) = ident.strip_prefix("JustifyH::") {
         return Some((map_justify_h(v).to_string(), ident_len));
     }
@@ -518,21 +479,6 @@ fn extract_paren_content(s: &str) -> Option<&str> {
         }
     }
     None
-}
-
-fn map_anchor_point(v: &str) -> &str {
-    match v {
-        "TopLeft" => "TOPLEFT",
-        "Top" => "TOP",
-        "TopRight" => "TOPRIGHT",
-        "Left" => "LEFT",
-        "Center" => "CENTER",
-        "Right" => "RIGHT",
-        "BottomLeft" => "BOTTOMLEFT",
-        "Bottom" => "BOTTOM",
-        "BottomRight" => "BOTTOMRIGHT",
-        other => other,
-    }
 }
 
 fn map_justify_h(v: &str) -> &str {
@@ -638,27 +584,65 @@ mod tests {
     }
 
     #[test]
-    fn parse_anchor_pseudo_element() {
+    fn rejects_legacy_anchor_pseudo_element() {
+        let source = r#"rsx! { frame { anchor { point: "CENTER", } } }"#;
+        assert!(parse_rsx_blocks(source, "test.rs").is_empty());
+    }
+
+    #[test]
+    fn parses_native_layout_as_ordinary_attributes() {
         let source = r#"rsx! {
             frame {
-                name: "Anchored",
-                anchor {
-                    point: AnchorPoint::Center,
-                    relative_to: "$parent",
-                    relative_point: AnchorPoint::Center,
-                    x: 0.0,
-                    y: 0.0,
-                }
+                pos_x: 12,
+                pos_y: -8,
+                pos_type: "absolute",
+                anchor: "screen",
+                left: "50%",
+                right: "auto",
+                top: 4,
+                bottom: "25%",
+                translate_x: "-50%",
+                translate_y: "auto",
+                margin_left: 1,
+                margin_right: "2%",
+                margin_top: "auto",
+                margin_bottom: -3,
+                width: "auto",
+                height: "auto",
+                button { text: "Keep child", }
             }
         }"#;
         let templates = parse_rsx_blocks(source, "test.rs");
-        let WidgetChild::Widget(ref frame) = templates[0].defs[0] else {
-            panic!()
+        let WidgetChild::Widget(frame) = &templates[0].defs[0] else {
+            panic!("expected frame")
         };
-        assert_eq!(frame.anchors.len(), 1);
-        assert_eq!(frame.anchors[0].point, "CENTER");
-        assert_eq!(frame.anchors[0].relative_to, "$parent");
-        assert_eq!(frame.anchors[0].relative_point, "CENTER");
+        let attrs: Vec<_> = frame
+            .attrs
+            .iter()
+            .map(|attr| (attr.effective_name(), attr.value_str()))
+            .collect();
+        assert_eq!(
+            attrs,
+            vec![
+                ("pos_x", "12"),
+                ("pos_y", "-8"),
+                ("pos_type", "absolute"),
+                ("anchor", "screen"),
+                ("left", "50%"),
+                ("right", "auto"),
+                ("top", "4"),
+                ("bottom", "25%"),
+                ("translate_x", "-50%"),
+                ("translate_y", "auto"),
+                ("margin_left", "1"),
+                ("margin_right", "2%"),
+                ("margin_top", "auto"),
+                ("margin_bottom", "-3"),
+                ("width", "auto"),
+                ("height", "auto")
+            ]
+        );
+        assert_eq!(frame.children.len(), 1);
     }
 
     #[test]

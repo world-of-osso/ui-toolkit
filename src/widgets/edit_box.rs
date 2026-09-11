@@ -57,7 +57,7 @@ impl EditBoxData {
     /// Delete the character before the cursor (backspace).
     pub fn backspace(&mut self) {
         if self.cursor_position > 0 {
-            self.cursor_position -= 1;
+            self.cursor_left();
             self.text.remove(self.cursor_position);
         }
     }
@@ -79,12 +79,17 @@ impl EditBoxData {
 
     /// Move cursor left by one character.
     pub fn cursor_left(&mut self) {
-        self.cursor_position = self.cursor_position.saturating_sub(1);
+        self.cursor_position = self.text[..self.cursor_position]
+            .char_indices()
+            .next_back()
+            .map_or(0, |(index, _)| index);
     }
 
     /// Move cursor right by one character.
     pub fn cursor_right(&mut self) {
-        self.cursor_position = (self.cursor_position + 1).min(self.text.len());
+        if let Some(next) = self.text[self.cursor_position..].chars().next() {
+            self.cursor_position += next.len_utf8();
+        }
     }
 
     /// Move cursor to start.
@@ -123,6 +128,86 @@ impl EditBoxData {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn multibyte_cursor_movement_keeps_byte_boundaries() {
+        let mut eb = EditBoxData::default();
+        eb.insert_at_cursor("aé🦀z");
+        eb.cursor_home();
+        for expected in [1, 3, 7, 8, 8] {
+            eb.cursor_right();
+            assert_eq!(eb.cursor_position, expected);
+            assert!(eb.text.is_char_boundary(eb.cursor_position));
+        }
+        for expected in [7, 3, 1, 0, 0] {
+            eb.cursor_left();
+            assert_eq!(eb.cursor_position, expected);
+            assert!(eb.text.is_char_boundary(eb.cursor_position));
+        }
+    }
+
+    #[test]
+    fn multibyte_backspace_removes_whole_characters() {
+        let mut eb = EditBoxData::default();
+        eb.insert_at_cursor("aé🦀z");
+        for (text, cursor) in [("aé🦀", 7), ("aé", 3), ("a", 1), ("", 0), ("", 0)] {
+            eb.backspace();
+            assert_eq!(eb.text, text);
+            assert_eq!(eb.cursor_position, cursor);
+        }
+    }
+
+    #[test]
+    fn multibyte_insertion_after_navigation_uses_the_edit_position() {
+        let mut eb = EditBoxData::default();
+        eb.insert_at_cursor("aéz");
+        eb.cursor_left();
+        eb.cursor_left();
+        eb.insert_at_cursor("🦀");
+        assert_eq!(eb.text, "a🦀éz");
+        assert_eq!(eb.cursor_position, 5);
+        eb.delete_forward();
+        assert_eq!(eb.text, "a🦀z");
+        assert_eq!(eb.cursor_position, 5);
+    }
+
+    #[test]
+    fn multibyte_forward_delete_after_navigation_preserves_the_cursor() {
+        let mut eb = EditBoxData::default();
+        eb.insert_at_cursor("aé🦀z");
+        eb.cursor_home();
+        eb.cursor_right();
+        eb.cursor_right();
+        eb.delete_forward();
+        assert_eq!(eb.text, "aéz");
+        assert_eq!(eb.cursor_position, 3);
+        eb.delete_forward();
+        eb.delete_forward();
+        assert_eq!(eb.text, "aé");
+        assert_eq!(eb.cursor_position, 3);
+    }
+
+    #[test]
+    fn multibyte_password_edits_preserve_filter_limits_and_byte_offsets() {
+        let mut eb = EditBoxData {
+            password: true,
+            max_letters: Some(3),
+            max_bytes: Some(7),
+            ..Default::default()
+        };
+        eb.insert_at_cursor("é\n🦀\tzx");
+        assert_eq!(eb.text, "é🦀z");
+        assert_eq!(eb.cursor_position, 7);
+        eb.backspace();
+        eb.insert_at_cursor("é");
+        assert_eq!(eb.text, "é🦀");
+        assert_eq!(eb.cursor_position, 6);
+        eb.insert_at_cursor("x");
+        assert_eq!(eb.text, "é🦀x");
+        assert_eq!(eb.cursor_position, 7);
+        assert!(eb.password);
+        assert_eq!(eb.blink_speed, 0.5);
+    }
 
     #[test]
     fn default_edit_box_data() {

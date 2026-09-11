@@ -43,27 +43,6 @@ pub fn sync_ui_text_shadows(
     sync_ui_text_shadows_with_order(state, &order, commands, font_assets, font_registry, shadows);
 }
 
-pub(crate) fn sync_ui_text_shadows_prepared(
-    state: Res<UiState>,
-    order: Res<UiFrameOrder>,
-    commands: Commands,
-    font_assets: ResMut<Assets<Font>>,
-    font_registry: ResMut<FontRegistry>,
-    shadows: Query<(
-        Entity,
-        &UiTextShadow,
-        &mut Text2d,
-        &mut TextLayout,
-        &mut TextBounds,
-        &mut TextFont,
-        &mut TextColor,
-        &mut Transform,
-        &mut Anchor,
-    )>,
-) {
-    sync_ui_text_shadows_with_order(state, &order, commands, font_assets, font_registry, shadows);
-}
-
 fn sync_ui_text_shadows_with_order(
     state: Res<UiState>,
     order: &UiFrameOrder,
@@ -267,24 +246,6 @@ pub fn sync_ui_text_outlines(
     );
 }
 
-pub(crate) fn sync_ui_text_outlines_prepared(
-    state: Res<UiState>,
-    order: Res<UiFrameOrder>,
-    commands: Commands,
-    font_assets: ResMut<Assets<Font>>,
-    font_registry: ResMut<FontRegistry>,
-    outlines: Query<(Entity, &UiTextOutline)>,
-) {
-    sync_ui_text_outlines_with_order(
-        state,
-        &order,
-        commands,
-        font_assets,
-        font_registry,
-        outlines,
-    );
-}
-
 fn sync_ui_text_outlines_with_order(
     state: Res<UiState>,
     order: &UiFrameOrder,
@@ -398,7 +359,7 @@ fn spawn_outline_entity(
     ));
 }
 
-fn outline_offsets(outline: Outline) -> &'static [(f32, f32)] {
+pub(crate) fn outline_offsets(outline: Outline) -> &'static [(f32, f32)] {
     match outline {
         Outline::None => &[],
         Outline::Outline => &[(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)],

@@ -13,8 +13,6 @@ use crate::widgets::texture::TextureSource;
 pub struct DiffContext {
     /// All frame IDs created by this context.
     pub created_frames: Vec<u64>,
-    /// Anchors that couldn't be resolved yet (relative frame not registered).
-    pub pending_anchors: Vec<(u64, String)>,
     /// Validated texture/file paths (avoid re-checking).
     pub validated_paths: HashSet<String>,
     /// Missing paths already warned about.
@@ -27,7 +25,6 @@ impl DiffContext {
     pub fn new() -> Self {
         Self {
             created_frames: Vec::new(),
-            pending_anchors: Vec::new(),
             validated_paths: HashSet::new(),
             missing_paths: HashSet::new(),
             log_changes: false,
@@ -87,7 +84,6 @@ impl DiffContext {
         self.apply_def_name(def, frame_id, registry);
         self.apply_def_attrs(def, frame_id, registry);
         self.apply_def_nine_slice(def, frame_id, registry);
-        self.apply_def_anchors(def, frame_id, registry);
     }
 
     fn clear_reapplied_frame_state(
@@ -99,7 +95,11 @@ impl DiffContext {
         let Some(frame) = registry.get_mut(frame_id) else {
             return;
         };
-        frame.anchors.clear();
+        frame.position = bevy::prelude::UiRect::AUTO;
+        frame.position_type = bevy::prelude::PositionType::Relative;
+        frame.anchor = crate::anchor::AnchorTarget::Parent;
+        frame.translation = bevy::prelude::Val2::ZERO;
+        frame.margin = bevy::prelude::UiRect::ZERO;
         if !has_background_color_attr(def) {
             frame.background_color = None;
         }
@@ -132,16 +132,6 @@ impl DiffContext {
             && let Some(frame) = registry.get_mut(frame_id)
         {
             frame.nine_slice = Some(nine_slice_from_def(ns_def));
-        }
-    }
-
-    fn apply_def_anchors(&mut self, def: &WidgetDef, frame_id: u64, registry: &mut FrameRegistry) {
-        for anchor in &def.anchors {
-            if let Some(pending) =
-                crate::anchor_resolve::apply_anchor_from_def(anchor, frame_id, registry)
-            {
-                self.pending_anchors.push(pending);
-            }
         }
     }
 
@@ -429,7 +419,6 @@ mod tests {
             tag_owned: None,
             name: Some(name.to_string()),
             attrs: vec![Attr::new_static("thumb_texture", thumb_texture.to_string())],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })
@@ -452,7 +441,6 @@ mod tests {
             tag_owned: None,
             name: Some("TestFrame".to_string()),
             attrs: vec![Attr::new_static("width", "100".to_string())],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })];
@@ -474,7 +462,6 @@ mod tests {
             tag_owned: None,
             name: Some("MyFrame".to_string()),
             attrs: vec![Attr::new_static("width", "100".to_string())],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })];
@@ -488,7 +475,6 @@ mod tests {
             tag_owned: None,
             name: Some("MyFrame".to_string()),
             attrs: vec![Attr::new_static("width", "200".to_string())],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })];
@@ -533,7 +519,6 @@ mod tests {
             tag_owned: None,
             name: Some("HiddenButton".to_string()),
             attrs: vec![Attr::new_static("hidden", "true".to_string())],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })];
@@ -556,7 +541,6 @@ mod tests {
             tag_owned: None,
             name: Some("TestButton".to_string()),
             attrs: vec![Attr::new_static("disabled", "false".to_string())],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })];
@@ -580,7 +564,6 @@ mod tests {
             tag_owned: None,
             name: Some("FadedFrame".to_string()),
             attrs: vec![Attr::new_static("alpha", "0.25".to_string())],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })];
@@ -605,7 +588,6 @@ mod tests {
                 "background_color",
                 "0.1,0.2,0.3,1.0".to_string(),
             )],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })];
@@ -617,7 +599,6 @@ mod tests {
             tag_owned: None,
             name: Some("BgFrame".to_string()),
             attrs: vec![],
-            anchors: vec![],
             nine_slice: None,
             children: vec![],
         })];
@@ -658,7 +639,6 @@ mod tests {
             tag_owned: None,
             name: Some("NsFrame".to_string()),
             attrs: vec![],
-            anchors: vec![],
             nine_slice: Some(NineSliceDef {
                 edge_size: 16.0,
                 bg_color: [0.1, 0.2, 0.3, 0.9],
@@ -678,55 +658,32 @@ mod tests {
     }
 
     #[test]
-    fn diff_reapplies_anchors_without_duplication() {
+    fn diff_reapplies_native_layout_attributes() {
+        use crate::anchor::AnchorTarget;
+        use bevy::prelude::{PositionType, Val};
         let mut reg = make_registry();
         let mut ctx = DiffContext::new();
-        let first = vec![WidgetChild::Widget(WidgetDef {
-            tag: "Frame",
-            tag_owned: None,
-            name: Some("AnchoredFrame".to_string()),
-            attrs: vec![],
-            anchors: vec![AnchorDef {
-                point: "CENTER".to_string(),
-                relative_to: "$parent".to_string(),
-                relative_point: "CENTER".to_string(),
-                x: "10".to_string(),
-                y: "0".to_string(),
-            }],
-            nine_slice: None,
-            children: vec![],
-        })];
-        ctx.diff_roots(&first, None, &mut reg);
-
-        let second = vec![WidgetChild::Widget(WidgetDef {
-            tag: "Frame",
-            tag_owned: None,
-            name: Some("AnchoredFrame".to_string()),
-            attrs: vec![],
-            anchors: vec![AnchorDef {
-                point: "CENTER".to_string(),
-                relative_to: "$parent".to_string(),
-                relative_point: "CENTER".to_string(),
-                x: "20".to_string(),
-                y: "0".to_string(),
-            }],
-            nine_slice: None,
-            children: vec![],
-        })];
-        ctx.diff_roots(&second, None, &mut reg);
-
-        let fid = reg
-            .get_by_name("AnchoredFrame")
-            .expect("frame should exist");
-        let frame = reg.get(fid).expect("frame should exist");
-        assert_eq!(
-            frame.anchors.len(),
-            1,
-            "anchors should be cleared before reapply"
-        );
-        assert!(
-            (frame.anchors[0].x_offset - 20.0).abs() < f32::EPSILON,
-            "anchor should match latest definition"
-        );
+        let mut widget = WidgetDef::new("Frame");
+        widget.name = Some("Positioned".to_string());
+        widget.attrs = vec![
+            Attr::new_static("pos_x", "10".to_string()),
+            Attr::new_static("anchor", "screen".to_string()),
+        ];
+        ctx.diff_roots(&[WidgetChild::Widget(widget)], None, &mut reg);
+        let fid = reg.get_by_name("Positioned").unwrap();
+        assert_eq!(reg.get(fid).unwrap().position.left, Val::Px(10.0));
+        assert_eq!(reg.get(fid).unwrap().anchor, AnchorTarget::Screen);
+        let mut widget = WidgetDef::new("Frame");
+        widget.name = Some("Positioned".to_string());
+        widget.attrs = vec![
+            Attr::new_dynamic("pos_x", "20".to_string()),
+            Attr::new_static("pos_type", "absolute".to_string()),
+        ];
+        ctx.diff_roots(&[WidgetChild::Widget(widget)], None, &mut reg);
+        assert_eq!(reg.get_by_name("Positioned"), Some(fid));
+        let frame = reg.get(fid).unwrap();
+        assert_eq!(frame.position.left, Val::Px(20.0));
+        assert_eq!(frame.position_type, PositionType::Absolute);
+        assert_eq!(frame.anchor, AnchorTarget::Parent);
     }
 }

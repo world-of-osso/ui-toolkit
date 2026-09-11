@@ -1,4 +1,4 @@
-/// A typed frame name for use in `name:` and `relative_to:` RSX attributes.
+/// A typed frame name for RSX declarations and semantic references.
 /// Ensures the same constant is used at both definition and reference sites.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FrameName(pub &'static str);
@@ -15,7 +15,7 @@ impl std::fmt::Display for FrameName {
     }
 }
 
-/// WoW-style anchor points for UI frame positioning.
+/// Named rectangle points for geometry utilities; not authored layout constraints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AnchorPoint {
     TopLeft,
@@ -67,14 +67,12 @@ impl std::fmt::Display for AnchorPoint {
     }
 }
 
-/// A resolved anchor linking one frame's point to another frame's point with offsets.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Anchor {
-    pub point: AnchorPoint,
-    pub relative_to: Option<u64>,
-    pub relative_point: AnchorPoint,
-    pub x_offset: f32,
-    pub y_offset: f32,
+/// Layout reference space; this does not change logical parentage or ownership.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AnchorTarget {
+    #[default]
+    Parent,
+    Screen,
 }
 
 /// Given a rectangle at (x, y) with size (w, h), return the pixel position

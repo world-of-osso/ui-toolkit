@@ -262,7 +262,7 @@ fn spawn_missing_css_borders(
 }
 
 /// Compute transform, size, color for one CSS border edge (0=top,1=right,2=bottom,3=left).
-fn css_edge_geometry(
+pub(crate) fn css_edge_geometry(
     frame: &crate::frame::Frame,
     border: &Border,
     side: u8,

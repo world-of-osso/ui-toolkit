@@ -5292,6 +5292,7 @@ dependencies = [
  "image-blp",
  "log",
  "notify",
+ "parley",
  "serde",
  "ui-toolkit-macros",
 ]

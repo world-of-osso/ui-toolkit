@@ -46,33 +46,6 @@ pub fn sync_ui_nine_slices(
     sync_nine_slice_parts(&state, &order, &parts, &visuals, &mut sync);
 }
 
-pub(crate) fn sync_ui_nine_slices_prepared(
-    state: Res<UiState>,
-    order: Res<UiFrameOrder>,
-    mut commands: Commands,
-    mut images: Option<ResMut<Assets<Image>>>,
-    parts: Query<(Entity, &UiNineSlicePart)>,
-    visuals: Query<(&Transform, &Sprite)>,
-    mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
-    mut file_texture_cache: Local<HashMap<String, Handle<Image>>>,
-    mut missing_textures: Local<HashSet<u32>>,
-    mut missing_file_textures: Local<HashSet<String>>,
-    blp_loader: Option<Res<BlpLoaderRes>>,
-) {
-    let mut sync = NineSliceSyncContext {
-        screen_w: state.registry.screen_width,
-        screen_h: state.registry.screen_height,
-        commands: &mut commands,
-        images: &mut images,
-        texture_cache: &mut texture_cache,
-        file_texture_cache: &mut file_texture_cache,
-        missing_textures: &mut missing_textures,
-        missing_file_textures: &mut missing_file_textures,
-        blp_loader: blp_loader.as_deref(),
-    };
-    sync_nine_slice_parts(&state, &order, &parts, &visuals, &mut sync);
-}
-
 fn sync_nine_slice_parts(
     state: &UiState,
     order: &UiFrameOrder,
@@ -243,7 +216,11 @@ fn compute_uv_rect(
     }
 }
 
-fn explicit_uv_rect_for_part(uv_rects: &[[f32; 4]; 9], part: u8, atlas_rect: Rect) -> Rect {
+pub(crate) fn explicit_uv_rect_for_part(
+    uv_rects: &[[f32; 4]; 9],
+    part: u8,
+    atlas_rect: Rect,
+) -> Rect {
     let [left, right, top, bottom] = uv_rects[part as usize];
     let size = atlas_rect.max - atlas_rect.min;
     Rect {
@@ -258,7 +235,7 @@ fn explicit_uv_rect_for_part(uv_rects: &[[f32; 4]; 9], part: u8, atlas_rect: Rec
     }
 }
 
-fn uv_rect_for_part(
+pub(crate) fn uv_rect_for_part(
     part: u8,
     w: f32,
     h: f32,
@@ -350,7 +327,7 @@ fn layout_edges(ns: &NineSlice) -> (f32, f32, f32, f32) {
     }
 }
 
-fn uv_edges(ns: &NineSlice) -> (f32, f32, f32, f32) {
+pub(crate) fn uv_edges(ns: &NineSlice) -> (f32, f32, f32, f32) {
     if let Some([left, top, right, bottom]) = ns.uv_edge_sizes {
         (left, top, right, bottom)
     } else if let Some([left, top, right, bottom]) = ns.edge_sizes {

@@ -2,7 +2,7 @@
 /// These replace Dioxus's VNode/Template types with a simpler representation
 /// that can be produced by both the compile-time rsx! macro and a runtime parser.
 
-/// A widget definition — one UI element with attributes, anchors, and children.
+/// A widget definition — one UI element with attributes and children.
 pub struct WidgetDef {
     /// Tag name from compile-time macro (e.g. "Frame", "Button").
     pub tag: &'static str,
@@ -12,8 +12,6 @@ pub struct WidgetDef {
     pub name: Option<String>,
     /// Attributes to apply to the frame.
     pub attrs: Vec<Attr>,
-    /// Anchor pseudo-elements (positioning, NOT children).
-    pub anchors: Vec<AnchorDef>,
     /// Nine-slice backdrop definition (pseudo-element, NOT a child).
     pub nine_slice: Option<NineSliceDef>,
     /// Child widgets.
@@ -48,15 +46,6 @@ pub enum WidgetChild {
     Dynamic,
 }
 
-/// Anchor positioning definition (pseudo-element, not a frame).
-pub struct AnchorDef {
-    pub point: String,
-    pub relative_to: String,
-    pub relative_point: String,
-    pub x: String,
-    pub y: String,
-}
-
 /// Declarative nine-slice definition for RSX (converted to `NineSlice` at frame create).
 #[derive(Debug, Clone)]
 pub struct NineSliceDef {
@@ -77,7 +66,6 @@ impl WidgetDef {
             tag_owned: None,
             name: None,
             attrs: Vec::new(),
-            anchors: Vec::new(),
             nine_slice: None,
             children: Vec::new(),
         }
@@ -115,18 +103,6 @@ impl Attr {
     pub fn value_str(&self) -> &str {
         match &self.value {
             AttrValue::Static(s) | AttrValue::Dynamic(s) => s,
-        }
-    }
-}
-
-impl Default for AnchorDef {
-    fn default() -> Self {
-        Self {
-            point: "CENTER".to_string(),
-            relative_to: "$parent".to_string(),
-            relative_point: "CENTER".to_string(),
-            x: "0".to_string(),
-            y: "0".to_string(),
         }
     }
 }
