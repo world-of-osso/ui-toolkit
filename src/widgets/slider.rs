@@ -1,7 +1,6 @@
 use std::fmt;
 
 use super::texture::TextureSource;
-use crate::anchor::AnchorPoint;
 use crate::rsx;
 use crate::widget_def::Element;
 
@@ -161,11 +160,10 @@ pub fn slider_widget(spec: SliderWidget<'_>) -> Element {
             thumb_texture: {thumb_texture},
             mouse_enabled: true,
             onclick: {spec.action},
-            anchor {
-                point: AnchorPoint::Left,
-                relative_point: AnchorPoint::Left,
-                x: {spec.x},
-            }
+            pos_type: "absolute",
+            left: {spec.x},
+            top: "50%",
+            translate_y: "-50%",
             {slider_track_frame(spec, &visuals, thumb_texture)}
         }
     }
@@ -195,10 +193,11 @@ fn slider_track_frame(
             name: {DynName(format!("{}Track", spec.name))},
             width: {spec.width},
             height: {spec.track_height},
-            anchor {
-                point: AnchorPoint::Center,
-                relative_point: AnchorPoint::Center,
-            }
+            pos_type: "absolute",
+            left: "50%",
+            top: "50%",
+            translate_x: "-50%",
+            translate_y: "-50%",
             {track_left_cap(spec.name, spec.track_height)}
             {track_center_span(spec.name, visuals.track_center_w, spec.track_height, &visuals.track_center_x)}
             {track_right_cap(spec.name, spec.track_height)}
@@ -216,10 +215,10 @@ fn track_left_cap(name: &str, track_height: f32) -> Element {
             width: CAP_WIDTH,
             height: {track_height},
             texture_file: TRACK_LEFT,
-            anchor {
-                point: AnchorPoint::Left,
-                relative_point: AnchorPoint::Left,
-            }
+            pos_type: "absolute",
+            left: 0.0,
+            top: "50%",
+            translate_y: "-50%",
         }
     }
 }
@@ -231,11 +230,10 @@ fn track_center_span(name: &str, width: f32, track_height: f32, x: &str) -> Elem
             width: {width},
             height: {track_height},
             texture_file: TRACK_CENTER,
-            anchor {
-                point: AnchorPoint::Left,
-                relative_point: AnchorPoint::Left,
-                x: {x},
-            }
+            pos_type: "absolute",
+            left: {x},
+            top: "50%",
+            translate_y: "-50%",
         }
     }
 }
@@ -247,10 +245,10 @@ fn track_right_cap(name: &str, track_height: f32) -> Element {
             width: CAP_WIDTH,
             height: {track_height},
             texture_file: TRACK_RIGHT,
-            anchor {
-                point: AnchorPoint::Right,
-                relative_point: AnchorPoint::Right,
-            }
+            pos_type: "absolute",
+            right: 0.0,
+            top: "50%",
+            translate_y: "-50%",
         }
     }
 }
@@ -262,11 +260,10 @@ fn slider_handle(name: &str, width: f32, height: f32, texture: &str, x: &str) ->
             width: {width},
             height: {height},
             texture_file: texture,
-            anchor {
-                point: AnchorPoint::Left,
-                relative_point: AnchorPoint::Left,
-                x: {x},
-            }
+            pos_type: "absolute",
+            left: {x},
+            top: "50%",
+            translate_y: "-50%",
         }
     }
 }
@@ -281,10 +278,10 @@ fn fill_left_cap(name: &str, height: f32, show: bool) -> Element {
             width: CAP_WIDTH,
             height: {height},
             texture_file: FILL_LEFT,
-            anchor {
-                point: AnchorPoint::Left,
-                relative_point: AnchorPoint::Left,
-            }
+            pos_type: "absolute",
+            left: 0.0,
+            top: "50%",
+            translate_y: "-50%",
         }
     }
 }
@@ -299,11 +296,10 @@ fn fill_center(name: &str, width: f32, height: f32, x: &str, show: bool) -> Elem
             width: {width},
             height: {height},
             texture_file: FILL_CENTER,
-            anchor {
-                point: AnchorPoint::Left,
-                relative_point: AnchorPoint::Left,
-                x: {x},
-            }
+            pos_type: "absolute",
+            left: {x},
+            top: "50%",
+            translate_y: "-50%",
         }
     }
 }

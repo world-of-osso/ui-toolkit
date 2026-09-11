@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 
 pub mod caret;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 mod images;
 pub(crate) mod layout;
@@ -153,7 +153,10 @@ pub(crate) fn sync_registry(
         return;
     };
     if let Projection::Orthographic(projection) = projection {
-        ui_scale.set_if_neq(UiScale(projection.scale.recip()));
+        let scale = projection.scale.recip();
+        if ui_scale.0 != scale {
+            ui_scale.0 = scale;
+        }
     }
     let canvas = sync_canvas(&mut commands, &query, camera);
     let frames = sync_frames(&state, &order, canvas, &mut commands, &query);
