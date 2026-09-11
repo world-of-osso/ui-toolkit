@@ -57,7 +57,7 @@ impl EditBoxData {
     /// Delete the character before the cursor (backspace).
     pub fn backspace(&mut self) {
         if self.cursor_position > 0 {
-            self.cursor_position -= 1;
+            self.cursor_left();
             self.text.remove(self.cursor_position);
         }
     }
@@ -79,12 +79,17 @@ impl EditBoxData {
 
     /// Move cursor left by one character.
     pub fn cursor_left(&mut self) {
-        self.cursor_position = self.cursor_position.saturating_sub(1);
+        self.cursor_position = self.text[..self.cursor_position]
+            .char_indices()
+            .next_back()
+            .map_or(0, |(index, _)| index);
     }
 
     /// Move cursor right by one character.
     pub fn cursor_right(&mut self) {
-        self.cursor_position = (self.cursor_position + 1).min(self.text.len());
+        if let Some(next) = self.text[self.cursor_position..].chars().next() {
+            self.cursor_position += next.len_utf8();
+        }
     }
 
     /// Move cursor to start.
