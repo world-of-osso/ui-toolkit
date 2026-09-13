@@ -56,7 +56,7 @@ fn fdid_atlas_loads_authored_crops_and_reuses_cached_pixels() {
     let mut world = World::new();
     world.init_resource::<Assets<Image>>();
     let mut state = SystemState::<ResMut<Assets<Image>>>::new(&mut world);
-    let mut images = Some(state.get_mut(&mut world));
+    let mut images = Some(state.get_mut(&mut world).expect("image resource"));
     let mut fdid_cache = HashMap::new();
     let mut file_cache = HashMap::new();
     let mut missing_fdids = HashSet::new();
