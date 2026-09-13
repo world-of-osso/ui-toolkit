@@ -306,6 +306,10 @@ pub fn load_fdid_texture(
 }
 
 #[cfg(test)]
+#[path = "render_texture/fdid_atlas_tests.rs"]
+mod fdid_atlas_tests;
+
+#[cfg(test)]
 mod tests {
     use super::sanitize_transparent_pixels;
 
