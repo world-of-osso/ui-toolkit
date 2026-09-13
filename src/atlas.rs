@@ -1,8 +1,14 @@
 use bevy::prelude::{Image, Rect, Vec2};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtlasSource {
+    File(&'static str),
+    FileDataId(u32),
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct AtlasRegion {
-    pub path: &'static str,
+    pub source: AtlasSource,
     pub left: f32,
     pub right: f32,
     pub top: f32,
@@ -35,9 +41,12 @@ pub fn nine_slice_margins(name: &str) -> Option<[f32; 4]> {
 }
 
 macro_rules! atlas_region {
+    ($path:literal, $($args:tt)*) => {
+        atlas_region!(AtlasSource::File($path), $($args)*)
+    };
     ($path:expr, $left:expr, $right:expr, $top:expr, $bottom:expr, $width:expr, $height:expr, $edge:expr) => {
         AtlasRegion {
-            path: $path,
+            source: $path,
             left: $left,
             right: $right,
             top: $top,
@@ -51,14 +60,17 @@ macro_rules! atlas_region {
     };
 }
 
-const CHARACTER_SELECT_GLUES: &str =
-    "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGlues.BLP";
-const CHARACTER_SELECT_GLUES_GRAYSCALE: &str =
-    "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP";
-const COMMON_DROPDOWN: &str = "/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP";
-const CHARACTER_CREATE: &str =
-    "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP";
-const ACTION_BAR: &str = "/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP";
+const CHARACTER_SELECT_GLUES: AtlasSource = AtlasSource::FileDataId(5_648_070);
+const CHARACTER_SELECT_GLUES_GRAYSCALE: AtlasSource = AtlasSource::File(
+    "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP",
+);
+const COMMON_DROPDOWN: AtlasSource =
+    AtlasSource::File("/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP");
+const CHARACTER_CREATE: AtlasSource = AtlasSource::File(
+    "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
+);
+const ACTION_BAR: AtlasSource =
+    AtlasSource::File("/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP");
 
 pub fn get_region(name: &str) -> Option<AtlasRegion> {
     let key = name.to_ascii_lowercase();

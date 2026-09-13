@@ -87,22 +87,18 @@ fn load_atlas_texture(
     blp_loader: Option<&BlpLoaderRes>,
 ) -> Option<LoadedTexture> {
     let region = atlas::get_region(name)?;
-    if should_materialize_atlas_region(region.path) {
+    if should_materialize_atlas_region(region.source) {
         return load_materialized_atlas_region(
             name,
-            region.path,
-            region.left,
-            region.right,
-            region.top,
-            region.bottom,
+            &region,
             images,
             file_texture_cache,
             missing_file_textures,
             blp_loader,
         );
     }
-    let handle = load_file_texture(
-        region.path,
+    let handle = load_atlas_base(
+        region.source,
         images,
         file_texture_cache,
         missing_file_textures,
@@ -117,11 +113,7 @@ fn load_atlas_texture(
 
 fn load_materialized_atlas_region(
     name: &str,
-    path: &str,
-    left: f32,
-    right: f32,
-    top: f32,
-    bottom: f32,
+    region: &atlas::AtlasRegion,
     images: &mut Option<ResMut<Assets<Image>>>,
     file_texture_cache: &mut HashMap<String, Handle<Image>>,
     missing_file_textures: &mut HashSet<String>,
@@ -135,8 +127,8 @@ fn load_materialized_atlas_region(
         });
     }
 
-    let base_handle = load_file_texture(
-        path,
+    let base_handle = load_atlas_base(
+        region.source,
         images,
         file_texture_cache,
         missing_file_textures,
@@ -144,7 +136,7 @@ fn load_materialized_atlas_region(
     )?;
     let assets = images.as_mut().map(|images| &mut **images)?;
     let base = assets.get(&base_handle)?;
-    let cropped = crop_image_region(base, left, right, top, bottom)?;
+    let cropped = crop_image_region(base, region.left, region.right, region.top, region.bottom)?;
     let handle = assets.add(cropped);
     file_texture_cache.insert(cache_key, handle.clone());
     Some(LoadedTexture { handle, rect: None })
@@ -272,9 +264,63 @@ fn should_cpu_decode_ui_texture(path: &str) -> bool {
         || path.contains("/Interface/CharacterSelection/")
 }
 
-fn should_materialize_atlas_region(path: &str) -> bool {
-    path.contains("/Interface/GLUES/CharacterSelect/")
-        || path.contains("/Interface/CharacterSelection/")
+fn should_materialize_atlas_region(source: atlas::AtlasSource) -> bool {
+    match source {
+        atlas::AtlasSource::File(path) => should_cpu_decode_ui_texture(path),
+        atlas::AtlasSource::FileDataId(_) => true,
+    }
+}
+
+fn load_atlas_base(
+    source: atlas::AtlasSource,
+    images: &mut Option<ResMut<Assets<Image>>>,
+    cache: &mut HashMap<String, Handle<Image>>,
+    missing: &mut HashSet<String>,
+    loader: Option<&BlpLoaderRes>,
+) -> Option<Handle<Image>> {
+    match source {
+        atlas::AtlasSource::File(path) => load_file_texture(path, images, cache, missing, loader),
+        atlas::AtlasSource::FileDataId(fdid) => {
+            load_cpu_atlas_fdid(fdid, images, cache, missing, loader)
+        }
+    }
+}
+
+fn load_cpu_atlas_fdid(
+    fdid: u32,
+    images: &mut Option<ResMut<Assets<Image>>>,
+    cache: &mut HashMap<String, Handle<Image>>,
+    missing: &mut HashSet<String>,
+    loader: Option<&BlpLoaderRes>,
+) -> Option<Handle<Image>> {
+    let key = format!("atlas-fdid::{fdid}");
+    if let Some(handle) = cache.get(&key) {
+        return Some(handle.clone());
+    }
+    if missing.contains(&key) {
+        return None;
+    }
+    let assets = images.as_mut()?;
+    let loader = loader?;
+    let image = match decode_atlas_fdid(fdid, loader) {
+        Ok(image) => image,
+        Err(error) => {
+            eprintln!("[UI] Failed to load atlas FDID {fdid}: {error}");
+            missing.insert(key);
+            return None;
+        }
+    };
+    let handle = assets.add(image);
+    cache.insert(key, handle.clone());
+    Some(handle)
+}
+
+fn decode_atlas_fdid(fdid: u32, loader: &BlpLoaderRes) -> Result<Image, String> {
+    let path = loader
+        .0
+        .ensure_texture(fdid)
+        .ok_or_else(|| format!("Could not resolve texture FDID {fdid}"))?;
+    loader.0.load_blp_to_image(&path)
 }
 
 pub fn load_fdid_texture(
