@@ -1,5 +1,7 @@
 //! Retail control crops joined from UiTextureAtlasElement, UiTextureAtlasMember,
 //! and UiTextureAtlas. Bounds are physical pixels; sizes retain DB2 overrides.
+//! The Retail highlight alone uses a `retail-` name: its canonical DB2 name
+//! already identifies a different, project-owned brown image.
 
 use super::{AtlasRegion, AtlasSource};
 
@@ -63,6 +65,11 @@ pub(super) const REGIONS: &[(u32, &str, AtlasRegion)] = &[
         11950,
         "128-redbutton-right-disabled",
         pixels(7367529, [512, 2048], [1, 651, 293, 779], [292, 128]),
+    ),
+    (
+        5451,
+        "retail-128-redbutton-highlight",
+        pixels(7367529, [512, 2048], [1, 391, 442, 519], [441, 128]),
     ),
     (
         12706,

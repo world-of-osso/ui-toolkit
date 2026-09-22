@@ -1,4 +1,4 @@
-# Element.Name	FDID	left	top	right	bottom	logical width	logical height	element ID
+# Public atlas name	FDID	left	top	right	bottom	logical width	logical height	element ID
 !CharacterCreateDropdown-NineSlice-EdgeLeft	3575404	253	1	377	409	62	204	12706
 !CharacterCreateDropdown-NineSlice-EdgeRight	3575404	127	1	251	409	62	204	12707
 _CharacterCreateDropdown-NineSlice-EdgeBottom	3575404	379	1	811	145	216	72	12713
@@ -68,3 +68,4 @@ _128-RedButton-Center-Disabled	7367529	0	131	64	259	64	128	11953
 128-RedButton-Right	7367529	1	521	293	649	292	128	11952
 128-RedButton-Right-Pressed	7367529	1	781	293	909	292	128	11951
 128-RedButton-Right-Disabled	7367529	1	651	293	779	292	128	11950
+retail-128-redbutton-highlight	7367529	1	391	442	519	441	128	5451

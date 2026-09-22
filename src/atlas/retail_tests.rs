@@ -10,7 +10,8 @@ use crate::render_texture::{BlpLoader, BlpLoaderRes, load_texture_source_pub};
 use crate::widgets::texture::TextureSource;
 
 // Golden pixel bounds and logical sizes from the local UiTextureAtlas* CSV join.
-// Element.Name, rather than Member.CommittedName, is the public atlas name.
+// Public names are Element.Name except the Retail red highlight, whose
+// canonical name collides with existing project-owned brown art.
 const AUTHORED_CROPS: &str = include_str!("retail_fixture.tsv");
 
 struct AuthoredCrop<'a> {
@@ -109,6 +110,24 @@ fn expected_crop_pixels(crop: &AuthoredCrop<'_>) -> Vec<u8> {
             })
         })
         .collect()
+}
+
+#[test]
+fn retail_highlight_preserves_legacy_brown_highlight() {
+    let retail = super::get_region("retail-128-redbutton-highlight")
+        .expect("Retail highlight image is available");
+    assert_eq!(retail.source, super::AtlasSource::FileDataId(7_367_529));
+    assert_eq!(
+        super::get_name_by_element_id(5451),
+        Some("retail-128-redbutton-highlight")
+    );
+
+    let legacy = super::get_region("128-redbutton-highlight")
+        .expect("project-owned brown highlight is still available");
+    assert_eq!(
+        legacy.source,
+        super::AtlasSource::File("data/ui/128BrownButton.ktx2")
+    );
 }
 
 #[test]
