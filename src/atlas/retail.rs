@@ -142,9 +142,14 @@ pub(super) const REGIONS: &[(u32, &str, AtlasRegion)] = &[
         pixels(1253496, [2048, 2048], [1923, 235, 2007, 255], [42, 10]),
     ),
     (
+        12617,
+        "charactercreate-customize-palette",
+        pixels(1253496, [2048, 2048], [519, 471, 603, 491], [42, 10]),
+    ),
+    (
         16304,
         "charactercreate-customize-palette-half",
-        pixels(1253496, [2048, 2048], [519, 471, 603, 491], [42, 10]),
+        pixels(1253496, [2048, 2048], [729, 471, 813, 491], [42, 10]),
     ),
     (
         12072,

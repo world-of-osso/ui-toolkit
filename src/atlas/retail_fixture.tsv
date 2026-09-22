@@ -1,4 +1,8 @@
 # Public atlas name	FDID	left	top	right	bottom	logical width	logical height	element ID
+# Palette rows: build 12.1.0.69875 Wago UiTextureAtlas{,Element,Member} exports (2026-09-22).
+# Member SHA256 31d7792aa1d885fd77e77ecfa00ba5c62bb7e45d4d65ac63d8bea0e8365f0f5b
+# Atlas SHA256 6c28ebd14e10a17e98dc97379e0405c41c8af81970b48dc8b381e3c577f970b2
+# Element SHA256 d4488a8d06c292bbd175728bbcbc3f082eb5bdf93d5654666d956a1eb72c345a
 common-dropdown-c-bg	5390329	1	1	91	91	90	90	25590
 common-dropdown-customize-mouseover	5390329	71	93	91	113	20	20	25927
 !CharacterCreateDropdown-NineSlice-EdgeLeft	3575404	253	1	377	409	62	204	12706
@@ -13,7 +17,8 @@ charactercreate-customize-dropdownbox	1253496	439	497	739	573	150	38	12616
 charactercreate-customize-dropdownbox-hover	1253496	741	497	1041	573	150	38	12629
 charactercreate-customize-dropdownbox-open	1253496	1043	497	1343	573	150	38	12630
 charactercreate-customize-palette-glow	1253496	1923	235	2007	255	42	10	16265
-charactercreate-customize-palette-half	1253496	519	471	603	491	42	10	16304
+charactercreate-customize-palette	1253496	519	471	603	491	42	10	12617
+charactercreate-customize-palette-half	1253496	729	471	813	491	42	10	16304
 charactercreate-gendericon-female	1253496	281	1	537	257	256	256	12072
 charactercreate-gendericon-female-selected	1253496	539	1	795	257	256	256	16965
 charactercreate-gendericon-male	1253496	797	1	1053	257	256	256	12071

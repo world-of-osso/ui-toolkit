@@ -641,19 +641,6 @@ const CHARACTER_CREATE_REGIONS: &[AtlasRegionEntry] = &[
         ),
     ),
     (
-        "charactercreate-customize-palette",
-        atlas_region!(
-            CHARACTER_CREATE,
-            0.938965,
-            0.979980,
-            0.104004,
-            0.113770,
-            42.0,
-            10.0,
-            None
-        ),
-    ),
-    (
         "charactercreate-customize-palette-selected",
         atlas_region!(
             CHARACTER_CREATE,
