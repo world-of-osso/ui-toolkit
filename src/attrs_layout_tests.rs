@@ -25,6 +25,27 @@ fn hit_rect_insets_reject_malformed_values() {
 }
 
 #[test]
+fn button_hover_alpha_rejects_invalid_values_without_changing_the_button() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("Choice", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(ButtonData::default()));
+    assert_eq!(
+        read_attribute(&registry, id, "button_highlight_alpha").as_deref(),
+        Some("0.5")
+    );
+    for value in ["NaN", "inf", "-0.01", "1.01", "nope"] {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            apply(&mut registry, id, "button_highlight_alpha", value);
+        }));
+        assert!(result.is_err(), "invalid highlight alpha accepted: {value}");
+        assert_eq!(
+            read_attribute(&registry, id, "button_highlight_alpha").as_deref(),
+            Some("0.5")
+        );
+    }
+}
+
+#[test]
 fn button_default_skin_is_authored_and_can_be_switched_off() {
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let id = registry.create_frame("InteractionButton", None);

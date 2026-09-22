@@ -382,7 +382,12 @@ fn project_highlight(
     );
     let image = textured(
         loaded,
-        Color::srgba(1.0, 1.0, 1.0, frame.effective_alpha * 0.5),
+        Color::srgba(
+            1.0,
+            1.0,
+            1.0,
+            frame.effective_alpha * button.highlight_alpha,
+        ),
     );
     parts.push(from_geometry(frame, 1_000_000, transform, size, image));
 }

@@ -9,6 +9,7 @@ Registry buttons may own art or serve only as input targets for child textures. 
 - [x] Turning the default skin off removes only its previously generated nine-slice; authored nine- and three-slices remain.
 - [x] Authored background/backdrop colors, base textures and state textures still project. Failed authored textures never become white substitutes.
 - [x] A child icon with transparent pixels retains its native image entity after an authored parent background is removed.
+- [x] `button_highlight_alpha` accepts only finite `0..=1`, defaults to `0.5`, and multiplies inherited alpha on the native hover overlay without changing ordinary buttons.
 
 ## How it works
 

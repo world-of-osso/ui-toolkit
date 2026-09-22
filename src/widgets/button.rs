@@ -17,6 +17,8 @@ pub struct ButtonData {
     pub normal_texture: Option<TextureSource>,
     pub pushed_texture: Option<TextureSource>,
     pub highlight_texture: Option<TextureSource>,
+    /// Opacity of a flat hover overlay before inherited frame alpha is applied.
+    pub highlight_alpha: f32,
     pub disabled_texture: Option<TextureSource>,
     pub text: String,
     pub font_size: f32,
@@ -34,6 +36,7 @@ impl Default for ButtonData {
             normal_texture: None,
             pushed_texture: None,
             highlight_texture: None,
+            highlight_alpha: 0.5,
             disabled_texture: None,
             text: String::new(),
             font_size: 14.0,

@@ -214,6 +214,42 @@ fn tiled_fdid_preserves_full_edge_tiles_and_does_not_tile_files() {
 }
 
 #[test]
+fn button_hover_alpha_is_authored_in_native_image_output() {
+    let mut registry = crate::registry::FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("Choice", None);
+    let mut authored = frame();
+    authored.widget_data = Some(WidgetData::Button(ButtonData {
+        hovered: true,
+        highlight_texture: Some(TextureSource::File("hover.png".into())),
+        use_default_skin: false,
+        ..default()
+    }));
+    *registry.get_mut(id).unwrap() = authored;
+    crate::attrs::apply_attribute(
+        &mut registry,
+        id,
+        "button_highlight_alpha",
+        "0.15",
+        &mut Default::default(),
+        &mut Default::default(),
+    );
+    let output = project_with_loader(registry.get(id).unwrap(), &mut load);
+    assert_eq!(
+        output.len(),
+        1,
+        "hover-only choice must not gain a base image"
+    );
+    assert_eq!(
+        part(&output, 1_000_000).image.color,
+        Color::srgba(1.0, 1.0, 1.0, 0.075)
+    );
+    assert_eq!(
+        crate::attrs::read_attribute(&registry, id, "button_highlight_alpha").as_deref(),
+        Some("0.15")
+    );
+}
+
+#[test]
 fn button_states_and_overlay_keep_existing_selection_rules() {
     let mut frame = frame();
     frame.widget_data = Some(WidgetData::Button(ButtonData {

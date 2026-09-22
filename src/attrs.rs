@@ -82,6 +82,10 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
             Some(WidgetData::Button(button)) => Some(button.use_default_skin.to_string()),
             _ => None,
         },
+        "button_highlight_alpha" => match &frame.widget_data {
+            Some(WidgetData::Button(button)) => Some(button.highlight_alpha.to_string()),
+            _ => None,
+        },
         "hit_rect_insets" => Some(format_color(frame.hit_rect_insets)),
         "hidden" => Some(if frame.visible { "false" } else { "true" }.to_string()),
         "disabled" => match &frame.widget_data {
@@ -461,6 +465,18 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "button_default_skin" => {
             if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
                 set_bool(&mut button.use_default_skin, value);
+            }
+        }
+        "button_highlight_alpha" => {
+            if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
+                let alpha = value.parse::<f32>().unwrap_or_else(|_| {
+                    panic!("invalid button_highlight_alpha '{value}': expected 0..=1")
+                });
+                assert!(
+                    alpha.is_finite() && (0.0..=1.0).contains(&alpha),
+                    "invalid button_highlight_alpha '{value}': expected 0..=1"
+                );
+                button.highlight_alpha = alpha;
             }
         }
         "hit_rect_insets" => frame.hit_rect_insets = parse_hit_rect_insets(value),
