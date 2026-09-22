@@ -4,11 +4,11 @@
 
 ## What it must do
 
-- [ ] Resolve the 54 reference control/category atlas names and their `UiTextureAtlasElement.ID` values to identical cropped images.
-- [ ] Preserve exact physical crop bounds and logical override dimensions from the local `UiTextureAtlasElement` → `UiTextureAtlasMember` → `UiTextureAtlas` join.
-- [ ] Resolve character artwork through FDID `1253496`, common icons through `3487944`, gray square buttons through `3534438`, and dropdown panel pieces through `3575404`.
-- [ ] Preserve source pixels through the existing atlas crop path, except transparent RGB sanitization already required by that path.
-- [ ] Return `None` for unsupported element IDs; retain existing named atlas sources unchanged.
+- [x] Resolve the 54 reference control/category atlas names and their `UiTextureAtlasElement.ID` values to identical cropped images.
+- [x] Preserve exact physical crop bounds and logical override dimensions from the local `UiTextureAtlasElement` → `UiTextureAtlasMember` → `UiTextureAtlas` join.
+- [x] Resolve character artwork through FDID `1253496`, common icons through `3487944`, gray square buttons through `3534438`, and dropdown panel pieces through `3575404`.
+- [x] Preserve source pixels through the existing atlas crop path, except transparent RGB sanitization already required by that path.
+- [x] Return `None` for unsupported element IDs; retain existing named atlas sources unchanged.
 
 ## How it works
 
@@ -30,8 +30,8 @@
 
 ## Known gaps (current cycle)
 
-- [ ] Targeted GREEN proof pending implementation commit.
-- [ ] This scope does not prove all four proprietary BLP files decode through the engine's CASC resolver or establish rendered screen parity. Host integration owns that proof.
+- Targeted proof at toolkit `3fb0138`: `cargo test --lib atlas:: -- --nocapture` passes 8/8 (54-region crop test plus seven existing atlas regressions). The decoded atlas fixture encodes coordinates and source identity; it is not proprietary artwork.
+- [ ] Host integration must prove all four original BLP files decode through local CASC and establish rendered screen parity. This slice does not claim those results.
 
 ## Out of scope
 
