@@ -4,8 +4,9 @@
 
 ## What it must do
 
-- [x] Resolve 70 reference control/category atlas entries and their `UiTextureAtlasElement.ID` values to identical cropped images, including Mirror (`18308`/`18307`) and all red three-slice states plus highlight.
+- [x] Resolve 72 reference control/category atlas entries and their `UiTextureAtlasElement.ID` values to identical cropped images, including Mirror (`18308`/`18307`) and all red three-slice states plus highlight.
 - [x] Resolve `common-dropdown-icon-back`, `common-dropdown-icon-next` and their `-disabled` states through canonical element IDs `25734`–`25737` and the 1× dropdown sheet FDID `5390329`, preserving each 17×17 crop.
+- [x] Resolve menu-style-2 background `common-dropdown-c-bg` (ID `25590`, 90×90 crop) and the dropdown choice hover art `common-dropdown-customize-mouseover` (ID `25927`, 20×20 crop) from FDID `5390329`.
 - [x] Preserve exact physical crop bounds and logical override dimensions from the local `UiTextureAtlasElement` → `UiTextureAtlasMember` → `UiTextureAtlas` join.
 - [x] Resolve character artwork through FDID `1253496`, common icons through `3487944`, gray square buttons through `3534438`, dropdown panel pieces through `3575404`, and current Retail red-button slices through `7367529`.
 - [x] Preserve source pixels through the existing atlas crop path, except transparent RGB sanitization already required by that path.
@@ -20,7 +21,7 @@
 | --- | --- | --- |
 | 5451 | `128-RedButton-Highlight` | `retail-128-redbutton-highlight` |
 
-- Crop sizes are not UI sizes: reference templates explicitly size rings, while some DB2 members override physical dimensions. The red navigation button's authored left/center/right widths are `114`/`64`/`292` at height `128`; its template scales both caps by button height and stretches the center. No uniform atlas-edge thickness is invented; the dropdown panel exposes its nine individual pieces.
+- Crop sizes are not UI sizes: reference templates explicitly size rings, while some DB2 members override physical dimensions. The red navigation button's authored left/center/right widths are `114`/`64`/`292` at height `128`; its template scales both caps by button height and stretches the center. No uniform atlas-edge thickness is invented. The menu-style-2 popup uses the single authored `common-dropdown-c-bg`; older character-create dropdown nine-slice pieces remain available for their original consumers.
 
 ## Implementation inventory
 
@@ -31,7 +32,7 @@
 
 ## Tests asserting this spec
 
-- `atlas::retail_tests::retail_character_creation_atlases_crop_authored_pixels_and_keep_logical_sizes`: all 70 registered crops, complete coordinate-encoded RGBA payloads, transparent pixels, logical dimensions and element-ID/public-name mapping.
+- `atlas::retail_tests::retail_character_creation_atlases_crop_authored_pixels_and_keep_logical_sizes`: all 72 registered crops, complete coordinate-encoded RGBA payloads, transparent pixels, logical dimensions and element-ID/public-name mapping.
 
 ## Known gaps (current cycle)
 

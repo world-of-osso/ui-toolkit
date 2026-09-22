@@ -1,4 +1,6 @@
 # Public atlas name	FDID	left	top	right	bottom	logical width	logical height	element ID
+common-dropdown-c-bg	5390329	1	1	91	91	90	90	25590
+common-dropdown-customize-mouseover	5390329	71	93	91	113	20	20	25927
 !CharacterCreateDropdown-NineSlice-EdgeLeft	3575404	253	1	377	409	62	204	12706
 !CharacterCreateDropdown-NineSlice-EdgeRight	3575404	127	1	251	409	62	204	12707
 _CharacterCreateDropdown-NineSlice-EdgeBottom	3575404	379	1	811	145	216	72	12713

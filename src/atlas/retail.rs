@@ -22,6 +22,16 @@ const fn pixels(fdid: u32, sheet: [u32; 2], rect: [u32; 4], size: [u32; 2]) -> A
 
 pub(super) const REGIONS: &[(u32, &str, AtlasRegion)] = &[
     (
+        25590,
+        "common-dropdown-c-bg",
+        pixels(5390329, [512, 256], [1, 1, 91, 91], [90, 90]),
+    ),
+    (
+        25927,
+        "common-dropdown-customize-mouseover",
+        pixels(5390329, [512, 256], [71, 93, 91, 113], [20, 20]),
+    ),
+    (
         11949,
         "128-redbutton-left",
         pixels(7367529, [512, 2048], [391, 911, 505, 1039], [114, 128]),
