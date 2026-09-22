@@ -78,6 +78,7 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
         "height" => Some(format_dimension(frame.height)),
         "strata" => Some(format!("{:?}", frame.strata)),
         "onclick" => frame.onclick.clone(),
+        "hit_rect_insets" => Some(format_color(frame.hit_rect_insets)),
         "hidden" => Some(if frame.visible { "false" } else { "true" }.to_string()),
         "disabled" => match &frame.widget_data {
             Some(WidgetData::Button(b)) => Some(
@@ -453,6 +454,7 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "width" => frame.width = parse_dimension(value),
         "height" => frame.height = parse_dimension(value),
         "mouse_enabled" => set_bool(&mut frame.mouse_enabled, value),
+        "hit_rect_insets" => frame.hit_rect_insets = parse_hit_rect_insets(value),
         "movable" => set_bool(&mut frame.movable, value),
         "frame_level" => {
             if let Ok(v) = value.parse::<f32>() {
@@ -474,6 +476,24 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         }
         _ => {}
     }
+}
+
+fn parse_hit_rect_insets(value: &str) -> [f32; 4] {
+    let values = value
+        .split(',')
+        .map(|part| part.trim().parse::<f32>())
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|_| {
+            panic!("invalid hit_rect_insets '{value}': expected four finite numbers")
+        });
+    let insets: [f32; 4] = values.try_into().unwrap_or_else(|_| {
+        panic!("invalid hit_rect_insets '{value}': expected four finite numbers")
+    });
+    assert!(
+        insets.iter().all(|value| value.is_finite()),
+        "invalid hit_rect_insets '{value}': expected four finite numbers"
+    );
+    insets
 }
 
 fn set_bool(target: &mut bool, value: &str) {

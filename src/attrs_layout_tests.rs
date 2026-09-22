@@ -12,6 +12,19 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
 }
 
 #[test]
+fn hit_rect_insets_reject_malformed_values() {
+    for value in ["1,2,3", "1,2,nope,4", "NaN,0,0,0", "0,0,inf,0"] {
+        let mut registry = FrameRegistry::new(800.0, 600.0);
+        let id = registry.create_frame("Target", None);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            apply(&mut registry, id, "hit_rect_insets", value);
+        }));
+        assert!(result.is_err(), "malformed hit insets accepted: {value}");
+        assert_eq!(registry.get(id).unwrap().hit_rect_insets, [0.0; 4]);
+    }
+}
+
+#[test]
 fn native_layout_attributes_round_trip() {
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let id = registry.create_frame("Positioned", None);
@@ -30,6 +43,7 @@ fn native_layout_attributes_round_trip() {
         ("margin_bottom", "-3"),
         ("width", "auto"),
         ("height", "auto"),
+        ("hit_rect_insets", "15,15,15,15"),
     ];
     for (name, value) in attributes {
         apply(&mut registry, id, name, value);

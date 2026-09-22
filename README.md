@@ -2,6 +2,10 @@
 
 Registry-authoritative UI frames projected to native Bevy UI. Screens use `rsx!`, `Screen`, and `SharedContext`; the registry owns authored layout, texture, input, visibility, and lifecycle state.
 
+## Hit areas
+
+RSX `hit_rect_insets: "left,top,right,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
+
 ## Atlas sources
 
 `AtlasRegion.source` identifies the backing texture:
