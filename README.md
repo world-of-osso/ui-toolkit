@@ -11,4 +11,6 @@ Registry-authoritative UI frames projected to native Bevy UI. Screens use `rsx!`
 
 Character-selection atlas members use `FileDataId(5648070)`, not an absolute WoW install path. DB2 maps `glues-characterselect-card-*` members through `UiTextureAtlasID 2726` to that 1024×1024 atlas. The engine resolves it from the local CASC cache. Character-selection regions are materialized and CPU-decoded so cropped card/panel art preserves transparent-edge pixels.
 
+Character-creation customization arrows and palette regions use `FileDataId(1253496)` (`Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP`). The host resolves the atlas from local CASC; existing UV regions and artwork are unchanged.
+
 Adding an atlas: use a file source only for a repository-owned stable asset. Use the authored FileDataID for WoW atlas content; do not add machine-specific install paths or one-off extracted copies.

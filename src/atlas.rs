@@ -66,9 +66,7 @@ const CHARACTER_SELECT_GLUES_GRAYSCALE: AtlasSource = AtlasSource::File(
 );
 const COMMON_DROPDOWN: AtlasSource =
     AtlasSource::File("/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP");
-const CHARACTER_CREATE: AtlasSource = AtlasSource::File(
-    "/home/osso/Projects/wow/Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP",
-);
+const CHARACTER_CREATE: AtlasSource = AtlasSource::FileDataId(1_253_496);
 const ACTION_BAR: AtlasSource =
     AtlasSource::File("/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP");
 
