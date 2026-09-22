@@ -1,5 +1,7 @@
 use bevy::prelude::{Image, Rect, Vec2};
 
+mod retail;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AtlasSource {
     File(&'static str),
@@ -29,6 +31,14 @@ impl AtlasRegion {
             max: Vec2::new(self.right * width, self.bottom * height),
         }
     }
+}
+
+/// Resolve the supported retail character-creation control/category atlas names.
+pub fn get_name_by_element_id(element_id: u32) -> Option<&'static str> {
+    retail::REGIONS
+        .iter()
+        .find(|(id, _, _)| *id == element_id)
+        .map(|(_, name, _)| *name)
 }
 
 pub fn nine_slice_margins(name: &str) -> Option<[f32; 4]> {
@@ -80,6 +90,7 @@ pub fn get_region(name: &str) -> Option<AtlasRegion> {
         .or_else(|| char_select_grayscale_region(key))
         .or_else(|| common_dropdown_region(key))
         .or_else(|| character_create_region(key))
+        .or_else(|| retail_character_create_region(key))
         .or_else(|| action_bar_region(key))
 }
 
@@ -109,6 +120,13 @@ fn common_dropdown_region(name: &str) -> Option<AtlasRegion> {
 
 fn character_create_region(name: &str) -> Option<AtlasRegion> {
     lookup_region(name, CHARACTER_CREATE_REGIONS)
+}
+
+fn retail_character_create_region(name: &str) -> Option<AtlasRegion> {
+    retail::REGIONS
+        .iter()
+        .find(|(_, candidate, _)| *candidate == name)
+        .map(|(_, _, region)| *region)
 }
 
 fn action_bar_region(name: &str) -> Option<AtlasRegion> {
@@ -723,5 +741,8 @@ const ACTION_BAR_REGIONS: &[AtlasRegionEntry] = &[
     ),
 ];
 
+#[cfg(test)]
+#[path = "atlas/retail_tests.rs"]
+mod retail_tests;
 #[cfg(test)]
 mod tests;

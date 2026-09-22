@@ -13,4 +13,6 @@ Character-selection atlas members use `FileDataId(5648070)`, not an absolute WoW
 
 Character-creation customization arrows and palette regions use `FileDataId(1253496)` (`Interface/GLUES/CHARACTERCREATE/CharacterCreate.BLP`). The host resolves the atlas from local CASC; existing UV regions and artwork are unchanged.
 
+Retail character-creation rings, category/body-type icons, camera controls and dropdown pieces are listed in [`src/atlas/retail.rs`](src/atlas/retail.rs). `atlas::get_name_by_element_id` resolves their DB2 element IDs to supported names; other IDs return `None`. See the [atlas contract](docs/specs/character-creation-atlases.md) for sources, sizing and proof limits.
+
 Adding an atlas: use a file source only for a repository-owned stable asset. Use the authored FileDataID for WoW atlas content; do not add machine-specific install paths or one-off extracted copies.
