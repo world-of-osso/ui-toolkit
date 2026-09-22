@@ -1,5 +1,5 @@
 use super::*;
-use crate::anchor::{AnchorPoint, AnchorTarget};
+use crate::anchor::AnchorTarget;
 use crate::frame::{Dimension, WidgetType};
 use crate::widgets::{edit_box::EditBoxData, font_string::FontStringData};
 use bevy::asset::{AssetApp, AssetPlugin};
@@ -82,20 +82,31 @@ fn create_frame(
     id
 }
 
-fn anchor(world: &mut World, id: u64, point: AnchorPoint, target: Option<u64>, x: f32, y: f32) {
+/// Author native layout with absolute placement at pixel offsets from the
+/// parent's top-left corner (screen coordinates, Y downward).
+fn place_top_left(world: &mut World, id: u64, target: Option<u64>, x: f32, y: f32) {
     let mut ui = world.resource_mut::<UiState>();
     assert_eq!(ui.registry.get(id).unwrap().parent_id, target);
     ui.registry
         .set_pos_type(id, PositionType::Absolute)
         .unwrap();
     ui.registry.set_anchor(id, AnchorTarget::Parent).unwrap();
-    let (horizontal, vertical) = crate::anchor::anchor_position(point, 0.0, 0.0, 1.0, 1.0);
+    ui.registry.set_pos(id, x, y).unwrap();
+}
+
+/// Author native layout with absolute placement centered on the parent via
+/// percentage positioning and translation.
+fn place_centered(world: &mut World, id: u64, target: Option<u64>) {
+    let mut ui = world.resource_mut::<UiState>();
+    assert_eq!(ui.registry.get(id).unwrap().parent_id, target);
+    ui.registry
+        .set_pos_type(id, PositionType::Absolute)
+        .unwrap();
+    ui.registry.set_anchor(id, AnchorTarget::Parent).unwrap();
     let frame = ui.registry.get_mut(id).unwrap();
-    frame.position.left = percent(horizontal * 100.0);
-    frame.position.top = percent(vertical * 100.0);
-    frame.translation = Val2::percent(-horizontal * 100.0, -vertical * 100.0);
-    frame.margin.left = px(x);
-    frame.margin.top = px(-y);
+    frame.position.left = percent(50.0);
+    frame.position.top = percent(50.0);
+    frame.translation = Val2::percent(-50.0, -50.0);
 }
 
 fn projected_frame(world: &mut World, id: u64) -> Entity {
@@ -159,20 +170,13 @@ fn settle(app: &mut App) {
 }
 
 #[test]
-fn registry_anchors_size_and_resize_match_native_bounds_without_replacing_frames() {
+fn registry_layout_size_and_resize_match_native_bounds_without_replacing_frames() {
     for scale in [1.0, 2.0] {
         let mut app = app_with_real_fonts(scale);
         let root = create_frame(app.world_mut(), "Panel", None, 240.0, 120.0);
-        anchor(app.world_mut(), root, AnchorPoint::Center, None, 0.0, 0.0);
+        place_centered(app.world_mut(), root, None);
         let child = create_frame(app.world_mut(), "Child", Some(root), 80.0, 24.0);
-        anchor(
-            app.world_mut(),
-            child,
-            AnchorPoint::TopLeft,
-            Some(root),
-            12.0,
-            -14.0,
-        );
+        place_top_left(app.world_mut(), child, Some(root), 12.0, 14.0);
         settle(&mut app);
         let root_entity = projected_frame(app.world_mut(), root);
         let child_entity = projected_frame(app.world_mut(), child);
@@ -196,14 +200,7 @@ fn registry_anchors_size_and_resize_match_native_bounds_without_replacing_frames
             frame.height = Dimension::Fixed(160.0);
             ui.registry.mark_rect_dirty(root);
         }
-        anchor(
-            app.world_mut(),
-            child,
-            AnchorPoint::TopLeft,
-            Some(root),
-            30.0,
-            -20.0,
-        );
+        place_top_left(app.world_mut(), child, Some(root), 30.0, 20.0);
         {
             let world = app.world_mut();
             let mut windows = world.query_filtered::<&mut Window, With<PrimaryWindow>>();
@@ -321,14 +318,7 @@ fn registry_reparent_and_removal_preserve_logical_identity_and_clean_native_subt
     let mut app = app_with_real_fonts(1.0);
     let first = create_frame(app.world_mut(), "First", None, 200.0, 80.0);
     let second = create_frame(app.world_mut(), "Second", None, 200.0, 80.0);
-    anchor(
-        app.world_mut(),
-        second,
-        AnchorPoint::TopLeft,
-        None,
-        300.0,
-        -100.0,
-    );
+    place_top_left(app.world_mut(), second, None, 300.0, 100.0);
     let child = create_frame(app.world_mut(), "Moved", Some(first), 50.0, 20.0);
     {
         let mut ui = app.world_mut().resource_mut::<UiState>();
@@ -354,14 +344,7 @@ fn registry_reparent_and_removal_preserve_logical_identity_and_clean_native_subt
         ui.registry.get_mut(child).unwrap().parent_id = Some(second);
         ui.registry.mark_rect_dirty(child);
     }
-    anchor(
-        app.world_mut(),
-        child,
-        AnchorPoint::TopLeft,
-        Some(second),
-        7.0,
-        -9.0,
-    );
+    place_top_left(app.world_mut(), child, Some(second), 7.0, 9.0);
     settle(&mut app);
     assert_eq!(projected_frame(app.world_mut(), child), entity);
     let second_entity = projected_frame(app.world_mut(), second);
@@ -410,14 +393,7 @@ fn registry_password_cursor_and_blink_drive_shaped_caret_at_both_scales() {
     for scale in [1.0, 2.0] {
         let mut app = app_with_real_fonts(scale);
         let field = create_frame(app.world_mut(), "Password", None, 300.0, 40.0);
-        anchor(
-            app.world_mut(),
-            field,
-            AnchorPoint::TopLeft,
-            None,
-            100.0,
-            -50.0,
-        );
+        place_top_left(app.world_mut(), field, None, 100.0, 50.0);
         {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             let frame = ui.registry.get_mut(field).unwrap();
