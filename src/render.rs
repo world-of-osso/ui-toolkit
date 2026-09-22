@@ -197,6 +197,9 @@ fn sync_ui_quads_with_order(
         &mut commands,
     );
 
+    if !state.registry.pending_writes.is_empty() {
+        state.registry.resolve_pending_writes();
+    }
     if !state.registry.render_dirty.is_empty() {
         state.registry.render_dirty.clear();
     }

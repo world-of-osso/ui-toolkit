@@ -511,3 +511,191 @@ fn registry_password_cursor_and_blink_drive_shaped_caret_at_both_scales() {
         assert_eq!(edit.cursor_position, 4);
     }
 }
+
+fn stable_panel_and_label(app: &mut App) -> (u64, u64) {
+    let panel = create_frame(app.world_mut(), "Panel", None, 240.0, 80.0);
+    let label = create_frame(app.world_mut(), "Label", Some(panel), 180.0, 24.0);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        ui.registry.get_mut(panel).unwrap().background_color = Some([0.2, 0.4, 0.6, 0.8]);
+        let frame = ui.registry.get_mut(label).unwrap();
+        frame.widget_type = WidgetType::FontString;
+        frame.widget_data = Some(WidgetData::FontString(FontStringData {
+            text: "Stable".into(),
+            font: GameFont::ArialNarrow,
+            color: [1.0, 0.5, 0.25, 0.8],
+            ..default()
+        }));
+        ui.registry.set_pos(panel, 12.0, 7.0).unwrap();
+        ui.registry
+            .set_pos_type(panel, PositionType::Absolute)
+            .unwrap();
+        ui.registry.set_anchor(panel, AnchorTarget::Parent).unwrap();
+        ui.registry.set_alpha(panel, 0.75);
+        ui.registry.set_hidden(panel, false);
+    }
+    settle(app);
+    (panel, label)
+}
+
+fn projected_image(world: &mut World, id: u64) -> Entity {
+    world
+        .query::<(Entity, &RegistryImage)>()
+        .iter(world)
+        .find(|(_, part)| part.frame_id == id && part.key == 0)
+        .map(|(entity, _)| entity)
+        .expect("projected image")
+}
+
+/// Change tick of a projected component; only bumps when a system actually writes it.
+fn last_changed<T: Component>(world: &World, entity: Entity) -> u32 {
+    world
+        .entity(entity)
+        .get_ref::<T>()
+        .unwrap()
+        .last_changed()
+        .get()
+}
+
+#[test]
+fn identical_value_writes_publish_no_dirty_frames_or_native_changes() {
+    let mut app = app_with_real_fonts(1.0);
+    let (panel, label) = stable_panel_and_label(&mut app);
+    let panel_entity = projected_frame(app.world_mut(), panel);
+    let (text_entity, _) = projected_text(app.world_mut(), label);
+    let image = projected_image(app.world_mut(), panel);
+    let before = (
+        last_changed::<Text>(app.world(), text_entity),
+        last_changed::<TextColor>(app.world(), text_entity),
+        last_changed::<ImageNode>(app.world(), image),
+        last_changed::<Node>(app.world(), panel_entity),
+        last_changed::<UiTransform>(app.world(), panel_entity),
+    );
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        ui.registry.render_dirty.clear();
+        ui.registry.rect_dirty.clear();
+    }
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let frame = ui.registry.get_mut(panel).unwrap();
+        frame.width = Dimension::Fixed(240.0);
+        frame.height = Dimension::Fixed(80.0);
+        frame.background_color = Some([0.2, 0.4, 0.6, 0.8]);
+        let frame = ui.registry.get_mut(label).unwrap();
+        frame.width = Dimension::Fixed(180.0);
+        frame.height = Dimension::Fixed(24.0);
+        match &mut ui.registry.get_mut(label).unwrap().widget_data {
+            Some(WidgetData::FontString(data)) => {
+                data.text = "Stable".into();
+                data.color = [1.0, 0.5, 0.25, 0.8];
+            }
+            _ => panic!("font string"),
+        }
+        ui.registry.set_pos(panel, 12.0, 7.0).unwrap();
+        ui.registry
+            .set_pos_type(panel, PositionType::Absolute)
+            .unwrap();
+        ui.registry.set_anchor(panel, AnchorTarget::Parent).unwrap();
+        ui.registry.set_alpha(panel, 0.75);
+        ui.registry.set_hidden(panel, false);
+    }
+    {
+        let ui = app.world().resource::<UiState>();
+        assert!(
+            ui.registry.render_dirty.is_empty(),
+            "identical writes must not publish dirty frames, got {:?}",
+            ui.registry.render_dirty
+        );
+        assert!(
+            ui.registry.rect_dirty.is_empty(),
+            "identical writes must not invalidate layout, got {:?}",
+            ui.registry.rect_dirty
+        );
+    }
+    app.update();
+    assert_eq!(
+        before,
+        (
+            last_changed::<Text>(app.world(), text_entity),
+            last_changed::<TextColor>(app.world(), text_entity),
+            last_changed::<ImageNode>(app.world(), image),
+            last_changed::<Node>(app.world(), panel_entity),
+            last_changed::<UiTransform>(app.world(), panel_entity),
+        ),
+        "identical writes must not publish native component changes"
+    );
+}
+
+#[test]
+fn changed_value_writes_publish_dirty_frames_and_native_changes() {
+    let mut app = app_with_real_fonts(1.0);
+    let (panel, label) = stable_panel_and_label(&mut app);
+    let panel_entity = projected_frame(app.world_mut(), panel);
+    let label_entity = projected_frame(app.world_mut(), label);
+    let (text_entity, _) = projected_text(app.world_mut(), label);
+    let image = projected_image(app.world_mut(), panel);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        ui.registry.render_dirty.clear();
+        ui.registry.rect_dirty.clear();
+    }
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        ui.registry.get_mut(panel).unwrap().width = Dimension::Fixed(320.0);
+        match &mut ui.registry.get_mut(label).unwrap().widget_data {
+            Some(WidgetData::FontString(data)) => {
+                data.text = "Different".into();
+            }
+            _ => panic!("font string"),
+        }
+        ui.registry.set_pos(panel, 30.0, 20.0).unwrap();
+        ui.registry.set_alpha(panel, 0.5);
+    }
+    {
+        let ui = app.world().resource::<UiState>();
+        assert!(
+            ui.registry.render_dirty.contains(&panel),
+            "changed size/alpha/pos must dirty panel, got {:?}",
+            ui.registry.render_dirty
+        );
+        assert!(
+            ui.registry.render_dirty.contains(&label),
+            "changed text must dirty label, got {:?}",
+            ui.registry.render_dirty
+        );
+    }
+    let text_tick = last_changed::<Text>(app.world(), text_entity);
+    let image_tick = last_changed::<ImageNode>(app.world(), image);
+    let panel_node_tick = last_changed::<Node>(app.world(), panel_entity);
+    app.update();
+    assert_eq!(app.world().get::<Text>(text_entity).unwrap().0, "Different");
+    assert_ne!(
+        last_changed::<Text>(app.world(), text_entity),
+        text_tick,
+        "changed text must publish Text"
+    );
+    assert_ne!(
+        last_changed::<ImageNode>(app.world(), image),
+        image_tick,
+        "changed alpha must publish ImageNode"
+    );
+    assert_ne!(
+        last_changed::<Node>(app.world(), panel_entity),
+        panel_node_tick,
+        "changed size/pos must publish Node"
+    );
+    let label_node_tick = last_changed::<Node>(app.world(), label_entity);
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .set_hidden(label, true);
+    app.update();
+    let label_node = app.world().get::<Node>(label_entity).unwrap();
+    assert_eq!(label_node.display, Display::None);
+    assert_ne!(
+        last_changed::<Node>(app.world(), label_entity),
+        label_node_tick,
+        "visibility change must publish Node"
+    );
+}

@@ -10,7 +10,7 @@ use crate::widgets::slider::{SliderData, StatusBarData};
 use crate::widgets::texture::{TextureData, TextureSource};
 
 /// Per-widget-type data attached to a frame.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WidgetData {
     FontString(FontStringData),
     EditBox(EditBoxData),
@@ -69,7 +69,7 @@ pub struct NineSlice {
 }
 
 /// Horizontal three-slice frame rendering (left cap, center stretch, right cap).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ThreeSlice {
     pub cap_width: f32,
     pub left: TextureSource,
@@ -115,7 +115,7 @@ pub struct Border {
 }
 
 /// Backdrop decoration for a frame (background fill + border).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Backdrop {
     pub bg_color: Option<[f32; 4]>,
     pub border_color: Option<[f32; 4]>,
@@ -192,7 +192,7 @@ pub enum FlexJustify {
 }
 
 /// Flex layout mode for a container frame.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct FlexLayout {
     pub direction: FlexDirection,
     pub gap: f32,
@@ -202,7 +202,7 @@ pub struct FlexLayout {
 }
 
 /// A UI frame in the logical hierarchy, with authored native layout properties.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Frame {
     pub id: u64,
     pub name: Option<String>,

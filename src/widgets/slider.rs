@@ -10,7 +10,7 @@ pub enum Orientation {
     Vertical,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SliderData {
     pub value: f64,
     pub min: f64,
@@ -72,7 +72,7 @@ pub enum FillStyle {
     Center,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StatusBarData {
     pub value: f64,
     pub min: f64,

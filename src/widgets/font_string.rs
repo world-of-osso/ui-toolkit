@@ -89,7 +89,7 @@ pub enum Outline {
     ThickOutline,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FontStringData {
     pub text: String,
     pub font: GameFont,

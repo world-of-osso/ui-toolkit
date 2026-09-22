@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EditBoxData {
     pub text: String,
     pub cursor_position: usize,

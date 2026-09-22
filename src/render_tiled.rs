@@ -220,6 +220,9 @@ pub fn sync_ui_tiled_textures(
         }
     }
 
+    if !state.registry.pending_writes.is_empty() {
+        state.registry.resolve_pending_writes();
+    }
     if !state.registry.render_dirty.is_empty() {
         state.registry.render_dirty.clear();
     }

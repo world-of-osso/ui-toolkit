@@ -170,12 +170,10 @@ pub(crate) fn sync_registry(
         &mut commands,
         &query,
     );
-    state
-        .bypass_change_detection()
-        .registry
-        .render_dirty
-        .clear();
-    state.bypass_change_detection().registry.rect_dirty.clear();
+    let registry = &mut state.bypass_change_detection().registry;
+    registry.resolve_pending_writes();
+    registry.render_dirty.clear();
+    registry.rect_dirty.clear();
 }
 
 fn sync_canvas(commands: &mut Commands, query: &ProjectionQueries, camera: Entity) -> Entity {

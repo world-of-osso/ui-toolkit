@@ -17,7 +17,7 @@ pub enum BlendMode {
     Additive,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TextureData {
     pub source: TextureSource,
     pub tex_coords: [f32; 4],

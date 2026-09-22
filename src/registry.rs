@@ -14,6 +14,12 @@ pub struct FrameRegistry {
     pub screen_width: f32,
     pub screen_height: f32,
     pub render_dirty: HashSet<u64>,
+    /// Deferred [`Self::get_mut`] write windows pending diff at the next boundary.
+    ///
+    /// Each entry records the frame state at access and whether that access created
+    /// the `render_dirty` mark, so resolution retracts only marks created by write
+    /// windows that left the frame unchanged.
+    pub(crate) pending_writes: HashMap<u64, (Frame, bool)>,
     pub rect_dirty: HashSet<u64>,
     pub focused_frame: Option<u64>,
     pub(crate) panel_styles: HashMap<String, NineSlice>,
@@ -29,6 +35,7 @@ impl FrameRegistry {
             screen_width,
             screen_height,
             render_dirty: HashSet::new(),
+            pending_writes: HashMap::new(),
             rect_dirty: HashSet::new(),
             focused_frame: None,
             panel_styles: HashMap::new(),
@@ -47,6 +54,7 @@ impl FrameRegistry {
 
     /// Focus a frame by click. Editboxes get focused and select-all; returns the onclick action otherwise.
     pub fn click_frame(&mut self, id: u64) -> Option<String> {
+        self.resolve_pending_writes();
         let frame = self.frames.get(&id)?;
         if frame.is_editbox() {
             self.focused_frame = Some(id);
@@ -58,6 +66,7 @@ impl FrameRegistry {
     }
 
     pub fn select_all_editbox(&mut self, id: u64) {
+        self.resolve_pending_writes();
         if let Some(WidgetData::EditBox(eb)) = self.get_mut(id).and_then(|f| f.widget_data.as_mut())
         {
             eb.cursor_position = eb.text.len();
@@ -65,11 +74,13 @@ impl FrameRegistry {
     }
 
     pub fn mark_all_rects_dirty(&mut self) {
+        self.resolve_pending_writes();
         self.rect_dirty.extend(self.frames.keys().copied());
     }
 
     /// Allocate an ID without creating a frame (for external creation).
     pub fn next_id(&mut self) -> u64 {
+        self.resolve_pending_writes();
         let id = self.next_id;
         self.next_id += 1;
         id
@@ -77,6 +88,7 @@ impl FrameRegistry {
 
     /// Insert a pre-built frame into the registry and wire up parent-child.
     pub fn insert_frame(&mut self, mut frame: Frame) {
+        self.resolve_pending_writes();
         let id = frame.id;
         let parent_id = frame.parent_id;
 
@@ -106,6 +118,7 @@ impl FrameRegistry {
 
     /// Remove a frame and unlink it from its parent.
     pub fn remove_frame(&mut self, id: u64) {
+        self.resolve_pending_writes();
         if let Some(frame) = self.frames.remove(&id) {
             if let Some(name) = &frame.name {
                 self.names.remove(name);
@@ -134,6 +147,7 @@ impl FrameRegistry {
 
     /// Create a new frame, inheriting effective properties from parent.
     pub fn create_frame(&mut self, name: &str, parent_id: Option<u64>) -> u64 {
+        self.resolve_pending_writes();
         let id = self.next_id;
         self.next_id += 1;
 
@@ -181,9 +195,29 @@ impl FrameRegistry {
         self.frames.get(&id)
     }
 
+    /// Mutate a frame with deferred change detection.
+    ///
+    /// Access marks the frame dirty immediately (existing publication semantics);
+    /// the mark is retracted at the next [`Self::resolve_pending_writes`] boundary
+    /// when the write window left the frame unchanged, so unchanged-value writes
+    /// end up publishing nothing.
     pub fn get_mut(&mut self, id: u64) -> Option<&mut Frame> {
-        self.render_dirty.insert(id);
-        self.frames.get_mut(&id)
+        self.resolve_pending_writes();
+        let frame = self.frames.get_mut(&id)?;
+        let fresh_mark = self.render_dirty.insert(id);
+        self.pending_writes.insert(id, (frame.clone(), fresh_mark));
+        Some(frame)
+    }
+
+    /// Close deferred [`Self::get_mut`] write windows: frames left unchanged lose
+    /// the dirty mark their access created; real changes keep publishing. Runs at
+    /// every mutating boundary and before render consumers read dirty state.
+    pub fn resolve_pending_writes(&mut self) {
+        for (id, (snapshot, fresh_mark)) in std::mem::take(&mut self.pending_writes) {
+            if fresh_mark && self.frames.get(&id) == Some(&snapshot) {
+                self.render_dirty.remove(&id);
+            }
+        }
     }
 
     pub fn get_by_name(&self, name: &str) -> Option<u64> {
@@ -196,6 +230,7 @@ impl FrameRegistry {
 
     /// Set parent/screen-space offsets without changing position type or logical parent.
     pub fn set_pos(&mut self, id: u64, x: f32, y: f32) -> Result<(), &'static str> {
+        self.resolve_pending_writes();
         if !x.is_finite() || !y.is_finite() {
             return Err("position must be finite");
         }
@@ -218,6 +253,7 @@ impl FrameRegistry {
         id: u64,
         position_type: PositionType,
     ) -> Result<(), &'static str> {
+        self.resolve_pending_writes();
         let frame = self.frames.get_mut(&id).ok_or("frame not found")?;
         if frame.position_type != position_type {
             frame.position_type = position_type;
@@ -228,6 +264,7 @@ impl FrameRegistry {
 
     /// Select a layout reference space without reparenting the logical frame.
     pub fn set_anchor(&mut self, id: u64, anchor: AnchorTarget) -> Result<(), &'static str> {
+        self.resolve_pending_writes();
         let frame = self.frames.get_mut(&id).ok_or("frame not found")?;
         if frame.anchor != anchor {
             frame.anchor = anchor;
@@ -238,6 +275,7 @@ impl FrameRegistry {
 
     /// Store layout readback without invalidating authored layout or its relatives.
     pub fn set_computed_layout(&mut self, id: u64, rect: LayoutRect) -> Result<(), &'static str> {
+        self.resolve_pending_writes();
         let frame = self.frames.get_mut(&id).ok_or("frame not found")?;
         if frame.layout_rect.as_ref() != Some(&rect) {
             frame.layout_rect = Some(rect);
@@ -249,6 +287,7 @@ impl FrameRegistry {
     /// Set a frame's alpha and propagate effective_alpha down the subtree.
     /// Set a frame's name and update the name index.
     pub fn set_name(&mut self, id: u64, name: String) {
+        self.resolve_pending_writes();
         // Remove old name from index.
         if let Some(frame) = self.frames.get(&id) {
             if let Some(old_name) = &frame.name {
@@ -262,6 +301,7 @@ impl FrameRegistry {
     }
 
     pub fn set_alpha(&mut self, id: u64, alpha: f32) {
+        self.resolve_pending_writes();
         let parent_effective = self.parent_effective_alpha(id);
         if let Some(frame) = self.frames.get_mut(&id) {
             let new_effective = if frame.visible {
@@ -290,6 +330,7 @@ impl FrameRegistry {
 
     /// Set a frame's hidden state and propagate visibility + alpha down the subtree.
     pub fn set_hidden(&mut self, id: u64, hidden: bool) {
+        self.resolve_pending_writes();
         let parent_visible = self.parent_visible(id);
         let parent_effective_alpha = self.parent_effective_alpha(id);
         if let Some(frame) = self.frames.get_mut(&id) {
@@ -324,6 +365,7 @@ impl FrameRegistry {
 
     /// Set a frame's scale and propagate effective_scale down the subtree.
     pub fn set_scale(&mut self, id: u64, scale: f32) {
+        self.resolve_pending_writes();
         let parent_effective = self.parent_effective_scale(id);
         if let Some(frame) = self.frames.get_mut(&id) {
             frame.scale = scale;
@@ -446,6 +488,7 @@ impl FrameRegistry {
     /// Invalidate authored layout for the logical subtree and flex parent.
     /// Computed rectangles are retained until Bevy publishes new observations.
     pub fn mark_rect_dirty(&mut self, id: u64) {
+        self.resolve_pending_writes();
         if !self.rect_dirty.insert(id) {
             return;
         }

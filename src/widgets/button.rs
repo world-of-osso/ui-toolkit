@@ -7,7 +7,7 @@ pub enum ButtonState {
     Disabled,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ButtonData {
     pub state: ButtonState,
     pub enabled: bool,
