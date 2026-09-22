@@ -47,6 +47,7 @@ fn atlas_size(fdid: u32) -> Result<[u32; 2], String> {
         3_534_438 => Ok([1024, 1024]),
         3_575_404 => Ok([1024, 512]),
         5_390_329 => Ok([512, 256]),
+        7_367_529 => Ok([512, 2048]),
         _ => Err(format!("unexpected atlas FDID {fdid}")),
     }
 }

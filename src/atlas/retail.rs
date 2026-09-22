@@ -20,6 +20,51 @@ const fn pixels(fdid: u32, sheet: [u32; 2], rect: [u32; 4], size: [u32; 2]) -> A
 
 pub(super) const REGIONS: &[(u32, &str, AtlasRegion)] = &[
     (
+        11949,
+        "128-redbutton-left",
+        pixels(7367529, [512, 2048], [391, 911, 505, 1039], [114, 128]),
+    ),
+    (
+        11948,
+        "128-redbutton-left-pressed",
+        pixels(7367529, [512, 2048], [391, 1171, 505, 1299], [114, 128]),
+    ),
+    (
+        11947,
+        "128-redbutton-left-disabled",
+        pixels(7367529, [512, 2048], [391, 1041, 505, 1169], [114, 128]),
+    ),
+    (
+        11955,
+        "_128-redbutton-center",
+        pixels(7367529, [512, 2048], [0, 1, 64, 129], [64, 128]),
+    ),
+    (
+        11954,
+        "_128-redbutton-center-pressed",
+        pixels(7367529, [512, 2048], [0, 261, 64, 389], [64, 128]),
+    ),
+    (
+        11953,
+        "_128-redbutton-center-disabled",
+        pixels(7367529, [512, 2048], [0, 131, 64, 259], [64, 128]),
+    ),
+    (
+        11952,
+        "128-redbutton-right",
+        pixels(7367529, [512, 2048], [1, 521, 293, 649], [292, 128]),
+    ),
+    (
+        11951,
+        "128-redbutton-right-pressed",
+        pixels(7367529, [512, 2048], [1, 781, 293, 909], [292, 128]),
+    ),
+    (
+        11950,
+        "128-redbutton-right-disabled",
+        pixels(7367529, [512, 2048], [1, 651, 293, 779], [292, 128]),
+    ),
+    (
         12706,
         "!charactercreatedropdown-nineslice-edgeleft",
         pixels(3575404, [1024, 512], [253, 1, 377, 409], [62, 204]),
@@ -148,6 +193,16 @@ pub(super) const REGIONS: &[(u32, &str, AtlasRegion)] = &[
         11990,
         "charactercreate-icon-customize-head-selected",
         pixels(1253496, [2048, 2048], [281, 977, 437, 1135], [104, 105]),
+    ),
+    (
+        18308,
+        "charactercreate-icon-customize-mirror",
+        pixels(1253496, [2048, 2048], [281, 1137, 437, 1295], [156, 158]),
+    ),
+    (
+        18307,
+        "charactercreate-icon-customize-mirror-selected",
+        pixels(1253496, [2048, 2048], [281, 1297, 437, 1455], [156, 158]),
     ),
     (
         11993,
