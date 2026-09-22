@@ -4,7 +4,7 @@ Registry-authoritative UI frames projected to native Bevy UI. Screens use `rsx!`
 
 ## Hit areas
 
-RSX `hit_rect_insets: "left,top,right,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
+RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
 
 ## Atlas sources
 
