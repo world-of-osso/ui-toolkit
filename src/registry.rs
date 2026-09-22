@@ -21,6 +21,9 @@ pub struct FrameRegistry {
     /// windows that left the frame unchanged.
     pub(crate) pending_writes: HashMap<u64, (Frame, bool)>,
     pub rect_dirty: HashSet<u64>,
+    /// Frames removed since the last [`Self::drain_removed_frames`]; the host
+    /// drops their event listeners and stale focus ownership.
+    pub(crate) removed_frames: Vec<u64>,
     pub focused_frame: Option<u64>,
     pub(crate) panel_styles: HashMap<String, NineSlice>,
     pub(crate) three_slice_styles: HashMap<String, ThreeSlice>,
@@ -37,6 +40,7 @@ impl FrameRegistry {
             render_dirty: HashSet::new(),
             pending_writes: HashMap::new(),
             rect_dirty: HashSet::new(),
+            removed_frames: Vec::new(),
             focused_frame: None,
             panel_styles: HashMap::new(),
             three_slice_styles: HashMap::new(),
@@ -120,6 +124,10 @@ impl FrameRegistry {
     pub fn remove_frame(&mut self, id: u64) {
         self.resolve_pending_writes();
         if let Some(frame) = self.frames.remove(&id) {
+            if self.focused_frame == Some(id) {
+                self.focused_frame = None;
+            }
+            self.removed_frames.push(id);
             if let Some(name) = &frame.name {
                 self.names.remove(name);
             }
@@ -193,6 +201,11 @@ impl FrameRegistry {
 
     pub fn get(&self, id: u64) -> Option<&Frame> {
         self.frames.get(&id)
+    }
+
+    /// Take the IDs removed since the last drain.
+    pub(crate) fn drain_removed_frames(&mut self) -> Vec<u64> {
+        std::mem::take(&mut self.removed_frames)
     }
 
     /// Mutate a frame with deferred change detection.

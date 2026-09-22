@@ -42,6 +42,19 @@ pub struct UiState {
     pub focused_frame: Option<u64>,
 }
 
+impl UiState {
+    /// Drop stale ownership for removed frames: unregister their event listeners
+    /// so they cannot fire and clear keyboard focus held on them.
+    pub fn resolve_removed_frames(&mut self) {
+        for id in self.registry.drain_removed_frames() {
+            self.event_bus.unregister_all(id);
+            if self.focused_frame == Some(id) {
+                self.focused_frame = None;
+            }
+        }
+    }
+}
+
 /// Ordering points for the plugin's shared-order render pipeline.
 ///
 /// Registry changes affecting render order must run before `Prepare`, which
@@ -115,6 +128,7 @@ fn register_ui_update_systems(app: &mut App) {
     app.add_systems(
         PostUpdate,
         (
+            apply_frame_removals,
             sync_screen_size.in_set(UiRenderSet::Prepare),
             crate::render_button::sync_button_nine_slices.in_set(UiRenderSet::Prepare),
             (
@@ -135,6 +149,12 @@ fn register_ui_update_systems(app: &mut App) {
 
 fn ui_processing_enabled(enabled: Res<UiProcessingEnabled>) -> bool {
     enabled.0
+}
+
+fn apply_frame_removals(mut state: ResMut<UiState>) {
+    if !state.registry.removed_frames.is_empty() {
+        state.resolve_removed_frames();
+    }
 }
 
 fn ui_render_enabled(enabled: Res<UiRenderEnabled>) -> bool {

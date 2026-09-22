@@ -699,3 +699,72 @@ fn changed_value_writes_publish_dirty_frames_and_native_changes() {
         "visibility change must publish Node"
     );
 }
+
+#[test]
+fn removing_focused_frame_clears_focus_state() {
+    let mut app = app_with_real_fonts(1.0);
+    let field = create_frame(app.world_mut(), "FocusField", None, 300.0, 40.0);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let frame = ui.registry.get_mut(field).unwrap();
+        frame.widget_type = WidgetType::EditBox;
+        frame.widget_data = Some(WidgetData::EditBox(EditBoxData::default()));
+        ui.registry.click_frame(field);
+        ui.focused_frame = ui.registry.focused_frame;
+    }
+    settle(&mut app);
+    {
+        let ui = app.world().resource::<UiState>();
+        assert_eq!(ui.registry.focused_frame, Some(field));
+        assert_eq!(ui.focused_frame, Some(field));
+    }
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .remove_frame_tree(field);
+    settle(&mut app);
+    let ui = app.world().resource::<UiState>();
+    assert_eq!(
+        ui.registry.focused_frame, None,
+        "registry focus must not survive removal"
+    );
+    assert_eq!(
+        ui.focused_frame, None,
+        "keyboard focus must not survive removal"
+    );
+}
+
+#[test]
+fn removing_frame_tree_unregisters_its_listeners() {
+    let mut app = app_with_real_fonts(1.0);
+    let removed = create_frame(app.world_mut(), "Removed", None, 100.0, 40.0);
+    let child = create_frame(app.world_mut(), "RemovedChild", Some(removed), 80.0, 20.0);
+    let survivor = create_frame(app.world_mut(), "Survivor", None, 100.0, 40.0);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        ui.event_bus.register(removed, "PLAYER_LOGIN");
+        ui.event_bus.register(child, "PLAYER_LOGIN");
+        ui.event_bus.register(survivor, "PLAYER_LOGIN");
+        ui.event_bus.register(removed, "UNIT_HEALTH");
+    }
+    settle(&mut app);
+    {
+        let ui = app.world().resource::<UiState>();
+        assert_eq!(
+            ui.event_bus.listeners("PLAYER_LOGIN"),
+            vec![removed, child, survivor]
+        );
+    }
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .remove_frame_tree(removed);
+    settle(&mut app);
+    let ui = app.world().resource::<UiState>();
+    assert_eq!(
+        ui.event_bus.listeners("PLAYER_LOGIN"),
+        vec![survivor],
+        "removed frames must be dropped from listeners so they cannot fire"
+    );
+    assert!(ui.event_bus.listeners("UNIT_HEALTH").is_empty());
+}
