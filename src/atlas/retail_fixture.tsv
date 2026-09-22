@@ -46,6 +46,10 @@ CharacterCreateDropdown-NineSlice-CornerTopLeft	3575404	1	147	125	251	62	52	1271
 CharacterCreateDropdown-NineSlice-CornerTopRight	3575404	813	1	937	105	62	52	12712
 common-button-square-gray-down	3534438	1	291	257	547	42	42	12242
 common-button-square-gray-up	3534438	1	549	257	805	42	42	12243
+common-dropdown-icon-back	5390329	489	1	506	18	17	17	25735
+common-dropdown-icon-back-disabled	5390329	291	29	308	46	17	17	25734
+common-dropdown-icon-next	5390329	310	29	327	46	17	17	25737
+common-dropdown-icon-next-disabled	5390329	329	29	346	46	17	17	25736
 common-icon-rotateleft	3487944	259	775	359	875	20	20	11967
 common-icon-rotateright	3487944	259	877	359	977	20	20	11968
 common-icon-undo	3487944	775	259	1031	515	25	25	11969

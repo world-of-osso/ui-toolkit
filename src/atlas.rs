@@ -547,47 +547,19 @@ const CHAR_SELECT_GRAYSCALE_REGIONS: &[AtlasRegionEntry] = &[
     ),
 ];
 
-const COMMON_DROPDOWN_REGIONS: &[AtlasRegionEntry] = &[
-    (
-        "common-dropdown-c-button",
-        atlas_region!(
-            COMMON_DROPDOWN,
-            0.001953,
-            0.078125,
-            0.804688,
-            0.957031,
-            39.0,
-            39.0,
-            None
-        ),
+const COMMON_DROPDOWN_REGIONS: &[AtlasRegionEntry] = &[(
+    "common-dropdown-c-button",
+    atlas_region!(
+        COMMON_DROPDOWN,
+        0.001953,
+        0.078125,
+        0.804688,
+        0.957031,
+        39.0,
+        39.0,
+        None
     ),
-    (
-        "common-dropdown-icon-back",
-        atlas_region!(
-            COMMON_DROPDOWN,
-            0.955078,
-            0.988281,
-            0.003906,
-            0.070312,
-            17.0,
-            17.0,
-            None
-        ),
-    ),
-    (
-        "common-dropdown-icon-next",
-        atlas_region!(
-            COMMON_DROPDOWN,
-            0.605469,
-            0.638672,
-            0.113281,
-            0.179688,
-            17.0,
-            17.0,
-            None
-        ),
-    ),
-];
+)];
 
 const CHARACTER_CREATE_REGIONS: &[AtlasRegionEntry] = &[
     (

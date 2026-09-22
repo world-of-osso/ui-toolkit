@@ -5,6 +5,7 @@
 ## What it must do
 
 - [x] Resolve the 54 reference control/category atlas names and their `UiTextureAtlasElement.ID` values to identical cropped images.
+- [ ] Resolve `common-dropdown-icon-back`, `common-dropdown-icon-next` and their `-disabled` states through canonical element IDs `25734`–`25737` and the 1× dropdown sheet FDID `5390329`, preserving each 17×17 crop.
 - [x] Preserve exact physical crop bounds and logical override dimensions from the local `UiTextureAtlasElement` → `UiTextureAtlasMember` → `UiTextureAtlas` join.
 - [x] Resolve character artwork through FDID `1253496`, common icons through `3487944`, gray square buttons through `3534438`, and dropdown panel pieces through `3575404`.
 - [x] Preserve source pixels through the existing atlas crop path, except transparent RGB sanitization already required by that path.
@@ -20,7 +21,7 @@
 ## Implementation inventory
 
 - `src/atlas.rs`: named lookup and bounded public element-ID lookup.
-- `src/atlas/retail.rs`: four FileDataID sources, pixel rectangles and logical sizes.
+- `src/atlas/retail.rs`: five FileDataID sources, pixel rectangles and logical sizes; enabled/disabled dropdown arrows share the element-ID table rather than duplicate file-backed entries.
 - `src/atlas/retail_fixture.tsv`: independent golden crop rectangles from local DB2 CSV metadata.
 - `src/atlas/retail_tests.rs`: decoded-image fixture exercising production crop output and lookup.
 
@@ -31,7 +32,7 @@
 ## Known gaps (current cycle)
 
 - Targeted proof at toolkit `3fb0138`: `cargo test --lib atlas:: -- --nocapture` passes 8/8 (54-region crop test plus seven existing atlas regressions). The decoded atlas fixture encodes coordinates and source identity; it is not proprietary artwork.
-- [ ] Host integration must prove all four original BLP files decode through local CASC and establish rendered screen parity. This slice does not claim those results.
+- [ ] Host integration must prove all five original BLP files decode through local CASC and establish rendered screen parity. This slice does not claim those results.
 
 ## Out of scope
 

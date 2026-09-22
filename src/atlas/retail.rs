@@ -255,6 +255,26 @@ pub(super) const REGIONS: &[(u32, &str, AtlasRegion)] = &[
         pixels(3534438, [1024, 1024], [1, 549, 257, 805], [42, 42]),
     ),
     (
+        25735,
+        "common-dropdown-icon-back",
+        pixels(5390329, [512, 256], [489, 1, 506, 18], [17, 17]),
+    ),
+    (
+        25734,
+        "common-dropdown-icon-back-disabled",
+        pixels(5390329, [512, 256], [291, 29, 308, 46], [17, 17]),
+    ),
+    (
+        25737,
+        "common-dropdown-icon-next",
+        pixels(5390329, [512, 256], [310, 29, 327, 46], [17, 17]),
+    ),
+    (
+        25736,
+        "common-dropdown-icon-next-disabled",
+        pixels(5390329, [512, 256], [329, 29, 346, 46], [17, 17]),
+    ),
+    (
         11967,
         "common-icon-rotateleft",
         pixels(3487944, [2048, 1024], [259, 775, 359, 875], [20, 20]),
