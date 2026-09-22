@@ -82,10 +82,13 @@ fn has_base_background(frame: &Frame) -> bool {
     }
     frame.background_color.is_some()
         || frame.backdrop.as_ref().and_then(|b| b.bg_color).is_some()
-        || matches!(
-            frame.widget_data,
-            Some(WidgetData::Texture(_) | WidgetData::Button(_) | WidgetData::StatusBar(_))
-        )
+        || match &frame.widget_data {
+            Some(WidgetData::Button(button)) => {
+                crate::render_button::select_button_base_texture_source(button).is_some()
+            }
+            Some(WidgetData::Texture(_) | WidgetData::StatusBar(_)) => true,
+            _ => false,
+        }
 }
 
 fn project_base_background(

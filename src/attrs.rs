@@ -78,6 +78,10 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
         "height" => Some(format_dimension(frame.height)),
         "strata" => Some(format!("{:?}", frame.strata)),
         "onclick" => frame.onclick.clone(),
+        "button_default_skin" => match &frame.widget_data {
+            Some(WidgetData::Button(button)) => Some(button.use_default_skin.to_string()),
+            _ => None,
+        },
         "hit_rect_insets" => Some(format_color(frame.hit_rect_insets)),
         "hidden" => Some(if frame.visible { "false" } else { "true" }.to_string()),
         "disabled" => match &frame.widget_data {
@@ -454,6 +458,11 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "width" => frame.width = parse_dimension(value),
         "height" => frame.height = parse_dimension(value),
         "mouse_enabled" => set_bool(&mut frame.mouse_enabled, value),
+        "button_default_skin" => {
+            if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
+                set_bool(&mut button.use_default_skin, value);
+            }
+        }
         "hit_rect_insets" => frame.hit_rect_insets = parse_hit_rect_insets(value),
         "movable" => set_bool(&mut frame.movable, value),
         "frame_level" => {

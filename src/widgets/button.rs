@@ -12,6 +12,8 @@ pub struct ButtonData {
     pub state: ButtonState,
     pub enabled: bool,
     pub hovered: bool,
+    /// Whether an untextured button receives the toolkit's default nine-slice skin.
+    pub use_default_skin: bool,
     pub normal_texture: Option<TextureSource>,
     pub pushed_texture: Option<TextureSource>,
     pub highlight_texture: Option<TextureSource>,
@@ -28,6 +30,7 @@ impl Default for ButtonData {
             state: ButtonState::Normal,
             enabled: true,
             hovered: false,
+            use_default_skin: true,
             normal_texture: None,
             pushed_texture: None,
             highlight_texture: None,

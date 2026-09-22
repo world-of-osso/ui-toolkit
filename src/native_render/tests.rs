@@ -514,6 +514,98 @@ fn stable_panel_and_label(app: &mut App) -> (u64, u64) {
     (panel, label)
 }
 
+#[test]
+fn removing_authored_button_background_keeps_transparent_child_image_without_stale_native_parts() {
+    use crate::widgets::{button::ButtonData, texture::TextureData};
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+
+    let mut app = app_with_real_fonts(1.0);
+    let icon_image = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::new(
+            Extent3d {
+                width: 2,
+                height: 2,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            vec![
+                220, 60, 30, 0, 220, 60, 30, 255, 220, 60, 30, 255, 220, 60, 30, 255,
+            ],
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::default(),
+        ));
+    let button = create_frame(app.world_mut(), "IconButton", None, 79.0, 79.0);
+    let icon = create_frame(app.world_mut(), "Icon", Some(button), 79.0, 79.0);
+    place_top_left(app.world_mut(), button, None, 30.0, 40.0);
+    place_top_left(app.world_mut(), icon, Some(button), 0.0, 0.0);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let frame = ui.registry.get_mut(button).unwrap();
+        frame.widget_type = WidgetType::Button;
+        frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
+        frame.background_color = Some([0.2, 0.4, 0.6, 1.0]);
+        let frame = ui.registry.get_mut(icon).unwrap();
+        frame.widget_type = WidgetType::Texture;
+        frame.widget_data = Some(WidgetData::Texture(TextureData {
+            source: TextureSource::Dynamic(icon_image.clone()),
+            ..default()
+        }));
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            button,
+            "button_default_skin",
+            "false",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
+    }
+    settle(&mut app);
+    let initial: Vec<_> = app
+        .world_mut()
+        .query::<(Entity, &RegistryImage)>()
+        .iter(app.world())
+        .filter(|(_, image)| image.frame_id == button)
+        .collect();
+    assert_eq!(
+        initial.len(),
+        1,
+        "authored color must be the only button image part"
+    );
+    let child_entity = projected_image(app.world_mut(), icon);
+    let image = app.world().resource::<Assets<Image>>();
+    assert_eq!(
+        image.get(&icon_image).unwrap().data.as_ref().unwrap()[3],
+        0,
+        "a transparent icon corner should stay transparent"
+    );
+
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .get_mut(button)
+        .unwrap()
+        .background_color = None;
+    settle(&mut app);
+    let remaining_button_parts = app
+        .world_mut()
+        .query::<&RegistryImage>()
+        .iter(app.world())
+        .filter(|image| image.frame_id == button)
+        .count();
+    assert_eq!(
+        remaining_button_parts, 0,
+        "removed color must not leave a white or default atlas square"
+    );
+    assert_eq!(
+        projected_image(app.world_mut(), icon),
+        child_entity,
+        "child icon entity and its transparent pixels survive button background removal"
+    );
+}
+
 fn projected_image(world: &mut World, id: u64) -> Entity {
     world
         .query::<(Entity, &RegistryImage)>()

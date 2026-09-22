@@ -240,6 +240,323 @@ fn button_states_and_overlay_keep_existing_selection_rules() {
 }
 
 #[test]
+fn interaction_only_buttons_do_not_cover_their_child_icon_in_any_state() {
+    let mut button_frame = frame();
+    button_frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
+    let mut icon_frame = frame();
+    icon_frame.widget_data = Some(WidgetData::Texture(TextureData {
+        source: TextureSource::Dynamic(Handle::default()),
+        ..default()
+    }));
+    let icon_parts = project_with_loader(&icon_frame, &mut load);
+    assert_eq!(icon_parts.len(), 1, "the child icon must remain projected");
+    assert_eq!(bounds(&icon_parts[0]), [0.0, 0.0, 200.0, 100.0]);
+
+    for (state, hovered) in [
+        (ButtonState::Normal, false),
+        (ButtonState::Normal, true),
+        (ButtonState::Pushed, false),
+        (ButtonState::Disabled, false),
+    ] {
+        let Some(WidgetData::Button(button)) = button_frame.widget_data.as_mut() else {
+            unreachable!()
+        };
+        button.state = state;
+        button.hovered = hovered;
+        assert!(
+            project_with_loader(&button_frame, &mut load).is_empty(),
+            "unpainted {state:?} button must not cover transparent icon pixels"
+        );
+    }
+}
+
+#[test]
+fn prepared_interaction_only_button_has_no_implicit_sliced_background() {
+    let mut app = App::new();
+    app.insert_resource(crate::plugin::UiState {
+        registry: crate::registry::FrameRegistry::new(800.0, 600.0),
+        event_bus: crate::event::EventBus::new(),
+        focused_frame: None,
+    });
+    app.add_systems(Update, crate::render_button::sync_button_nine_slices);
+    let id = {
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        let id = ui.registry.create_frame("InteractionOnlyButton", None);
+        let frame = ui.registry.get_mut(id).unwrap();
+        frame.visible = true;
+        frame.width = Dimension::Fixed(79.0);
+        frame.height = Dimension::Fixed(79.0);
+        frame.effective_alpha = 1.0;
+        frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            id,
+            "button_default_skin",
+            "false",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
+        id
+    };
+    app.update();
+    let ui = app.world().resource::<crate::plugin::UiState>();
+    let frame = ui.registry.get(id).unwrap();
+    let parts = project_with_loader(frame, &mut load);
+    assert!(
+        parts.is_empty(),
+        "an interaction-only button must not paint a default nine-slice behind its icon: keys={:?}",
+        parts.iter().map(|part| part.key).collect::<Vec<_>>()
+    );
+    {
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        let Some(WidgetData::Button(button)) =
+            ui.registry.get_mut(id).unwrap().widget_data.as_mut()
+        else {
+            unreachable!()
+        };
+        button.highlight_texture = Some(TextureSource::File("hover-ring.png".into()));
+        button.hovered = true;
+    }
+    app.update();
+    {
+        let ui = app.world().resource::<crate::plugin::UiState>();
+        let parts = project_with_loader(ui.registry.get(id).unwrap(), &mut load);
+        assert_eq!(
+            parts.len(),
+            1,
+            "hover-only art must not turn into a base slice"
+        );
+        assert_eq!(parts[0].key, 1_000_000);
+    }
+    {
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        let Some(WidgetData::Button(button)) =
+            ui.registry.get_mut(id).unwrap().widget_data.as_mut()
+        else {
+            unreachable!()
+        };
+        button.hovered = false;
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            id,
+            "button_default_skin",
+            "true",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
+    }
+    app.update();
+    let ui = app.world().resource::<crate::plugin::UiState>();
+    let parts = project_with_loader(ui.registry.get(id).unwrap(), &mut load);
+    assert_eq!(
+        parts
+            .iter()
+            .filter(|part| (100..=108).contains(&part.key))
+            .count(),
+        9,
+        "enabling the ordinary default skin should restore all nine atlas parts"
+    );
+    {
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            id,
+            "button_default_skin",
+            "false",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
+    }
+    app.update();
+    let ui = app.world().resource::<crate::plugin::UiState>();
+    let frame = ui.registry.get(id).unwrap();
+    assert!(
+        frame.nine_slice.is_none(),
+        "turning off default skin must remove derived atlas state"
+    );
+    assert!(project_with_loader(frame, &mut load).is_empty());
+}
+
+#[test]
+fn opted_out_buttons_keep_authored_slices_and_state_textures() {
+    let mut app = App::new();
+    app.insert_resource(crate::plugin::UiState {
+        registry: crate::registry::FrameRegistry::new(800.0, 600.0),
+        event_bus: crate::event::EventBus::new(),
+        focused_frame: None,
+    });
+    app.add_systems(Update, crate::render_button::sync_button_nine_slices);
+    let id = {
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        let id = ui.registry.create_frame("AuthoredArt", None);
+        let frame = ui.registry.get_mut(id).unwrap();
+        frame.visible = true;
+        frame.width = Dimension::Fixed(120.0);
+        frame.height = Dimension::Fixed(40.0);
+        frame.effective_alpha = 1.0;
+        frame.widget_data = Some(WidgetData::Button(ButtonData {
+            normal_texture: Some(TextureSource::File("normal.png".into())),
+            pushed_texture: Some(TextureSource::File("pressed.png".into())),
+            ..default()
+        }));
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            id,
+            "button_default_skin",
+            "false",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
+        id
+    };
+    app.update();
+    for state in [
+        ButtonState::Normal,
+        ButtonState::Pushed,
+        ButtonState::Disabled,
+    ] {
+        {
+            let ui = app.world().resource::<crate::plugin::UiState>();
+            let frame = ui.registry.get(id).unwrap();
+            let parts = project_with_loader(frame, &mut load);
+            assert_eq!(
+                parts
+                    .iter()
+                    .filter(|part| (100..=108).contains(&part.key))
+                    .count(),
+                9,
+                "authored base texture must survive {state:?}"
+            );
+        }
+        {
+            let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+            let Some(WidgetData::Button(button)) =
+                ui.registry.get_mut(id).unwrap().widget_data.as_mut()
+            else {
+                unreachable!()
+            };
+            button.state = match state {
+                ButtonState::Normal => ButtonState::Pushed,
+                ButtonState::Pushed => ButtonState::Disabled,
+                ButtonState::Disabled => ButtonState::Normal,
+            };
+        }
+        app.update();
+    }
+    let authored_nine_slice = NineSlice {
+        texture: Some(TextureSource::File("authored-panel.png".into())),
+        edge_size: 7.0,
+        ..default()
+    };
+    {
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        let frame = ui.registry.get_mut(id).unwrap();
+        frame.nine_slice = Some(authored_nine_slice.clone());
+        if let Some(WidgetData::Button(button)) = frame.widget_data.as_mut() {
+            button.normal_texture = None;
+            button.pushed_texture = None;
+        }
+    }
+    app.update();
+    let ui = app.world().resource::<crate::plugin::UiState>();
+    assert_eq!(
+        ui.registry.get(id).unwrap().nine_slice,
+        Some(authored_nine_slice)
+    );
+    let authored_three_slice = ThreeSlice {
+        cap_width: 12.0,
+        left: TextureSource::File("left.png".into()),
+        center: TextureSource::File("center.png".into()),
+        right: TextureSource::File("right.png".into()),
+        color: [1.0; 4],
+    };
+    {
+        let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
+        let frame = ui.registry.get_mut(id).unwrap();
+        frame.nine_slice = None;
+        frame.three_slice = Some(authored_three_slice.clone());
+    }
+    app.update();
+    let ui = app.world().resource::<crate::plugin::UiState>();
+    let frame = ui.registry.get(id).unwrap();
+    assert!(
+        frame.nine_slice.is_none(),
+        "explicit three-slice must not acquire a default nine-slice"
+    );
+    assert_eq!(frame.three_slice, Some(authored_three_slice));
+    assert_eq!(project_with_loader(frame, &mut load).len(), 3);
+}
+
+#[test]
+fn highlight_only_button_projects_an_overlay_without_a_base() {
+    let mut frame = frame();
+    frame.widget_data = Some(WidgetData::Button(ButtonData {
+        highlight_texture: Some(TextureSource::File("highlight.png".into())),
+        hovered: true,
+        ..default()
+    }));
+    let parts = project_with_loader(&frame, &mut load);
+    assert_eq!(parts.len(), 1, "highlight-only button has no authored base");
+    assert_eq!(parts[0].key, 1_000_000);
+    assert_eq!(parts[0].image.color, Color::srgba(1.0, 1.0, 1.0, 0.25));
+
+    let Some(WidgetData::Button(button)) = frame.widget_data.as_mut() else {
+        unreachable!()
+    };
+    button.state = ButtonState::Disabled;
+    assert!(project_with_loader(&frame, &mut load).is_empty());
+}
+
+#[test]
+fn authored_button_backgrounds_and_textures_survive_without_missing_replacements() {
+    let mut frame = frame();
+    frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
+    frame.background_color = Some([0.2, 0.4, 0.6, 0.8]);
+    let parts = project_with_loader(&frame, &mut load);
+    assert_eq!(parts.len(), 1);
+    assert_eq!(parts[0].key, 0);
+    assert_eq!(parts[0].image.color, Color::srgba(0.2, 0.4, 0.6, 0.4));
+
+    frame.background_color = None;
+    frame.backdrop = Some(Backdrop {
+        bg_color: Some([0.6, 0.2, 0.1, 1.0]),
+        ..default()
+    });
+    let parts = project_with_loader(&frame, &mut load);
+    assert_eq!(parts.len(), 1);
+    assert_eq!(parts[0].image.color, Color::srgba(0.6, 0.2, 0.1, 0.5));
+
+    frame.backdrop = None;
+    let Some(WidgetData::Button(button)) = frame.widget_data.as_mut() else {
+        unreachable!()
+    };
+    button.normal_texture = Some(TextureSource::File("normal.png".into()));
+    button.pushed_texture = Some(TextureSource::File("pressed.png".into()));
+    button.disabled_texture = Some(TextureSource::File("disabled.png".into()));
+    for state in [
+        ButtonState::Normal,
+        ButtonState::Pushed,
+        ButtonState::Disabled,
+    ] {
+        let Some(WidgetData::Button(button)) = frame.widget_data.as_mut() else {
+            unreachable!()
+        };
+        button.state = state;
+        let parts = project_with_loader(&frame, &mut load);
+        assert_eq!(parts.len(), 1, "authored {state:?} texture must render");
+        assert_eq!(parts[0].key, 0);
+        assert_eq!(
+            parts[0].image.rect,
+            Some(Rect::new(10.0, 20.0, 110.0, 70.0))
+        );
+        assert!(
+            project_with_loader(&frame, &mut |_| None).is_empty(),
+            "failed authored {state:?} texture must not substitute a white quad"
+        );
+    }
+}
+
+#[test]
 fn hidden_frames_and_failed_textures_do_not_emit_white_replacements() {
     let mut frame = frame();
     frame.widget_data = Some(WidgetData::Texture(TextureData {

@@ -25,6 +25,22 @@ fn hit_rect_insets_reject_malformed_values() {
 }
 
 #[test]
+fn button_default_skin_is_authored_and_can_be_switched_off() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("InteractionButton", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(ButtonData::default()));
+    assert_eq!(
+        read_attribute(&registry, id, "button_default_skin").as_deref(),
+        Some("true")
+    );
+    apply(&mut registry, id, "button_default_skin", "false");
+    assert_eq!(
+        read_attribute(&registry, id, "button_default_skin").as_deref(),
+        Some("false")
+    );
+}
+
+#[test]
 fn native_layout_attributes_round_trip() {
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let id = registry.create_frame("Positioned", None);
