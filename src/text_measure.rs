@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use ab_glyph::{Font, FontVec, PxScale, ScaleFont};
+use parley::fontique::{Blob, FontInfoOverride};
+use parley::{FontContext, FontFamily, Layout, LayoutContext, StyleProperty};
 
 use crate::widgets::font_string::GameFont;
 
 static CACHE: Mutex<Option<TextMeasureCache>> = Mutex::new(None);
 
 struct TextMeasureCache {
-    fonts: HashMap<GameFont, FontVec>,
+    fonts: HashMap<GameFont, (FontContext, LayoutContext<()>)>,
     sizes: HashMap<(String, GameFont, u32), (f32, f32)>,
 }
 
@@ -32,35 +33,48 @@ pub fn measure_text(text: &str, font: GameFont, font_size: f32) -> Option<(f32, 
         return Some(size);
     }
 
-    let font_data = load_or_get_font(cache, font)?;
-    let result = compute_size(font_data, text, font_size);
+    let (font_context, layout_context) = load_or_get_font(cache, font)?;
+    let result = compute_size(font_context, layout_context, text, font, font_size);
     cache.sizes.insert(cache_key, result);
     Some(result)
 }
 
-fn load_or_get_font(cache: &mut TextMeasureCache, font: GameFont) -> Option<&FontVec> {
+fn load_or_get_font(
+    cache: &mut TextMeasureCache,
+    font: GameFont,
+) -> Option<&mut (FontContext, LayoutContext<()>)> {
     if !cache.fonts.contains_key(&font) {
         let bytes = std::fs::read(font.path()).ok()?;
-        let fv = FontVec::try_from_vec(bytes).ok()?;
-        cache.fonts.insert(font, fv);
+        let mut context = FontContext::new();
+        let faces = context.collection.register_fonts(
+            Blob::from(bytes),
+            Some(FontInfoOverride {
+                family_name: Some(font.path()),
+                ..Default::default()
+            }),
+        );
+        if faces.is_empty() {
+            return None;
+        }
+        cache.fonts.insert(font, (context, LayoutContext::new()));
     }
-    cache.fonts.get(&font)
+    cache.fonts.get_mut(&font)
 }
 
-fn compute_size(font: &FontVec, text: &str, font_size: f32) -> (f32, f32) {
-    let scaled = font.as_scaled(PxScale::from(font_size));
-    let mut width = 0.0f32;
-    let mut prev_glyph_id = None;
-    for ch in text.chars() {
-        let glyph_id = scaled.glyph_id(ch);
-        if let Some(prev) = prev_glyph_id {
-            width += scaled.kern(prev, glyph_id);
-        }
-        width += scaled.h_advance(glyph_id);
-        prev_glyph_id = Some(glyph_id);
-    }
-    let height = scaled.height();
-    (width.ceil(), height.ceil())
+fn compute_size(
+    font_context: &mut FontContext,
+    layout_context: &mut LayoutContext<()>,
+    text: &str,
+    font: GameFont,
+    font_size: f32,
+) -> (f32, f32) {
+    let mut builder = layout_context.ranged_builder(font_context, text, 1.0, true);
+    builder.push_default(StyleProperty::FontFamily(FontFamily::named(font.path())));
+    builder.push_default(StyleProperty::FontSize(font_size));
+    let mut layout = Layout::new();
+    builder.build_into(&mut layout, text);
+    layout.break_all_lines(None);
+    (layout.full_width().ceil(), layout.height().ceil())
 }
 
 #[cfg(test)]
