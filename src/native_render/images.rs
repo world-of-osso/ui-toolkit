@@ -373,13 +373,16 @@ fn project_highlight(
         return;
     };
     let origin = frame_origin(frame);
-    let size = Vec2::new(frame.resolved_width(), frame.resolved_height());
-    // Flat highlights historically use authored width for their center, not resolved width.
-    let transform = Transform::from_xyz(
-        origin.x + frame.width.value() / 2.0,
-        -origin.y - size.y / 2.0,
-        500.0,
-    );
+    let button_size = Vec2::new(frame.resolved_width(), frame.resolved_height());
+    let size = button.highlight_size.map_or(button_size, Vec2::from_array);
+    let button_center = origin + button_size / 2.0;
+    let center_x = if button.highlight_size.is_some() {
+        button_center.x
+    } else {
+        // Preserve ordinary button projection when no size is authored.
+        origin.x + frame.width.value() / 2.0
+    };
+    let transform = Transform::from_xyz(center_x, -button_center.y, 500.0);
     let image = textured(
         loaded,
         Color::srgba(

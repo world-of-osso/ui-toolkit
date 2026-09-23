@@ -46,6 +46,39 @@ fn button_hover_alpha_rejects_invalid_values_without_changing_the_button() {
 }
 
 #[test]
+fn button_hover_size_round_trips_and_rejects_invalid_dimensions_without_mutation() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("RingedButton", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(ButtonData::default()));
+    assert_eq!(read_attribute(&registry, id, "button_highlight_size"), None);
+    apply(&mut registry, id, "button_highlight_size", "99,100");
+    assert_eq!(
+        read_attribute(&registry, id, "button_highlight_size").as_deref(),
+        Some("99,100")
+    );
+    for value in [
+        "",
+        "99",
+        "99,100,101",
+        "NaN,100",
+        "inf,100",
+        "0,100",
+        "99,-1",
+        "oops,100",
+    ] {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            apply(&mut registry, id, "button_highlight_size", value);
+        }));
+        assert!(result.is_err(), "invalid highlight size accepted: {value}");
+        assert_eq!(
+            read_attribute(&registry, id, "button_highlight_size").as_deref(),
+            Some("99,100"),
+            "invalid input changed previous value: {value}"
+        );
+    }
+}
+
+#[test]
 fn button_default_skin_is_authored_and_can_be_switched_off() {
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let id = registry.create_frame("InteractionButton", None);

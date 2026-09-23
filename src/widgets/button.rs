@@ -19,6 +19,8 @@ pub struct ButtonData {
     pub highlight_texture: Option<TextureSource>,
     /// Opacity of a flat hover overlay before inherited frame alpha is applied.
     pub highlight_alpha: f32,
+    /// Optional hover artwork dimensions; centered on the button without changing its hit area.
+    pub highlight_size: Option<[f32; 2]>,
     pub disabled_texture: Option<TextureSource>,
     pub text: String,
     pub font_size: f32,
@@ -37,6 +39,7 @@ impl Default for ButtonData {
             pushed_texture: None,
             highlight_texture: None,
             highlight_alpha: 0.5,
+            highlight_size: None,
             disabled_texture: None,
             text: String::new(),
             font_size: 14.0,

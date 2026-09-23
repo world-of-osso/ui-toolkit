@@ -606,6 +606,98 @@ fn removing_authored_button_background_keeps_transparent_child_image_without_sta
     );
 }
 
+#[test]
+fn authored_button_hover_size_is_centered_on_button_and_removed_when_inactive() {
+    use crate::widgets::button::{ButtonData, ButtonState};
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+
+    let mut app = app_with_real_fonts(1.0);
+    let art = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::new(
+            Extent3d {
+                width: 2,
+                height: 2,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            vec![255; 16],
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::default(),
+        ));
+    let button = create_frame(app.world_mut(), "RingedButton", None, 79.0, 79.0);
+    place_top_left(app.world_mut(), button, None, 30.0, 40.0);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let frame = ui.registry.get_mut(button).unwrap();
+        frame.widget_type = WidgetType::Button;
+        frame.mouse_enabled = true;
+        frame.widget_data = Some(WidgetData::Button(ButtonData {
+            use_default_skin: false,
+            hovered: true,
+            highlight_texture: Some(TextureSource::Dynamic(art.clone())),
+            ..default()
+        }));
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            button,
+            "button_highlight_size",
+            "99,100",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
+    }
+    {
+        let world = app.world_mut();
+        let mut windows = world.query_filtered::<&mut Window, With<PrimaryWindow>>();
+        windows
+            .single_mut(world)
+            .unwrap()
+            .set_cursor_position(Some(Vec2::new(69.5, 79.5)));
+    }
+    settle(&mut app);
+    app.update();
+    let projected = app
+        .world_mut()
+        .query::<(Entity, &RegistryImage)>()
+        .iter(app.world())
+        .find(|(_, image)| image.frame_id == button && image.key == 1_000_000)
+        .map(|(entity, _)| entity)
+        .expect("authored hover image");
+    let image = app.world().get::<ImageNode>(projected).unwrap();
+    assert_eq!(image.image, art);
+    let rect = logical_rect(app.world(), projected);
+    assert_eq!(rect.size(), Vec2::new(99.0, 100.0));
+    assert!((rect.center() - Vec2::new(69.5, 79.5)).abs().max_element() <= 0.5);
+
+    for state in [ButtonState::Normal, ButtonState::Disabled] {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let Some(WidgetData::Button(button_data)) =
+            ui.registry.get_mut(button).unwrap().widget_data.as_mut()
+        else {
+            unreachable!()
+        };
+        button_data.state = state;
+        drop(ui);
+        let world = app.world_mut();
+        let mut windows = world.query_filtered::<&mut Window, With<PrimaryWindow>>();
+        windows
+            .single_mut(world)
+            .unwrap()
+            .set_cursor_position((state == ButtonState::Disabled).then_some(Vec2::new(69.5, 79.5)));
+        settle(&mut app);
+        app.update();
+        assert!(
+            app.world_mut()
+                .query::<&RegistryImage>()
+                .iter(app.world())
+                .all(|image| image.frame_id != button || image.key != 1_000_000)
+        );
+    }
+}
+
 fn projected_image(world: &mut World, id: u64) -> Entity {
     world
         .query::<(Entity, &RegistryImage)>()

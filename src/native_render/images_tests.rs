@@ -260,6 +260,7 @@ fn button_states_and_overlay_keep_existing_selection_rules() {
     }));
     let parts = project_with_loader(&frame, &mut load);
     assert_eq!(parts.len(), 2);
+    assert_eq!(bounds(part(&parts, 1_000_000)), [0.0, 0.0, 200.0, 100.0]);
     assert_eq!(
         part(&parts, 1_000_000).image.color,
         Color::srgba(1.0, 1.0, 1.0, 0.25)

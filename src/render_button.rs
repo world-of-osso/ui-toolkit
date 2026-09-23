@@ -262,16 +262,20 @@ fn upsert_highlight_sprite(
     visuals: &Query<(&Transform, &Sprite)>,
     commands: &mut Commands,
 ) {
+    let Some(WidgetData::Button(button)) = &frame.widget_data else {
+        return;
+    };
     let alpha = frame.effective_alpha * 0.5;
     let color = Color::srgba(1.0, 1.0, 1.0, alpha);
-    let size = Vec2::new(frame.resolved_width(), frame.resolved_height());
-    let bx = frame
-        .width
-        .value()
-        .mul_add(0.5, frame.layout_rect.as_ref().map_or(0.0, |r| r.x))
-        - sw * 0.5;
-    let by =
-        sh * 0.5 - frame.layout_rect.as_ref().map_or(0.0, |r| r.y) - frame.resolved_height() * 0.5;
+    let button_size = Vec2::new(frame.resolved_width(), frame.resolved_height());
+    let size = button.highlight_size.map_or(button_size, Vec2::from_array);
+    let center_x = if button.highlight_size.is_some() {
+        button_size.x / 2.0
+    } else {
+        frame.width.value() / 2.0
+    };
+    let bx = center_x + frame.layout_rect.as_ref().map_or(0.0, |r| r.x) - sw * 0.5;
+    let by = sh * 0.5 - frame.layout_rect.as_ref().map_or(0.0, |r| r.y) - button_size.y * 0.5;
     let transform = Transform::from_xyz(bx, by, 500.0);
     let sprite = Sprite {
         color,

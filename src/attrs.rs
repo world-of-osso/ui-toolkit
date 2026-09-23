@@ -86,6 +86,12 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
             Some(WidgetData::Button(button)) => Some(button.highlight_alpha.to_string()),
             _ => None,
         },
+        "button_highlight_size" => match &frame.widget_data {
+            Some(WidgetData::Button(button)) => button
+                .highlight_size
+                .map(|[width, height]| format!("{width},{height}")),
+            _ => None,
+        },
         "hit_rect_insets" => Some(format_color(frame.hit_rect_insets)),
         "hidden" => Some(if frame.visible { "false" } else { "true" }.to_string()),
         "disabled" => match &frame.widget_data {
@@ -457,6 +463,23 @@ fn read_layout_attr(frame: &Frame, name: &str) -> Option<String> {
     Some(format_val(value))
 }
 
+fn parse_button_highlight_size(value: &str) -> [f32; 2] {
+    let parsed = value.split_once(',').and_then(|(width, height)| {
+        Some([
+            width.trim().parse::<f32>().ok()?,
+            height.trim().parse::<f32>().ok()?,
+        ])
+    });
+    match parsed {
+        Some([width, height])
+            if width.is_finite() && width > 0.0 && height.is_finite() && height > 0.0 =>
+        {
+            [width, height]
+        }
+        _ => panic!("invalid button_highlight_size '{value}': expected positive width,height"),
+    }
+}
+
 fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
     match name {
         "width" => frame.width = parse_dimension(value),
@@ -477,6 +500,11 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
                     "invalid button_highlight_alpha '{value}': expected 0..=1"
                 );
                 button.highlight_alpha = alpha;
+            }
+        }
+        "button_highlight_size" => {
+            if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
+                button.highlight_size = Some(parse_button_highlight_size(value));
             }
         }
         "hit_rect_insets" => frame.hit_rect_insets = parse_hit_rect_insets(value),
