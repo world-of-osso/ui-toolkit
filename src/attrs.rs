@@ -283,6 +283,8 @@ fn apply_registry_attr(
             }
         }
         "disabled" => apply_disabled_attr(registry, frame_id, value),
+        "scroll_list" => registry.configure_scroll_list(frame_id, value),
+        "loading_text" => registry.set_loading_text(frame_id, value),
         _ => return false,
     }
     true

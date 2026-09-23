@@ -5,6 +5,7 @@ use bevy::ui::{PositionType, UiRect, Val};
 use crate::anchor::AnchorTarget;
 use crate::frame::{Frame, NineSlice, ThreeSlice, WidgetData, WidgetType};
 use crate::layout::LayoutRect;
+use crate::widgets::scroll_list::{ScrollGeometry, ScrollLists};
 
 /// Central registry owning all UI frames, keyed by ID.
 pub struct FrameRegistry {
@@ -27,6 +28,9 @@ pub struct FrameRegistry {
     pub focused_frame: Option<u64>,
     pub(crate) panel_styles: HashMap<String, NineSlice>,
     pub(crate) three_slice_styles: HashMap<String, ThreeSlice>,
+    pub scroll_lists: ScrollLists,
+    /// Loading fontstrings and their base text, animated by `animate_loading_texts`.
+    pub(crate) loading_texts: HashMap<u64, String>,
 }
 
 impl FrameRegistry {
@@ -44,6 +48,8 @@ impl FrameRegistry {
             focused_frame: None,
             panel_styles: HashMap::new(),
             three_slice_styles: HashMap::new(),
+            scroll_lists: ScrollLists::default(),
+            loading_texts: HashMap::new(),
         }
     }
 
@@ -128,6 +134,7 @@ impl FrameRegistry {
                 self.focused_frame = None;
             }
             self.removed_frames.push(id);
+            self.loading_texts.remove(&id);
             if let Some(name) = &frame.name {
                 self.names.remove(name);
             }
@@ -230,6 +237,24 @@ impl FrameRegistry {
             if fresh_mark && self.frames.get(&id) == Some(&snapshot) {
                 self.render_dirty.remove(&id);
             }
+        }
+    }
+
+    /// Record a named frame's `scroll_list` geometry; see [`ScrollGeometry::parse_attr`].
+    pub(crate) fn configure_scroll_list(&mut self, id: u64, value: &str) {
+        let geometry = ScrollGeometry::parse_attr(value);
+        let Some(name) = self.frames.get(&id).and_then(|f| f.name.as_deref()) else {
+            panic!("scroll_list requires a named frame (id={id})");
+        };
+        self.scroll_lists.configure(name, geometry);
+    }
+
+    /// Mark a fontstring as a loading indicator with `text` as its base; empty clears it.
+    pub(crate) fn set_loading_text(&mut self, id: u64, text: &str) {
+        if text.is_empty() {
+            self.loading_texts.remove(&id);
+        } else {
+            self.loading_texts.insert(id, text.to_string());
         }
     }
 

@@ -25,6 +25,7 @@ pub mod render_texture;
 pub mod render_three_slice;
 pub mod render_tiled;
 pub mod screen;
+pub mod scroll_input;
 pub mod strata;
 pub mod text_measure;
 pub mod widget_def;

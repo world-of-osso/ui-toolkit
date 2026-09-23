@@ -28,6 +28,9 @@ pub struct SharedContext {
     values: HashMap<TypeId, Box<dyn Any>>,
     generations: HashMap<TypeId, u64>,
     read_tracker: RefCell<HashSet<TypeId>>,
+    /// Scroll list positions loaded from the registry for the current build.
+    scroll_rows: RefCell<HashMap<String, usize>>,
+    scroll_reads: RefCell<HashSet<String>>,
 }
 
 impl SharedContext {
@@ -36,6 +39,8 @@ impl SharedContext {
             values: HashMap::new(),
             generations: HashMap::new(),
             read_tracker: RefCell::new(HashSet::new()),
+            scroll_rows: RefCell::new(HashMap::new()),
+            scroll_reads: RefCell::new(HashSet::new()),
         }
     }
 
@@ -54,6 +59,12 @@ impl SharedContext {
         self.values.get(&tid)?.downcast_ref()
     }
 
+    /// First visible row of the named scroll list, recorded as a build dependency.
+    pub fn scroll_first_row(&self, name: &str) -> usize {
+        self.scroll_reads.borrow_mut().insert(name.to_string());
+        self.scroll_rows.borrow().get(name).copied().unwrap_or(0)
+    }
+
     /// Current generation for a type (0 if never inserted).
     pub fn generation<T: 'static>(&self) -> u64 {
         self.generations
@@ -66,8 +77,21 @@ impl SharedContext {
         self.generations.get(tid).copied().unwrap_or(0)
     }
 
-    fn start_tracking(&self) {
+    fn start_tracking(&self, registry: &FrameRegistry) {
         self.read_tracker.borrow_mut().clear();
+        self.scroll_reads.borrow_mut().clear();
+        *self.scroll_rows.borrow_mut() = registry.scroll_lists.first_rows();
+    }
+
+    fn take_scroll_reads(&self, registry: &FrameRegistry) -> HashMap<String, u64> {
+        self.scroll_reads
+            .borrow_mut()
+            .drain()
+            .map(|name| {
+                let generation = registry.scroll_lists.generation(&name);
+                (name, generation)
+            })
+            .collect()
     }
 
     fn take_reads(&self) -> HashMap<TypeId, u64> {
@@ -89,6 +113,7 @@ impl Default for SharedContext {
 pub struct Screen {
     build_fn: Box<dyn Fn(&SharedContext) -> Vec<WidgetChild>>,
     deps: HashMap<TypeId, u64>,
+    scroll_deps: HashMap<String, u64>,
     diff: DiffContext,
     initialized: bool,
     parent_frame_name: Option<String>,
@@ -99,6 +124,7 @@ impl Screen {
         Self {
             build_fn: Box::new(f),
             deps: HashMap::new(),
+            scroll_deps: HashMap::new(),
             diff: DiffContext::new(),
             initialized: false,
             parent_frame_name: None,
@@ -113,6 +139,7 @@ impl Screen {
         Self {
             build_fn: Box::new(f),
             deps: HashMap::new(),
+            scroll_deps: HashMap::new(),
             diff: DiffContext::new(),
             initialized: false,
             parent_frame_name: Some(parent_frame_name.to_string()),
@@ -123,15 +150,23 @@ impl Screen {
     /// Only rebuilds if a dependency's generation has advanced since last render.
     pub fn sync(&mut self, ctx: &SharedContext, registry: &mut FrameRegistry) {
         // 1. Check if rebuild needed
-        let needs_rebuild = !self.initialized || self.deps_changed(ctx);
+        let needs_rebuild =
+            !self.initialized || self.deps_changed(ctx) || self.scroll_deps_changed(registry);
         if needs_rebuild {
-            ctx.start_tracking();
+            ctx.start_tracking(registry);
             let tree = (self.build_fn)(ctx);
             self.deps = ctx.take_reads();
+            self.scroll_deps = ctx.take_scroll_reads(registry);
             let parent_id = self.resolve_parent(registry);
             self.diff.diff_roots(&tree, parent_id, registry);
             self.initialized = true;
         }
+    }
+
+    fn scroll_deps_changed(&self, registry: &FrameRegistry) -> bool {
+        self.scroll_deps
+            .iter()
+            .any(|(name, &last_gen)| registry.scroll_lists.generation(name) != last_gen)
     }
 
     fn deps_changed(&self, ctx: &SharedContext) -> bool {
@@ -154,6 +189,7 @@ impl Screen {
         self.diff = DiffContext::new();
         self.initialized = false;
         self.deps.clear();
+        self.scroll_deps.clear();
     }
 
     /// Get all frame IDs owned by this screen.

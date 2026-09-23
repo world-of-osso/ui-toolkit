@@ -116,6 +116,16 @@ fn register_ui_startup_systems(app: &mut App) {
 }
 
 fn register_ui_update_systems(app: &mut App) {
+    app.add_systems(
+        PreUpdate,
+        crate::scroll_input::sync_scroll_list_input
+            .after(bevy::input::InputSystems)
+            .run_if(ui_processing_enabled),
+    );
+    app.add_systems(
+        Update,
+        crate::widgets::state_panel::animate_loading_texts.run_if(ui_processing_enabled),
+    );
     #[cfg(debug_assertions)]
     app.add_systems(
         Update,
