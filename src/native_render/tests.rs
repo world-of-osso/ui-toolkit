@@ -928,3 +928,74 @@ fn removing_frame_tree_unregisters_its_listeners() {
     );
     assert!(ui.event_bus.listeners("UNIT_HEALTH").is_empty());
 }
+
+fn set_ui_camera_scale(world: &mut World, ui_scale: f32) {
+    let mut cameras = world.query_filtered::<&mut Projection, With<UiCamera>>();
+    let mut projection = cameras.single_mut(world).unwrap();
+    let Projection::Orthographic(orthographic) = projection.as_mut() else {
+        panic!("expected orthographic ui camera");
+    };
+    orthographic.scale = ui_scale.recip();
+}
+
+fn set_cursor(world: &mut World, cursor: Vec2) {
+    let mut windows = world.query_filtered::<&mut Window, With<PrimaryWindow>>();
+    windows
+        .single_mut(world)
+        .unwrap()
+        .set_cursor_position(Some(cursor));
+}
+
+fn button_hovered(world: &World, id: u64) -> bool {
+    let frame = world.resource::<UiState>().registry.get(id).unwrap();
+    let Some(WidgetData::Button(button)) = &frame.widget_data else {
+        panic!("expected button");
+    };
+    button.hovered
+}
+
+#[test]
+fn ui_camera_scale_sizes_registry_screen_and_hit_tests_in_reference_units() {
+    use crate::widgets::button::ButtonData;
+
+    let mut app = app_with_real_fonts(1.0);
+    app.update();
+    set_ui_camera_scale(app.world_mut(), 1.25);
+    let button = create_frame(app.world_mut(), "ScaledButton", None, 80.0, 40.0);
+    place_top_left(app.world_mut(), button, None, 100.0, 100.0);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let frame = ui.registry.get_mut(button).unwrap();
+        frame.widget_type = WidgetType::Button;
+        frame.mouse_enabled = true;
+        frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
+    }
+    settle(&mut app);
+
+    let registry = &app.world().resource::<UiState>().registry;
+    assert_eq!(
+        (registry.screen_width, registry.screen_height),
+        (640.0, 480.0)
+    );
+    let rect = registry.get(button).unwrap().layout_rect.clone().unwrap();
+    assert!((rect.x - 100.0).abs() <= 0.5 && (rect.y - 100.0).abs() <= 0.5);
+    assert!((rect.width - 80.0).abs() <= 0.5 && (rect.height - 40.0).abs() <= 0.5);
+    let entity = projected_frame(app.world_mut(), button);
+    let node = app.world().get::<ComputedNode>(entity).unwrap();
+    let transform = Affine2::from(app.world().get::<UiGlobalTransform>(entity).unwrap());
+    // Window scale factor is 1, so physical pixels are window logical pixels.
+    let native = Rect::from_center_size(transform.translation, node.size);
+    assert!((native.min - Vec2::new(125.0, 125.0)).abs().max_element() <= 0.5);
+    assert!((native.size() - Vec2::new(100.0, 50.0)).abs().max_element() <= 0.5);
+
+    // Inside the drawn button (logical 125..225) but outside its reference rect
+    // when read unscaled (100..180): only scaled conversion hits it.
+    set_cursor(app.world_mut(), Vec2::new(200.0, 160.0));
+    app.update();
+    assert!(button_hovered(app.world(), button));
+
+    // Inside the unscaled reference rect but left of the drawn button.
+    set_cursor(app.world_mut(), Vec2::new(110.0, 110.0));
+    app.update();
+    assert!(!button_hovered(app.world(), button));
+}

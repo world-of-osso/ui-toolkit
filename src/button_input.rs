@@ -2,7 +2,7 @@ use bevy::input::ButtonInput;
 use bevy::prelude::*;
 
 use crate::frame::WidgetData;
-use crate::input::find_frame_at;
+use crate::input::{find_frame_at, ui_cursor_position};
 use crate::plugin::UiState;
 use crate::widgets::button::ButtonState;
 
@@ -13,7 +13,7 @@ pub fn sync_button_input(
     mouse: Option<Res<ButtonInput<MouseButton>>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
-    let cursor = cursor_pos(&windows);
+    let cursor = cursor_pos(&ui, &windows);
     let hover_updates = find_hover_updates(&ui, cursor);
     if !hover_updates.is_empty() {
         update_hover(&mut ui, hover_updates);
@@ -25,9 +25,11 @@ pub fn sync_button_input(
     }
 }
 
-fn cursor_pos(windows: &Query<&Window, With<bevy::window::PrimaryWindow>>) -> Option<(f32, f32)> {
-    let window = windows.single().ok()?;
-    let pos = window.cursor_position()?;
+fn cursor_pos(
+    ui: &UiState,
+    windows: &Query<&Window, With<bevy::window::PrimaryWindow>>,
+) -> Option<(f32, f32)> {
+    let pos = ui_cursor_position(&ui.registry, windows.single().ok()?)?;
     Some((pos.x, pos.y))
 }
 

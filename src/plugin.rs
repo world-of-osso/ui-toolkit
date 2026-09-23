@@ -189,7 +189,10 @@ fn changed_window_size(
     windows: &Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) -> Option<(f32, f32)> {
     let window = windows.single().ok()?;
-    let (width, height) = (window.width(), window.height());
+    let (width, height) = (
+        window.width() / registry.ui_scale,
+        window.height() / registry.ui_scale,
+    );
     ((registry.screen_width - width).abs() > 0.5 || (registry.screen_height - height).abs() > 0.5)
         .then_some((width, height))
 }
@@ -203,7 +206,14 @@ fn resize_registry(registry: &mut FrameRegistry, width: f32, height: f32) {
 fn sync_screen_size(
     mut state: ResMut<UiState>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    cameras: Query<&Projection, With<crate::render::UiCamera>>,
 ) {
+    if let Ok(Projection::Orthographic(projection)) = cameras.single() {
+        let ui_scale = projection.scale.recip();
+        if state.registry.ui_scale != ui_scale {
+            state.registry.ui_scale = ui_scale;
+        }
+    }
     if let Some((width, height)) = changed_window_size(&state.registry, &windows) {
         resize_registry(&mut state.registry, width, height);
     }

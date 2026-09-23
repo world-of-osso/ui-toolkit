@@ -12,8 +12,11 @@ pub struct FrameRegistry {
     frames: HashMap<u64, Frame>,
     names: HashMap<String, u64>,
     next_id: u64,
+    /// Screen size in UI units: window logical size divided by [`Self::ui_scale`].
     pub screen_width: f32,
     pub screen_height: f32,
+    /// Logical pixels per UI unit, derived from the UI camera projection.
+    pub ui_scale: f32,
     pub render_dirty: HashSet<u64>,
     /// Deferred [`Self::get_mut`] write windows pending diff at the next boundary.
     ///
@@ -41,6 +44,7 @@ impl FrameRegistry {
             next_id: 1,
             screen_width,
             screen_height,
+            ui_scale: 1.0,
             render_dirty: HashSet::new(),
             pending_writes: HashMap::new(),
             rect_dirty: HashSet::new(),

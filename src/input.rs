@@ -1,5 +1,13 @@
+use bevy::math::Vec2;
+use bevy::window::Window;
+
 use crate::layout::LayoutRect;
 use crate::registry::FrameRegistry;
+
+/// Window cursor position converted to the registry's UI units.
+pub fn ui_cursor_position(registry: &FrameRegistry, window: &Window) -> Option<Vec2> {
+    window.cursor_position().map(|pos| pos / registry.ui_scale)
+}
 
 /// Test whether a screen-space point is inside a layout rect, shrunk by insets.
 ///

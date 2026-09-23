@@ -143,20 +143,17 @@ pub(crate) fn sync_registry(
     mut state: ResMut<UiState>,
     order: Res<UiFrameOrder>,
     text_enabled: Res<crate::plugin::UiTextRenderEnabled>,
-    cameras: Query<(Entity, &Projection), With<UiCamera>>,
+    cameras: Query<Entity, With<UiCamera>>,
     mut commands: Commands,
     mut assets: NativeAssets,
     mut ui_scale: ResMut<UiScale>,
     query: ProjectionQueries,
 ) {
-    let Ok((camera, projection)) = cameras.single() else {
+    let Ok(camera) = cameras.single() else {
         return;
     };
-    if let Projection::Orthographic(projection) = projection {
-        let scale = projection.scale.recip();
-        if ui_scale.0 != scale {
-            ui_scale.0 = scale;
-        }
+    if ui_scale.0 != state.registry.ui_scale {
+        ui_scale.0 = state.registry.ui_scale;
     }
     let canvas = sync_canvas(&mut commands, &query, camera);
     let frames = sync_frames(&state, &order, canvas, &mut commands, &query);
