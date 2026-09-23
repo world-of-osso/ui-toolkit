@@ -6,6 +6,10 @@ Registry-authoritative UI frames projected to native Bevy UI. Screens use `rsx!`
 
 RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
 
+## Button highlights
+
+RSX `button_highlight_size: "width,height"` gives the hover overlay an explicit logical-pixel size, centered on the button without changing its layout or hit area. Both dimensions must be finite and positive. Omit the attribute to retain the button-sized overlay. Native UI and legacy sprite projection use the same override; disabled buttons suppress hover as before.
+
 ## Atlas sources
 
 `AtlasRegion.source` identifies the backing texture:
