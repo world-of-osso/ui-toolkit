@@ -48,12 +48,12 @@ impl DiffContext {
 
         let mut remaining: Vec<Option<u64>> = existing_fids.into_iter().map(Some).collect();
 
-        let mut matched: Vec<(u64, usize)> = Vec::new();
+        let mut matched: Vec<(u64, usize, Reuse)> = Vec::new();
         let mut unmatched_new: Vec<usize> = Vec::new();
 
         for (i, def) in new_defs.iter().enumerate() {
-            if let Some(fid) = consume_match(def, &mut remaining, registry) {
-                matched.push((fid, i));
+            if let Some((fid, reuse)) = consume_match(def, &mut remaining, registry) {
+                matched.push((fid, i, reuse));
             } else {
                 unmatched_new.push(i);
             }
@@ -65,8 +65,11 @@ impl DiffContext {
         }
 
         // Update matched frames
-        for (fid, i) in matched {
+        for (fid, i, reuse) in matched {
             let def = new_defs[i];
+            if reuse == Reuse::OtherFrame {
+                reset_visibility_state(fid, registry);
+            }
             self.apply_def(def, fid, registry);
             self.diff_roots(&def.children, Some(fid), registry);
         }
@@ -316,14 +319,34 @@ fn flatten<'a>(children: &'a [WidgetChild]) -> Vec<&'a WidgetDef> {
 }
 
 /// Try to find and consume a matching existing frame for the given def.
-/// Matching prefers name-based lookup, then tag/widget_type.
+/// How a new def found its existing frame.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Reuse {
+    /// The frame this def built before, found by name.
+    SameFrame,
+    /// An unnamed leftover frame of the same widget type.
+    OtherFrame,
+}
+
+/// Matching prefers name-based lookup, then an unnamed frame of the same widget type.
 fn consume_match(
     def: &WidgetDef,
     remaining: &mut [Option<u64>],
     registry: &FrameRegistry,
-) -> Option<u64> {
+) -> Option<(u64, Reuse)> {
     consume_name_match(def, remaining, registry)
-        .or_else(|| consume_type_match(def, remaining, registry))
+        .map(|fid| (fid, Reuse::SameFrame))
+        .or_else(|| {
+            consume_type_match(def, remaining, registry).map(|fid| (fid, Reuse::OtherFrame))
+        })
+}
+
+/// A frame taken over by a different def starts visible and opaque, as a new frame would;
+/// its def re-applies `hidden`/`alpha` when it declares them. Frames matched by name keep
+/// runtime visibility their owners set.
+fn reset_visibility_state(frame_id: u64, registry: &mut FrameRegistry) {
+    registry.set_hidden(frame_id, false);
+    registry.set_alpha(frame_id, 1.0);
 }
 
 fn consume_name_match(
@@ -347,9 +370,10 @@ fn consume_type_match(
         let Some(fid) = *slot else {
             return false;
         };
+        // A named frame belongs to the def with that name; never hand it to another def.
         registry
             .get(fid)
-            .is_some_and(|frame| frame.widget_type == wanted_type)
+            .is_some_and(|frame| frame.widget_type == wanted_type && frame.name.is_none())
     })?;
     remaining[index].take()
 }
@@ -685,5 +709,104 @@ mod tests {
         assert_eq!(frame.position.left, Val::Px(20.0));
         assert_eq!(frame.position_type, PositionType::Absolute);
         assert_eq!(frame.anchor, AnchorTarget::Parent);
+    }
+}
+
+#[cfg(test)]
+mod named_reuse_tests {
+    use super::*;
+    use crate::widget_def::AttrValue;
+
+    fn frame_def(name: Option<&str>, attrs: &[(&'static str, &str)]) -> WidgetDef {
+        let mut def = WidgetDef::new("Frame");
+        def.name = name.map(str::to_owned);
+        def.attrs = attrs
+            .iter()
+            .map(|&(name, value)| Attr {
+                name,
+                name_owned: None,
+                value: AttrValue::Static(value.to_owned()),
+            })
+            .collect();
+        def
+    }
+
+    fn list(children: Vec<WidgetDef>) -> Vec<WidgetChild> {
+        let mut root = frame_def(Some("List"), &[]);
+        root.children = children.into_iter().map(WidgetChild::Widget).collect();
+        vec![WidgetChild::Widget(root)]
+    }
+
+    fn frame<'a>(registry: &'a FrameRegistry, name: &str) -> &'a Frame {
+        registry
+            .get(registry.get_by_name(name).expect(name))
+            .expect(name)
+    }
+
+    #[test]
+    fn new_named_row_does_not_take_over_a_hidden_named_sibling() {
+        let mut registry = FrameRegistry::new(1920.0, 1080.0);
+        let mut diff = DiffContext::new();
+        let track = || frame_def(Some("Track"), &[("hidden", "true")]);
+        diff.diff_roots(&list(vec![track()]), None, &mut registry);
+        let track_id = registry.get_by_name("Track").unwrap();
+
+        diff.diff_roots(
+            &list(vec![frame_def(Some("Row0"), &[]), track()]),
+            None,
+            &mut registry,
+        );
+
+        let row = frame(&registry, "Row0");
+        assert!(
+            row.visible && !row.hidden,
+            "new row inherited the track's hidden state"
+        );
+        assert_ne!(registry.get_by_name("Row0"), Some(track_id));
+        assert_eq!(registry.get_by_name("Track"), Some(track_id));
+        assert!(frame(&registry, "Track").hidden);
+    }
+
+    #[test]
+    fn unnamed_frame_reused_by_another_def_starts_visible_and_opaque() {
+        let mut registry = FrameRegistry::new(1920.0, 1080.0);
+        let mut diff = DiffContext::new();
+        diff.diff_roots(
+            &list(vec![frame_def(None, &[("hidden", "true")])]),
+            None,
+            &mut registry,
+        );
+        let list_id = registry.get_by_name("List").unwrap();
+        let old = registry.children_of(list_id)[0];
+        registry.set_alpha(old, 0.2);
+
+        diff.diff_roots(
+            &list(vec![frame_def(Some("Row0"), &[])]),
+            None,
+            &mut registry,
+        );
+
+        assert_eq!(
+            registry.get_by_name("Row0"),
+            Some(old),
+            "unnamed frame reused"
+        );
+        let row = frame(&registry, "Row0");
+        assert!(row.visible && !row.hidden);
+        assert_eq!(row.alpha, 1.0);
+    }
+
+    #[test]
+    fn frame_matched_by_name_keeps_runtime_visibility() {
+        let mut registry = FrameRegistry::new(1920.0, 1080.0);
+        let mut diff = DiffContext::new();
+        let panel = || list(vec![frame_def(Some("Panel"), &[])]);
+        diff.diff_roots(&panel(), None, &mut registry);
+        let id = registry.get_by_name("Panel").unwrap();
+        registry.set_hidden(id, true);
+
+        diff.diff_roots(&panel(), None, &mut registry);
+
+        assert!(frame(&registry, "Panel").hidden);
     }
 }
