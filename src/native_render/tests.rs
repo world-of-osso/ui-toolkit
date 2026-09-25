@@ -999,3 +999,174 @@ fn ui_camera_scale_sizes_registry_screen_and_hit_tests_in_reference_units() {
     app.update();
     assert!(!button_hovered(app.world(), button));
 }
+
+fn two_pixel_image(app: &mut App, rgba: [u8; 4]) -> Handle<Image> {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    app.world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::new(
+            Extent3d {
+                width: 2,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            [rgba, rgba].concat(),
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::default(),
+        ))
+}
+
+/// A settled registry is not reconciled: a native value tampered outside the registry
+/// stays as written, and so do the native component ticks of an untouched frame.
+#[test]
+fn settled_registry_skips_reconciliation_until_a_frame_changes() {
+    let mut app = app_with_real_fonts(1.0);
+    let (panel, label) = stable_panel_and_label(&mut app);
+    let (text_entity, _) = projected_text(app.world_mut(), label);
+    app.world_mut().get_mut::<Text>(text_entity).unwrap().0 = "tampered".into();
+    let tampered_tick = last_changed::<Text>(app.world(), text_entity);
+    for _ in 0..3 {
+        app.update();
+    }
+    assert_eq!(app.world().get::<Text>(text_entity).unwrap().0, "tampered");
+    assert_eq!(
+        last_changed::<Text>(app.world(), text_entity),
+        tampered_tick
+    );
+
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .set_alpha(panel, 0.5);
+    app.update();
+    assert_eq!(
+        app.world().get::<Text>(text_entity).unwrap().0,
+        "Stable",
+        "the next dirty frame reconciles the whole projection again"
+    );
+}
+
+/// After idle frames, each kind of registry change still reaches the native projection
+/// on the next update: visibility, text, texture, anchor, name and root removal.
+#[test]
+fn changes_after_idle_frames_reach_native_projection_next_update() {
+    let mut app = app_with_real_fonts(1.0);
+    let (panel, label) = stable_panel_and_label(&mut app);
+    let red = two_pixel_image(&mut app, [255, 0, 0, 255]);
+    let blue = two_pixel_image(&mut app, [0, 0, 255, 255]);
+    let icon = create_frame(app.world_mut(), "GateIcon", None, 32.0, 32.0);
+    let loose = create_frame(app.world_mut(), "GateLoose", None, 10.0, 10.0);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        let frame = ui.registry.get_mut(icon).unwrap();
+        frame.widget_type = WidgetType::Texture;
+        frame.widget_data = Some(WidgetData::Texture(crate::widgets::texture::TextureData {
+            source: TextureSource::Dynamic(red.clone()),
+            ..default()
+        }));
+    }
+    settle(&mut app);
+    let idle = |app: &mut App| {
+        for _ in 0..3 {
+            app.update();
+        }
+    };
+
+    idle(&mut app);
+    let label_entity = projected_frame(app.world_mut(), label);
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .set_hidden(label, true);
+    app.update();
+    assert_eq!(
+        app.world().get::<Node>(label_entity).unwrap().display,
+        Display::None
+    );
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .set_hidden(label, false);
+    app.update();
+
+    idle(&mut app);
+    match &mut app
+        .world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .get_mut(label)
+        .unwrap()
+        .widget_data
+    {
+        Some(WidgetData::FontString(data)) => data.text = "Changed".into(),
+        _ => panic!("font string"),
+    }
+    app.update();
+    let (text_entity, _) = projected_text(app.world_mut(), label);
+    assert_eq!(app.world().get::<Text>(text_entity).unwrap().0, "Changed");
+
+    idle(&mut app);
+    match &mut app
+        .world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .get_mut(icon)
+        .unwrap()
+        .widget_data
+    {
+        Some(WidgetData::Texture(data)) => data.source = TextureSource::Dynamic(blue.clone()),
+        _ => panic!("texture"),
+    }
+    app.update();
+    let image_entity = projected_image(app.world_mut(), icon);
+    assert_eq!(
+        app.world().get::<ImageNode>(image_entity).unwrap().image,
+        blue
+    );
+
+    idle(&mut app);
+    let panel_entity = projected_frame(app.world_mut(), panel);
+    let canvas = app
+        .world_mut()
+        .query_filtered::<Entity, With<Canvas>>()
+        .single(app.world())
+        .unwrap();
+    assert_ne!(
+        app.world().get::<ChildOf>(label_entity).unwrap().parent(),
+        canvas
+    );
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .set_anchor(label, AnchorTarget::Screen)
+        .unwrap();
+    app.update();
+    assert_eq!(
+        app.world().get::<ChildOf>(label_entity).unwrap().parent(),
+        canvas
+    );
+    assert_ne!(canvas, panel_entity);
+
+    idle(&mut app);
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .set_name(icon, "GateIconRenamed".into());
+    app.update();
+    let icon_entity = projected_frame(app.world_mut(), icon);
+    assert_eq!(
+        app.world().get::<Name>(icon_entity).unwrap().as_str(),
+        "GateIconRenamed"
+    );
+
+    idle(&mut app);
+    let loose_entity = projected_frame(app.world_mut(), loose);
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .remove_frame(loose);
+    app.update();
+    assert!(app.world().get_entity(loose_entity).is_err());
+}

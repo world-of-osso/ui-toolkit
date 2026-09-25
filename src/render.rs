@@ -54,6 +54,8 @@ pub fn setup_ui_camera(mut commands: Commands) {
 pub(crate) struct UiFrameOrder {
     pub(crate) ids: Vec<u64>,
     pub(crate) indices: HashMap<u64, usize>,
+    /// Registry frame count this order and its native projection were built from.
+    pub(crate) projected_frames: usize,
 }
 
 impl UiFrameOrder {
@@ -65,7 +67,11 @@ impl UiFrameOrder {
             .enumerate()
             .map(|(index, id)| (id, index))
             .collect();
-        Self { ids, indices }
+        Self {
+            ids,
+            indices,
+            projected_frames: state.registry.frame_count(),
+        }
     }
 
     pub(crate) fn z(&self, id: u64) -> f32 {
@@ -73,8 +79,14 @@ impl UiFrameOrder {
     }
 }
 
-pub(crate) fn prepare_ui_frame_order(state: Res<UiState>, mut order: ResMut<UiFrameOrder>) {
-    *order = UiFrameOrder::from_state(&state);
+/// Rebuilds the order only when the projection is outdated; an unchanged order lets
+/// `sync_registry` skip reconciling a settled registry.
+pub(crate) fn prepare_ui_frame_order(mut state: ResMut<UiState>, mut order: ResMut<UiFrameOrder>) {
+    let registry = &mut state.bypass_change_detection().registry;
+    registry.resolve_pending_writes();
+    if registry.projection_outdated(order.projected_frames) {
+        *order = UiFrameOrder::from_state(&state);
+    }
 }
 
 /// Syncs the frame registry into Bevy sprite entities each frame.

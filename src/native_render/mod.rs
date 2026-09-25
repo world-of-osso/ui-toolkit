@@ -155,6 +155,10 @@ pub(crate) fn sync_registry(
     if ui_scale.0 != state.registry.ui_scale {
         ui_scale.0 = state.registry.ui_scale;
     }
+    // `prepare_ui_frame_order` rewrites the order only when the registry is outdated.
+    if !order.is_changed() && !text_enabled.is_changed() && query.canvas.single().is_ok() {
+        return;
+    }
     let canvas = sync_canvas(&mut commands, &query, camera);
     let frames = sync_frames(&state, &order, canvas, &mut commands, &query);
     sync_images(&state, &order, &frames, &mut assets, &mut commands, &query);

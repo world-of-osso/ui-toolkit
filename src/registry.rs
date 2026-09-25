@@ -270,6 +270,18 @@ impl FrameRegistry {
         self.frames.values()
     }
 
+    pub fn frame_count(&self) -> usize {
+        self.frames.len()
+    }
+
+    /// Whether a native projection built from `projected_frames` frames is stale:
+    /// every mutation publishes a dirty mark except removals, which change the count.
+    pub fn projection_outdated(&self, projected_frames: usize) -> bool {
+        !self.render_dirty.is_empty()
+            || !self.rect_dirty.is_empty()
+            || self.frames.len() != projected_frames
+    }
+
     /// Set parent/screen-space offsets without changing position type or logical parent.
     pub fn set_pos(&mut self, id: u64, x: f32, y: f32) -> Result<(), &'static str> {
         self.resolve_pending_writes();
@@ -337,8 +349,11 @@ impl FrameRegistry {
             }
         }
         self.names.insert(name.clone(), id);
-        if let Some(frame) = self.frames.get_mut(&id) {
+        if let Some(frame) = self.frames.get_mut(&id)
+            && frame.name.as_ref() != Some(&name)
+        {
             frame.name = Some(name);
+            self.render_dirty.insert(id);
         }
     }
 
