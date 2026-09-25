@@ -139,6 +139,36 @@ pub(crate) struct ProjectionQueries<'w, 's> {
     children: Query<'w, 's, &'static Children>,
 }
 
+/// Removals of projected native components, which a settled registry does not publish.
+#[derive(SystemParam)]
+pub(crate) struct ProjectionRemovals<'w, 's> {
+    nodes: RemovedComponents<'w, 's, Node>,
+    parents: RemovedComponents<'w, 's, ChildOf>,
+    layers: RemovedComponents<'w, 's, GlobalZIndex>,
+    transforms: RemovedComponents<'w, 's, UiTransform>,
+    images: RemovedComponents<'w, 's, ImageNode>,
+    texts: RemovedComponents<'w, 's, Text>,
+    fonts: RemovedComponents<'w, 's, TextFont>,
+    text_layouts: RemovedComponents<'w, 's, TextLayout>,
+    text_colors: RemovedComponents<'w, 's, TextColor>,
+}
+
+impl ProjectionRemovals<'_, '_> {
+    /// Drains every reader so one removal triggers one reconciliation.
+    fn any(&mut self) -> bool {
+        let removed = self.nodes.read().count()
+            + self.parents.read().count()
+            + self.layers.read().count()
+            + self.transforms.read().count()
+            + self.images.read().count()
+            + self.texts.read().count()
+            + self.fonts.read().count()
+            + self.text_layouts.read().count()
+            + self.text_colors.read().count();
+        removed > 0
+    }
+}
+
 pub(crate) fn sync_registry(
     mut state: ResMut<UiState>,
     order: Res<UiFrameOrder>,
@@ -147,6 +177,7 @@ pub(crate) fn sync_registry(
     mut commands: Commands,
     mut assets: NativeAssets,
     mut ui_scale: ResMut<UiScale>,
+    mut removals: ProjectionRemovals,
     query: ProjectionQueries,
 ) {
     let Ok(camera) = cameras.single() else {
@@ -155,8 +186,14 @@ pub(crate) fn sync_registry(
     if ui_scale.0 != state.registry.ui_scale {
         ui_scale.0 = state.registry.ui_scale;
     }
-    // `prepare_ui_frame_order` rewrites the order only when the registry is outdated.
-    if !order.is_changed() && !text_enabled.is_changed() && query.canvas.single().is_ok() {
+    // `prepare_ui_frame_order` rewrites the order only when the registry is outdated;
+    // removed native components are repaired from the unchanged registry.
+    let removed = removals.any();
+    if !order.is_changed()
+        && !text_enabled.is_changed()
+        && !removed
+        && query.canvas.single().is_ok()
+    {
         return;
     }
     let canvas = sync_canvas(&mut commands, &query, camera);
