@@ -1,7 +1,5 @@
 use crate::anchor::AnchorTarget;
 use crate::layout_values::{PositionType, UiRect, Val};
-use std::collections::HashSet;
-use std::path::Path;
 
 use self::parse::{
     format_color, format_outline, format_vec2, parse_border, parse_justify_h, parse_nine_slice,
@@ -223,14 +221,7 @@ fn read_slider_numeric_attr(
     }
 }
 
-pub fn apply_attribute(
-    registry: &mut FrameRegistry,
-    frame_id: u64,
-    name: &str,
-    value: &str,
-    validated_paths: &mut HashSet<String>,
-    missing_paths: &mut HashSet<String>,
-) {
+pub fn apply_attribute(registry: &mut FrameRegistry, frame_id: u64, name: &str, value: &str) {
     if apply_registry_attr(registry, frame_id, name, value) {
         return;
     }
@@ -252,9 +243,9 @@ pub fn apply_attribute(
     apply_layout_attr(frame, name, value);
     apply_flex_attr(frame, name, value);
     apply_frame_attr(frame, name, value);
-    apply_widget_text_attrs(frame, name, value, validated_paths, missing_paths);
-    apply_slider_attrs(frame, name, value, validated_paths, missing_paths);
-    apply_widget_texture_attrs(frame, name, value, validated_paths, missing_paths);
+    apply_widget_text_attrs(frame, name, value);
+    apply_slider_attrs(frame, name, value);
+    apply_widget_texture_attrs(frame, name, value);
     if matches!(
         name,
         "width" | "height" | "layout" | "gap" | "justify" | "align" | "padding"
@@ -562,13 +553,7 @@ fn set_bool_via(value: &str, f: impl FnOnce(bool)) {
     }
 }
 
-fn apply_widget_text_attrs(
-    frame: &mut Frame,
-    name: &str,
-    value: &str,
-    _validated_paths: &mut HashSet<String>,
-    _missing_paths: &mut HashSet<String>,
-) {
+fn apply_widget_text_attrs(frame: &mut Frame, name: &str, value: &str) {
     match name {
         "text" => apply_text_attr(frame, value),
         "font" => apply_font_attr(frame, value),
@@ -657,23 +642,6 @@ fn parse_text_insets(value: &str) -> Option<[f32; 4]> {
     Some([parts[0], parts[1], parts[2], parts[3]])
 }
 
-fn check_path(
-    validated: &mut HashSet<String>,
-    missing: &mut HashSet<String>,
-    label: &str,
-    path: &str,
-) {
-    if validated.contains(path) || missing.contains(path) {
-        return;
-    }
-    if Path::new(path).exists() {
-        validated.insert(path.to_string());
-    } else {
-        eprintln!("[UI] {label} not found: {path}");
-        missing.insert(path.to_string());
-    }
-}
-
 fn apply_font_size(frame: &mut Frame, v: f32) {
     if v <= 0.0 || v > 72.0 {
         eprintln!("[UI] font_size out of range (0..72]: {v}");
@@ -686,16 +654,10 @@ fn apply_font_size(frame: &mut Frame, v: f32) {
     }
 }
 
-fn apply_widget_texture_attrs(
-    frame: &mut Frame,
-    name: &str,
-    value: &str,
-    validated_paths: &mut HashSet<String>,
-    missing_paths: &mut HashSet<String>,
-) {
+fn apply_widget_texture_attrs(frame: &mut Frame, name: &str, value: &str) {
     match name {
-        "texture_file" => apply_texture_file(frame, value, validated_paths, missing_paths),
-        "texture_fdid" => apply_texture_fdid(frame, value, validated_paths, missing_paths),
+        "texture_file" => apply_texture_file(frame, value),
+        "texture_fdid" => apply_texture_fdid(frame, value),
         "texture_atlas" => apply_texture_atlas(frame, value),
         "tex_coords" => apply_texture_coordinates(frame, value),
         "vertex_color" => {
@@ -736,27 +698,14 @@ fn apply_texture_coordinates(frame: &mut Frame, value: &str) {
     }
 }
 
-fn apply_texture_file(
-    frame: &mut Frame,
-    value: &str,
-    validated_paths: &mut HashSet<String>,
-    missing_paths: &mut HashSet<String>,
-) {
-    check_path(validated_paths, missing_paths, "texture_file", value);
+fn apply_texture_file(frame: &mut Frame, value: &str) {
     let source = TextureSource::File(value.to_string());
     apply_texture_source(frame, source);
 }
 
-fn apply_texture_fdid(
-    frame: &mut Frame,
-    value: &str,
-    validated_paths: &mut HashSet<String>,
-    missing_paths: &mut HashSet<String>,
-) {
+fn apply_texture_fdid(frame: &mut Frame, value: &str) {
     let Ok(v) = value.parse::<f32>() else { return };
     let fdid = v as u32;
-    let path = format!("data/textures/{fdid}.blp");
-    check_path(validated_paths, missing_paths, "texture_fdid", &path);
     apply_texture_source(frame, TextureSource::FileDataId(fdid));
 }
 
@@ -776,13 +725,7 @@ fn apply_texture_source(frame: &mut Frame, source: TextureSource) {
     }
 }
 
-fn apply_slider_attrs(
-    frame: &mut Frame,
-    name: &str,
-    value: &str,
-    validated_paths: &mut HashSet<String>,
-    missing_paths: &mut HashSet<String>,
-) {
+fn apply_slider_attrs(frame: &mut Frame, name: &str, value: &str) {
     match name {
         "value" => apply_slider_numeric_attr(
             frame,
@@ -797,7 +740,7 @@ fn apply_slider_attrs(
             apply_slider_numeric_attr(frame, value, |slider, v| slider.max = v, |sb, v| sb.max = v)
         }
         "orientation" => apply_orientation_attr(frame, value),
-        "thumb_texture" => apply_thumb_texture(frame, value, validated_paths, missing_paths),
+        "thumb_texture" => apply_thumb_texture(frame, value),
         "statusbar_color" => apply_statusbar_color(frame, value),
         "fill_style" => apply_fill_style(frame, value),
         "reverse_fill" => apply_reverse_fill(frame, value),
@@ -835,19 +778,13 @@ fn apply_orientation_attr(frame: &mut Frame, value: &str) {
     }
 }
 
-fn apply_thumb_texture(
-    frame: &mut Frame,
-    value: &str,
-    validated_paths: &mut HashSet<String>,
-    missing_paths: &mut HashSet<String>,
-) {
+fn apply_thumb_texture(frame: &mut Frame, value: &str) {
     if value.is_empty() || value.eq_ignore_ascii_case("none") {
         if let Some(WidgetData::Slider(slider)) = &mut frame.widget_data {
             slider.thumb_texture = None;
         }
         return;
     }
-    check_path(validated_paths, missing_paths, "thumb_texture", value);
     if let Some(WidgetData::Slider(slider)) = &mut frame.widget_data {
         slider.thumb_texture = Some(TextureSource::File(value.to_string()));
     }

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::frame::{Frame, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
 use crate::widget_def::{Attr, NineSliceDef, WidgetChild, WidgetDef};
@@ -13,10 +11,6 @@ use crate::widgets::texture::TextureSource;
 pub struct DiffContext {
     /// All frame IDs created by this context.
     pub created_frames: Vec<u64>,
-    /// Validated texture/file paths (avoid re-checking).
-    pub validated_paths: HashSet<String>,
-    /// Missing paths already warned about.
-    pub missing_paths: HashSet<String>,
     /// Log attribute changes (enabled during hot-reload).
     pub log_changes: bool,
 }
@@ -25,8 +19,6 @@ impl DiffContext {
     pub fn new() -> Self {
         Self {
             created_frames: Vec::new(),
-            validated_paths: HashSet::new(),
-            missing_paths: HashSet::new(),
             log_changes: false,
         }
     }
@@ -119,14 +111,7 @@ impl DiffContext {
             let attr_name = attr.effective_name();
             let value = attr.value_str();
             self.log_attr_change(frame_id, attr_name, value, registry);
-            crate::attrs::apply_attribute(
-                registry,
-                frame_id,
-                attr_name,
-                value,
-                &mut self.validated_paths,
-                &mut self.missing_paths,
-            );
+            crate::attrs::apply_attribute(registry, frame_id, attr_name, value);
         }
     }
 
@@ -252,14 +237,7 @@ impl DiffContext {
         let attr_name = attr.effective_name();
         let value = attr.value_str();
         let old = self.patch_old_value(registry, frame_id, attr_name);
-        crate::attrs::apply_attribute(
-            registry,
-            frame_id,
-            attr_name,
-            value,
-            &mut self.validated_paths,
-            &mut self.missing_paths,
-        );
+        crate::attrs::apply_attribute(registry, frame_id, attr_name, value);
         self.log_patch_attr_change(name, attr_name, value, old.as_deref());
     }
 

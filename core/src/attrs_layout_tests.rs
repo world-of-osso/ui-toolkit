@@ -1,14 +1,7 @@
 use super::*;
 
 fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
-    apply_attribute(
-        registry,
-        id,
-        name,
-        value,
-        &mut HashSet::new(),
-        &mut HashSet::new(),
-    );
+    apply_attribute(registry, id, name, value);
 }
 
 #[test]
