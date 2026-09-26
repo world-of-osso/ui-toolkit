@@ -1,0 +1,899 @@
+use crate::anchor::AnchorTarget;
+use crate::layout_values::{PositionType, UiRect, Val};
+use std::collections::HashSet;
+use std::path::Path;
+
+use self::parse::{
+    format_color, format_outline, format_vec2, parse_border, parse_justify_h, parse_nine_slice,
+    parse_outline, parse_vec2,
+};
+use crate::atlas;
+use crate::frame::{
+    Dimension, FlexAlign, FlexDirection, FlexJustify, FlexLayout, Frame, WidgetData, WidgetType,
+};
+use crate::registry::FrameRegistry;
+use crate::strata::{DrawLayer, FrameStrata};
+use crate::widgets::button::{ButtonData, ButtonState};
+use crate::widgets::font_string::GameFont;
+use crate::widgets::slider::{FillStyle, Orientation};
+use crate::widgets::texture::TextureSource;
+
+mod parse;
+
+#[cfg(test)]
+#[path = "attrs_layout_tests.rs"]
+mod layout_tests;
+pub(crate) use self::parse::parse_color;
+
+fn parse_dimension(value: &str) -> Dimension {
+    match value {
+        "auto" | "Auto" => Dimension::Auto,
+        "fill" | "Fill" => Dimension::Fill,
+        _ => value
+            .parse::<f32>()
+            .map(Dimension::Fixed)
+            .unwrap_or_default(),
+    }
+}
+
+fn format_dimension(dim: Dimension) -> String {
+    match dim {
+        Dimension::Auto => "auto".to_string(),
+        Dimension::Fill => "fill".to_string(),
+        Dimension::Fixed(v) => format!("{v}"),
+    }
+}
+
+pub fn tag_to_widget_type(tag: &str) -> Option<WidgetType> {
+    match tag {
+        "frame" | "r#frame" | "Frame" => Some(WidgetType::Frame),
+        "panel" | "Panel" => Some(WidgetType::Panel),
+        "button" | "Button" => Some(WidgetType::Button),
+        "editbox" | "EditBox" => Some(WidgetType::EditBox),
+        "fontstring" | "FontString" => Some(WidgetType::FontString),
+        "slider" | "Slider" => Some(WidgetType::Slider),
+        "statusbar" | "StatusBar" => Some(WidgetType::StatusBar),
+        "texture" | "Texture" => Some(WidgetType::Texture),
+        _ => None,
+    }
+}
+
+/// Read the current value of a frame attribute as a string, for change detection.
+pub fn read_attribute(registry: &FrameRegistry, frame_id: u64, name: &str) -> Option<String> {
+    let frame = registry.get(frame_id)?;
+    read_layout_attr(frame, name)
+        .or_else(|| read_frame_attr(frame, name))
+        .or_else(|| read_widget_text_attr(frame, name))
+        .or_else(|| read_widget_texture_attr(frame, name))
+}
+
+fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "name" => frame.name.clone(),
+        "width" => Some(format_dimension(frame.width)),
+        "height" => Some(format_dimension(frame.height)),
+        "strata" => Some(format!("{:?}", frame.strata)),
+        "onclick" => frame.onclick.clone(),
+        "button_default_skin" => match &frame.widget_data {
+            Some(WidgetData::Button(button)) => Some(button.use_default_skin.to_string()),
+            _ => None,
+        },
+        "button_highlight_alpha" => match &frame.widget_data {
+            Some(WidgetData::Button(button)) => Some(button.highlight_alpha.to_string()),
+            _ => None,
+        },
+        "button_highlight_size" => match &frame.widget_data {
+            Some(WidgetData::Button(button)) => button
+                .highlight_size
+                .map(|[width, height]| format!("{width},{height}")),
+            _ => None,
+        },
+        "hit_rect_insets" => Some(format_color(frame.hit_rect_insets)),
+        "hidden" => Some(if frame.visible { "false" } else { "true" }.to_string()),
+        "disabled" => match &frame.widget_data {
+            Some(WidgetData::Button(b)) => Some(
+                if b.state == ButtonState::Disabled {
+                    "true"
+                } else {
+                    "false"
+                }
+                .to_string(),
+            ),
+            _ => None,
+        },
+        "alpha" => Some(format!("{}", frame.alpha)),
+        "style" => frame.panel_style.clone(),
+        "three_slice_style" => frame.three_slice_style.clone(),
+        _ => None,
+    }
+}
+
+fn read_widget_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    read_basic_text_attr(frame, name)
+        .or_else(|| read_font_string_text_attr(frame, name))
+        .or_else(|| read_slider_text_attr(frame, name))
+        .or_else(|| read_edit_box_text_attr(frame, name))
+}
+
+fn read_basic_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "text" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(fs.text.clone()),
+            Some(WidgetData::Button(b)) => Some(b.text.clone()),
+            Some(WidgetData::EditBox(eb)) => Some(eb.text.clone()),
+            _ => None,
+        },
+        "font" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(fs.font.to_string()),
+            Some(WidgetData::EditBox(eb)) => Some(eb.font.to_string()),
+            _ => None,
+        },
+        "font_size" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(format!("{}", fs.font_size)),
+            Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.font_size)),
+            _ => None,
+        },
+        "font_color" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(format_color(fs.color)),
+            Some(WidgetData::EditBox(eb)) => Some(format_color(eb.text_color)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn read_font_string_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "shadow_color" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => fs.shadow_color.map(format_color),
+            _ => None,
+        },
+        "shadow_offset" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(format_vec2(fs.shadow_offset)),
+            _ => None,
+        },
+        "outline" => match &frame.widget_data {
+            Some(WidgetData::FontString(fs)) => Some(format_outline(fs.outline)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn read_slider_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "value" => read_slider_numeric_attr(frame, |slider| slider.value, |sb| sb.value),
+        "min" => read_slider_numeric_attr(frame, |slider| slider.min, |sb| sb.min),
+        "max" => read_slider_numeric_attr(frame, |slider| slider.max, |sb| sb.max),
+        _ => None,
+    }
+}
+
+fn read_edit_box_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "password" => match &frame.widget_data {
+            Some(WidgetData::EditBox(eb)) => Some(format!("{}", eb.password)),
+            _ => None,
+        },
+        "text_insets" => match &frame.widget_data {
+            Some(WidgetData::EditBox(eb)) => {
+                let [l, t, r, b] = eb.text_insets;
+                Some(format!("{l},{t},{r},{b}"))
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn read_widget_texture_attr(frame: &Frame, name: &str) -> Option<String> {
+    match name {
+        "tex_coords" => match &frame.widget_data {
+            Some(WidgetData::Texture(texture)) => Some(format_color(texture.tex_coords)),
+            _ => None,
+        },
+        "texture_file" => match &frame.widget_data {
+            Some(WidgetData::Texture(t)) => match &t.source {
+                TextureSource::File(p) => Some(p.clone()),
+                _ => None,
+            },
+            Some(WidgetData::Slider(slider)) => match &slider.thumb_texture {
+                Some(TextureSource::File(p)) => Some(p.clone()),
+                _ => None,
+            },
+            Some(WidgetData::StatusBar(sb)) => match &sb.texture {
+                Some(TextureSource::File(p)) => Some(p.clone()),
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn read_slider_numeric_attr(
+    frame: &Frame,
+    slider: impl FnOnce(&crate::widgets::slider::SliderData) -> f64,
+    statusbar: impl FnOnce(&crate::widgets::slider::StatusBarData) -> f64,
+) -> Option<String> {
+    match &frame.widget_data {
+        Some(WidgetData::Slider(data)) => Some(format!("{}", slider(data))),
+        Some(WidgetData::StatusBar(data)) => Some(format!("{}", statusbar(data))),
+        _ => None,
+    }
+}
+
+pub fn apply_attribute(
+    registry: &mut FrameRegistry,
+    frame_id: u64,
+    name: &str,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    if apply_registry_attr(registry, frame_id, name, value) {
+        return;
+    }
+    if name == "stretch" {
+        apply_stretch_attr(registry, frame_id, value);
+        return;
+    }
+    if name == "style" {
+        registry.apply_panel_style(frame_id, value);
+        return;
+    }
+    if name == "three_slice_style" {
+        registry.apply_three_slice_style(frame_id, value);
+        return;
+    }
+    let Some(frame) = registry.get_mut(frame_id) else {
+        return;
+    };
+    apply_layout_attr(frame, name, value);
+    apply_flex_attr(frame, name, value);
+    apply_frame_attr(frame, name, value);
+    apply_widget_text_attrs(frame, name, value, validated_paths, missing_paths);
+    apply_slider_attrs(frame, name, value, validated_paths, missing_paths);
+    apply_widget_texture_attrs(frame, name, value, validated_paths, missing_paths);
+    if matches!(
+        name,
+        "width" | "height" | "layout" | "gap" | "justify" | "align" | "padding"
+    ) {
+        registry.mark_rect_dirty(frame_id);
+    }
+}
+
+/// Handle attributes that need registry-level access.
+fn apply_registry_attr(
+    registry: &mut FrameRegistry,
+    frame_id: u64,
+    name: &str,
+    value: &str,
+) -> bool {
+    match name {
+        "name" => registry.set_name(frame_id, value.to_string()),
+        "hidden" => set_bool_via(value, |v| registry.set_hidden(frame_id, v)),
+        "alpha" => {
+            if let Ok(v) = value.parse::<f32>() {
+                registry.set_alpha(frame_id, v);
+            }
+        }
+        "disabled" => apply_disabled_attr(registry, frame_id, value),
+        "scroll_list" => registry.configure_scroll_list(frame_id, value),
+        "loading_text" => registry.set_loading_text(frame_id, value),
+        _ => return false,
+    }
+    true
+}
+
+fn apply_disabled_attr(registry: &mut FrameRegistry, frame_id: u64, value: &str) {
+    let disabled = matches!(value, "true" | "TRUE" | "1");
+    if let Some(frame) = registry.get_mut(frame_id) {
+        if let Some(WidgetData::Button(bd)) = &mut frame.widget_data {
+            if disabled {
+                bd.state = ButtonState::Disabled;
+            } else if bd.state == ButtonState::Disabled {
+                bd.state = ButtonState::Normal;
+            }
+        }
+    }
+}
+
+fn apply_stretch_attr(registry: &mut FrameRegistry, frame_id: u64, value: &str) {
+    if matches!(value, "true" | "TRUE" | "1") {
+        let Some(frame) = registry.get_mut(frame_id) else {
+            return;
+        };
+        frame.position_type = PositionType::Absolute;
+        frame.position = UiRect::ZERO;
+        frame.width = Dimension::Auto;
+        frame.height = Dimension::Auto;
+    }
+}
+
+macro_rules! flex {
+    ($frame:expr) => {
+        $frame.flex_layout.get_or_insert_with(FlexLayout::default)
+    };
+}
+
+fn apply_flex_attr(frame: &mut Frame, name: &str, value: &str) {
+    match name {
+        "layout" => {
+            flex!(frame).direction = match value {
+                "flex-row" => FlexDirection::Row,
+                "flex-row-wrap" => FlexDirection::RowWrap,
+                _ => FlexDirection::Column,
+            };
+        }
+        "gap" => {
+            if let Ok(v) = value.parse::<f32>() {
+                flex!(frame).gap = v;
+            }
+        }
+        "justify" => {
+            flex!(frame).justify = parse_flex_justify(value);
+        }
+        "align" => {
+            flex!(frame).align = parse_flex_align(value);
+        }
+        "padding" => {
+            if let Ok(v) = value.parse::<f32>() {
+                flex!(frame).padding = v;
+            }
+        }
+        _ => {}
+    }
+}
+
+fn parse_flex_justify(value: &str) -> FlexJustify {
+    match value {
+        "center" => FlexJustify::Center,
+        "end" => FlexJustify::End,
+        "space-between" => FlexJustify::SpaceBetween,
+        _ => FlexJustify::Start,
+    }
+}
+
+fn parse_flex_align(value: &str) -> FlexAlign {
+    match value {
+        "start" => FlexAlign::Start,
+        "end" => FlexAlign::End,
+        "stretch" => FlexAlign::Stretch,
+        _ => FlexAlign::Center,
+    }
+}
+
+fn parse_val(value: &str) -> Option<Val> {
+    let value = value.trim();
+    if value == "auto" {
+        return Some(Val::Auto);
+    }
+    if let Some(percent) = value.strip_suffix('%') {
+        return percent.parse().ok().map(Val::Percent);
+    }
+    value.parse().ok().map(Val::Px)
+}
+
+fn format_val(value: Val) -> String {
+    match value {
+        Val::Auto => "auto".to_string(),
+        Val::Px(v) => v.to_string(),
+        Val::Percent(v) => format!("{v}%"),
+    }
+}
+
+fn layout_val_mut<'a>(frame: &'a mut Frame, name: &str) -> Option<&'a mut Val> {
+    match name {
+        "pos_x" | "left" => Some(&mut frame.position.left),
+        "pos_y" | "top" => Some(&mut frame.position.top),
+        "right" => Some(&mut frame.position.right),
+        "bottom" => Some(&mut frame.position.bottom),
+        "translate_x" => Some(&mut frame.translation.x),
+        "translate_y" => Some(&mut frame.translation.y),
+        "margin_left" => Some(&mut frame.margin.left),
+        "margin_right" => Some(&mut frame.margin.right),
+        "margin_top" => Some(&mut frame.margin.top),
+        "margin_bottom" => Some(&mut frame.margin.bottom),
+        _ => None,
+    }
+}
+
+fn apply_layout_attr(frame: &mut Frame, name: &str, value: &str) {
+    match name {
+        "pos_type" => match value {
+            "relative" => frame.position_type = PositionType::Relative,
+            "absolute" => frame.position_type = PositionType::Absolute,
+            _ => panic!("invalid pos_type {value:?}: expected relative or absolute"),
+        },
+        "anchor" => match value {
+            "parent" => frame.anchor = AnchorTarget::Parent,
+            "screen" => frame.anchor = AnchorTarget::Screen,
+            _ => panic!("invalid anchor {value:?}: expected parent or screen"),
+        },
+        _ => {
+            let Some(target) = layout_val_mut(frame, name) else {
+                return;
+            };
+            let parsed = if matches!(name, "pos_x" | "pos_y") {
+                value.parse().ok().map(Val::Px)
+            } else {
+                parse_val(value)
+            };
+            *target = parsed.unwrap_or_else(|| panic!("invalid {name} value {value:?}"));
+        }
+    }
+}
+
+fn read_layout_attr(frame: &Frame, name: &str) -> Option<String> {
+    let value = match name {
+        "pos_x" | "left" => frame.position.left,
+        "pos_y" | "top" => frame.position.top,
+        "right" => frame.position.right,
+        "bottom" => frame.position.bottom,
+        "translate_x" => frame.translation.x,
+        "translate_y" => frame.translation.y,
+        "margin_left" => frame.margin.left,
+        "margin_right" => frame.margin.right,
+        "margin_top" => frame.margin.top,
+        "margin_bottom" => frame.margin.bottom,
+        "pos_type" => {
+            return Some(
+                match frame.position_type {
+                    PositionType::Relative => "relative",
+                    PositionType::Absolute => "absolute",
+                }
+                .to_string(),
+            );
+        }
+        "anchor" => {
+            return Some(
+                match frame.anchor {
+                    AnchorTarget::Parent => "parent",
+                    AnchorTarget::Screen => "screen",
+                }
+                .to_string(),
+            );
+        }
+        _ => return None,
+    };
+    Some(format_val(value))
+}
+
+fn parse_button_highlight_size(value: &str) -> [f32; 2] {
+    let parsed = value.split_once(',').and_then(|(width, height)| {
+        Some([
+            width.trim().parse::<f32>().ok()?,
+            height.trim().parse::<f32>().ok()?,
+        ])
+    });
+    match parsed {
+        Some([width, height])
+            if width.is_finite() && width > 0.0 && height.is_finite() && height > 0.0 =>
+        {
+            [width, height]
+        }
+        _ => panic!("invalid button_highlight_size '{value}': expected positive width,height"),
+    }
+}
+
+fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
+    match name {
+        "width" => frame.width = parse_dimension(value),
+        "height" => frame.height = parse_dimension(value),
+        "mouse_enabled" => set_bool(&mut frame.mouse_enabled, value),
+        "button_default_skin" => {
+            if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
+                set_bool(&mut button.use_default_skin, value);
+            }
+        }
+        "button_highlight_alpha" => {
+            if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
+                let alpha = value.parse::<f32>().unwrap_or_else(|_| {
+                    panic!("invalid button_highlight_alpha '{value}': expected 0..=1")
+                });
+                assert!(
+                    alpha.is_finite() && (0.0..=1.0).contains(&alpha),
+                    "invalid button_highlight_alpha '{value}': expected 0..=1"
+                );
+                button.highlight_alpha = alpha;
+            }
+        }
+        "button_highlight_size" => {
+            if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
+                button.highlight_size = Some(parse_button_highlight_size(value));
+            }
+        }
+        "hit_rect_insets" => frame.hit_rect_insets = parse_hit_rect_insets(value),
+        "movable" => set_bool(&mut frame.movable, value),
+        "frame_level" => {
+            if let Ok(v) = value.parse::<f32>() {
+                frame.frame_level = v as i32;
+            }
+        }
+        "strata" => frame.strata = FrameStrata::from_str(value).unwrap_or_default(),
+        "draw_layer" => frame.draw_layer = DrawLayer::from_str(value).unwrap_or_default(),
+        "background_color" => frame.background_color = parse_color(value),
+        "nine_slice" => {
+            if let Some(ns) = parse_nine_slice(value) {
+                frame.nine_slice = Some(ns);
+            }
+        }
+        "border" => frame.border = parse_border(value),
+        "onclick" => {
+            frame.onclick = Some(value.to_string());
+            frame.mouse_enabled = true;
+        }
+        _ => {}
+    }
+}
+
+fn parse_hit_rect_insets(value: &str) -> [f32; 4] {
+    let values = value
+        .split(',')
+        .map(|part| part.trim().parse::<f32>())
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|_| {
+            panic!("invalid hit_rect_insets '{value}': expected four finite numbers")
+        });
+    let insets: [f32; 4] = values.try_into().unwrap_or_else(|_| {
+        panic!("invalid hit_rect_insets '{value}': expected four finite numbers")
+    });
+    assert!(
+        insets.iter().all(|value| value.is_finite()),
+        "invalid hit_rect_insets '{value}': expected four finite numbers"
+    );
+    insets
+}
+
+fn set_bool(target: &mut bool, value: &str) {
+    match value {
+        "true" | "TRUE" | "1" => *target = true,
+        "false" | "FALSE" | "0" => *target = false,
+        _ => {}
+    }
+}
+
+fn set_bool_via(value: &str, f: impl FnOnce(bool)) {
+    match value {
+        "true" | "TRUE" | "1" => f(true),
+        "false" | "FALSE" | "0" => f(false),
+        _ => {}
+    }
+}
+
+fn apply_widget_text_attrs(
+    frame: &mut Frame,
+    name: &str,
+    value: &str,
+    _validated_paths: &mut HashSet<String>,
+    _missing_paths: &mut HashSet<String>,
+) {
+    match name {
+        "text" => apply_text_attr(frame, value),
+        "font" => apply_font_attr(frame, value),
+        "font_size" => apply_font_size_attr(frame, value),
+        "font_color" => apply_font_color_attr(frame, value),
+        "justify_h" | "shadow_color" | "shadow_offset" | "outline" => {
+            apply_font_style_attr(frame, name, value)
+        }
+        "text_insets" => apply_text_insets_attr(frame, value),
+        "password" => apply_password_attr(frame, value),
+        _ => {}
+    }
+}
+
+fn apply_font_attr(frame: &mut Frame, value: &str) {
+    let gf = GameFont::from_attr(value);
+    match &mut frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.font = gf,
+        Some(WidgetData::EditBox(eb)) => eb.font = gf,
+        _ => {}
+    }
+}
+
+fn apply_font_size_attr(frame: &mut Frame, value: &str) {
+    if let Ok(v) = value.parse::<f32>() {
+        apply_font_size(frame, v);
+    }
+}
+
+fn apply_font_color_attr(frame: &mut Frame, value: &str) {
+    let Some(color) = parse_color(value) else {
+        return;
+    };
+    match &mut frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.color = color,
+        Some(WidgetData::EditBox(eb)) => eb.text_color = color,
+        _ => {}
+    }
+}
+
+fn apply_font_style_attr(frame: &mut Frame, name: &str, value: &str) {
+    let Some(WidgetData::FontString(fs)) = &mut frame.widget_data else {
+        return;
+    };
+    match name {
+        "justify_h" => fs.justify_h = parse_justify_h(value),
+        "shadow_color" => {
+            if let Some(color) = parse_color(value) {
+                fs.shadow_color = Some(color);
+            }
+        }
+        "shadow_offset" => {
+            if let Some(offset) = parse_vec2(value) {
+                fs.shadow_offset = offset;
+            }
+        }
+        "outline" => fs.outline = parse_outline(value),
+        _ => {}
+    }
+}
+
+fn apply_text_insets_attr(frame: &mut Frame, value: &str) {
+    let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data else {
+        return;
+    };
+    let Some(insets) = parse_text_insets(value) else {
+        return;
+    };
+    eb.text_insets = insets;
+}
+
+fn apply_password_attr(frame: &mut Frame, value: &str) {
+    if let Some(WidgetData::EditBox(eb)) = &mut frame.widget_data {
+        set_bool(&mut eb.password, value);
+    }
+}
+
+fn parse_text_insets(value: &str) -> Option<[f32; 4]> {
+    let parts: Vec<f32> = value
+        .split(',')
+        .filter_map(|part| part.trim().parse().ok())
+        .collect();
+    if parts.len() != 4 {
+        return None;
+    }
+    Some([parts[0], parts[1], parts[2], parts[3]])
+}
+
+fn check_path(
+    validated: &mut HashSet<String>,
+    missing: &mut HashSet<String>,
+    label: &str,
+    path: &str,
+) {
+    if validated.contains(path) || missing.contains(path) {
+        return;
+    }
+    if Path::new(path).exists() {
+        validated.insert(path.to_string());
+    } else {
+        eprintln!("[UI] {label} not found: {path}");
+        missing.insert(path.to_string());
+    }
+}
+
+fn apply_font_size(frame: &mut Frame, v: f32) {
+    if v <= 0.0 || v > 72.0 {
+        eprintln!("[UI] font_size out of range (0..72]: {v}");
+    }
+    match &mut frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.font_size = v,
+        Some(WidgetData::EditBox(eb)) => eb.font_size = v,
+        Some(WidgetData::Button(bd)) => bd.font_size = v,
+        _ => {}
+    }
+}
+
+fn apply_widget_texture_attrs(
+    frame: &mut Frame,
+    name: &str,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    match name {
+        "texture_file" => apply_texture_file(frame, value, validated_paths, missing_paths),
+        "texture_fdid" => apply_texture_fdid(frame, value, validated_paths, missing_paths),
+        "texture_atlas" => apply_texture_atlas(frame, value),
+        "tex_coords" => apply_texture_coordinates(frame, value),
+        "vertex_color" => {
+            if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
+                if let Some(color) = parse_color(value) {
+                    td.vertex_color = color;
+                }
+            }
+        }
+        "button_atlas_up" => {
+            apply_button_texture(frame, value, |bd, src| bd.normal_texture = Some(src))
+        }
+        "button_atlas_pressed" => {
+            apply_button_texture(frame, value, |bd, src| bd.pushed_texture = Some(src))
+        }
+        "button_atlas_highlight" => {
+            apply_button_texture(frame, value, |bd, src| bd.highlight_texture = Some(src))
+        }
+        "button_atlas_disabled" => {
+            apply_button_texture(frame, value, |bd, src| bd.disabled_texture = Some(src))
+        }
+        _ => {}
+    }
+}
+
+fn apply_texture_coordinates(frame: &mut Frame, value: &str) {
+    let coordinates = parse_color(value).filter(|coordinates| {
+        coordinates
+            .iter()
+            .all(|value| value.is_finite() && (0.0..=1.0).contains(value))
+    });
+    let Some(coordinates) = coordinates else {
+        eprintln!("[UI] invalid normalized tex_coords (left,right,top,bottom): {value}");
+        return;
+    };
+    if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
+        texture.tex_coords = coordinates;
+    }
+}
+
+fn apply_texture_file(
+    frame: &mut Frame,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    check_path(validated_paths, missing_paths, "texture_file", value);
+    let source = TextureSource::File(value.to_string());
+    apply_texture_source(frame, source);
+}
+
+fn apply_texture_fdid(
+    frame: &mut Frame,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    let Ok(v) = value.parse::<f32>() else { return };
+    let fdid = v as u32;
+    let path = format!("data/textures/{fdid}.blp");
+    check_path(validated_paths, missing_paths, "texture_fdid", &path);
+    apply_texture_source(frame, TextureSource::FileDataId(fdid));
+}
+
+fn apply_texture_atlas(frame: &mut Frame, value: &str) {
+    if atlas::get_region(value).is_none() {
+        eprintln!("[UI] texture_atlas not found: {value}");
+    }
+    apply_texture_source(frame, TextureSource::Atlas(value.to_string()));
+}
+
+fn apply_texture_source(frame: &mut Frame, source: TextureSource) {
+    match &mut frame.widget_data {
+        Some(WidgetData::Texture(td)) => td.source = source,
+        Some(WidgetData::Slider(slider)) => slider.thumb_texture = Some(source),
+        Some(WidgetData::StatusBar(sb)) => sb.texture = Some(source),
+        _ => {}
+    }
+}
+
+fn apply_slider_attrs(
+    frame: &mut Frame,
+    name: &str,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    match name {
+        "value" => apply_slider_numeric_attr(
+            frame,
+            value,
+            |slider, v| slider.value = v,
+            |sb, v| sb.value = v,
+        ),
+        "min" => {
+            apply_slider_numeric_attr(frame, value, |slider, v| slider.min = v, |sb, v| sb.min = v)
+        }
+        "max" => {
+            apply_slider_numeric_attr(frame, value, |slider, v| slider.max = v, |sb, v| sb.max = v)
+        }
+        "orientation" => apply_orientation_attr(frame, value),
+        "thumb_texture" => apply_thumb_texture(frame, value, validated_paths, missing_paths),
+        "statusbar_color" => apply_statusbar_color(frame, value),
+        "fill_style" => apply_fill_style(frame, value),
+        "reverse_fill" => apply_reverse_fill(frame, value),
+        _ => {}
+    }
+}
+
+fn apply_slider_numeric_attr(
+    frame: &mut Frame,
+    value: &str,
+    slider_apply: impl FnOnce(&mut crate::widgets::slider::SliderData, f64),
+    statusbar_apply: impl FnOnce(&mut crate::widgets::slider::StatusBarData, f64),
+) {
+    let Ok(v) = value.parse::<f64>() else { return };
+    match &mut frame.widget_data {
+        Some(WidgetData::Slider(slider)) => slider_apply(slider, v),
+        Some(WidgetData::StatusBar(sb)) => statusbar_apply(sb, v),
+        _ => {}
+    }
+}
+
+fn apply_orientation_attr(frame: &mut Frame, value: &str) {
+    let orientation = match value {
+        "vertical" | "VERTICAL" | "Vertical" => Some(Orientation::Vertical),
+        "horizontal" | "HORIZONTAL" | "Horizontal" => Some(Orientation::Horizontal),
+        _ => None,
+    };
+    let Some(orientation) = orientation else {
+        return;
+    };
+    match &mut frame.widget_data {
+        Some(WidgetData::Slider(slider)) => slider.orientation = orientation,
+        Some(WidgetData::StatusBar(sb)) => sb.orientation = orientation,
+        _ => {}
+    }
+}
+
+fn apply_thumb_texture(
+    frame: &mut Frame,
+    value: &str,
+    validated_paths: &mut HashSet<String>,
+    missing_paths: &mut HashSet<String>,
+) {
+    if value.is_empty() || value.eq_ignore_ascii_case("none") {
+        if let Some(WidgetData::Slider(slider)) = &mut frame.widget_data {
+            slider.thumb_texture = None;
+        }
+        return;
+    }
+    check_path(validated_paths, missing_paths, "thumb_texture", value);
+    if let Some(WidgetData::Slider(slider)) = &mut frame.widget_data {
+        slider.thumb_texture = Some(TextureSource::File(value.to_string()));
+    }
+}
+
+fn apply_statusbar_color(frame: &mut Frame, value: &str) {
+    if let Some(color) = parse_color(value)
+        && let Some(WidgetData::StatusBar(sb)) = &mut frame.widget_data
+    {
+        sb.color = color;
+    }
+}
+
+fn apply_fill_style(frame: &mut Frame, value: &str) {
+    if let Some(WidgetData::StatusBar(sb)) = &mut frame.widget_data {
+        sb.fill_style = match value {
+            "center" | "CENTER" | "Center" => FillStyle::Center,
+            _ => FillStyle::Standard,
+        };
+    }
+}
+
+fn apply_reverse_fill(frame: &mut Frame, value: &str) {
+    if let Some(WidgetData::StatusBar(sb)) = &mut frame.widget_data {
+        set_bool(&mut sb.reverse_fill, value);
+    }
+}
+
+fn apply_text_attr(frame: &mut Frame, value: &str) {
+    match &mut frame.widget_data {
+        Some(WidgetData::FontString(fs)) => fs.text = value.to_string(),
+        Some(WidgetData::EditBox(eb)) => eb.text = value.to_string(),
+        Some(WidgetData::Button(bd)) => bd.text = value.to_string(),
+        _ => {}
+    }
+}
+
+fn apply_button_texture(
+    frame: &mut Frame,
+    value: &str,
+    apply: impl FnOnce(&mut ButtonData, TextureSource),
+) {
+    if let Some(WidgetData::Button(bd)) = &mut frame.widget_data {
+        if atlas::get_region(value).is_none() {
+            eprintln!("[UI] button atlas not found: {value}");
+        }
+        apply(bd, TextureSource::Atlas(value.to_string()));
+    }
+}

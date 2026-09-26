@@ -1,7 +1,7 @@
 use super::*;
 use crate::frame::{Dimension, WidgetData};
+use crate::layout_values::Val;
 use crate::widget_def::{Attr, WidgetDef};
-use bevy::prelude::Val;
 
 struct TextState {
     text: String,

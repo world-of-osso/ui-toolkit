@@ -1,0 +1,15 @@
+[package]
+name = "ui-toolkit-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+
+[dependencies]
+ui-toolkit-macros = { git = "ssh://git@github.com/world-of-osso/ui-toolkit-macros.git", rev = "1979e54" }
+bevy_asset = "0.19"
+bevy_image = "0.19"
+bevy_math = "0.19"
+log = "0.4"
+
+[patch."ssh://git@github.com/world-of-osso/ui-toolkit-macros.git"]
+ui-toolkit-macros = { path = "../../ui-toolkit-macros" }
