@@ -7,6 +7,8 @@ rust-version = "1.95"
 [dependencies]
 ui-toolkit-macros = { git = "ssh://git@github.com/world-of-osso/ui-toolkit-macros.git", rev = "1979e54" }
 log = "0.4"
+# Exact authored closed-label sizing reuses the parent text_measure source.
+parley = { version = "0.9", default-features = false, features = ["std"] }
 
 [patch."ssh://git@github.com/world-of-osso/ui-toolkit-macros.git"]
 ui-toolkit-macros = { path = "../../ui-toolkit-macros" }
