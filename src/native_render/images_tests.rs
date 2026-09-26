@@ -604,3 +604,50 @@ fn hidden_frames_and_failed_textures_do_not_emit_white_replacements() {
     frame.visible = false;
     assert!(project_with_loader(&frame, &mut load).is_empty());
 }
+
+/// WoW `SetTexCoord(0, 1, 1, 0.25)` (`PanelTopTabButtonMixin:OnLoad`) draws the lower 75 %
+/// upside down: reversed coordinates crop the same area and flip the image on that axis.
+#[test]
+fn reversed_tex_coords_crop_the_same_area_and_flip() {
+    let mut frame = frame();
+    frame.widget_data = Some(WidgetData::Texture(TextureData {
+        source: TextureSource::File("atlas.png".into()),
+        tex_coords: [0.25, 0.75, 0.8, 0.2],
+        ..default()
+    }));
+    let parts = project_with_loader(&frame, &mut load);
+    let image = &part(&parts, 0).image;
+    assert_eq!(image.rect, Some(Rect::new(35.0, 30.0, 85.0, 60.0)));
+    assert!(image.flip_y);
+    assert!(!image.flip_x);
+
+    frame.widget_data = Some(WidgetData::Texture(TextureData {
+        source: TextureSource::File("atlas.png".into()),
+        tex_coords: [0.75, 0.25, 0.2, 0.8],
+        ..default()
+    }));
+    let parts = project_with_loader(&frame, &mut load);
+    let image = &part(&parts, 0).image;
+    assert_eq!(image.rect, Some(Rect::new(35.0, 30.0, 85.0, 60.0)));
+    assert!(image.flip_x);
+    assert!(!image.flip_y);
+}
+
+#[test]
+fn tex_coords_attribute_accepts_reversed_axes() {
+    let mut reg = crate::registry::FrameRegistry::new(100.0, 100.0);
+    let id = reg.create_frame("ReversedTexture", None);
+    reg.get_mut(id).expect("frame").widget_data = Some(WidgetData::Texture(TextureData::default()));
+    crate::attrs::apply_attribute(
+        &mut reg,
+        id,
+        "tex_coords",
+        "0,1,1,0.25",
+        &mut Default::default(),
+        &mut Default::default(),
+    );
+    match reg.get(id).and_then(|f| f.widget_data.as_ref()) {
+        Some(WidgetData::Texture(texture)) => assert_eq!(texture.tex_coords, [0.0, 1.0, 1.0, 0.25]),
+        _ => panic!("texture widget data missing"),
+    }
+}

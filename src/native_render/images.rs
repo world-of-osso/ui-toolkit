@@ -172,7 +172,12 @@ fn base_image(
                 loaded.rect = Some(normalized_crop(source, texture.tex_coords));
             }
             // Additive blending and partial desaturation are not implemented by the old renderer.
-            Some(textured(loaded, texture_tint(frame)))
+            let mut image = textured(loaded, texture_tint(frame));
+            // WoW SetTexCoord with left > right or top > bottom mirrors that axis.
+            let [left, right, top, bottom] = texture.tex_coords;
+            image.flip_x = left > right;
+            image.flip_y = top > bottom;
+            Some(image)
         }
         _ => Some(solid(frame_color(frame))),
     }

@@ -731,8 +731,6 @@ fn apply_texture_coordinates(frame: &mut Frame, value: &str) {
         coordinates
             .iter()
             .all(|value| value.is_finite() && (0.0..=1.0).contains(value))
-            && coordinates[0] <= coordinates[1]
-            && coordinates[2] <= coordinates[3]
     });
     let Some(coordinates) = coordinates else {
         eprintln!("[UI] invalid normalized tex_coords (left,right,top,bottom): {value}");
