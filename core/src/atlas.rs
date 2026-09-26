@@ -1,7 +1,11 @@
-use bevy_image::Image;
-use bevy_math::{Rect, Vec2};
-
 mod retail;
+
+/// Pixel-space atlas bounds, ordered as `[x, y]` corners.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PixelRect {
+    pub min: [f32; 2],
+    pub max: [f32; 2],
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AtlasSource {
@@ -24,12 +28,12 @@ pub struct AtlasRegion {
 }
 
 impl AtlasRegion {
-    pub fn rect_pixels(&self, image: &Image) -> Rect {
-        let width = image.width() as f32;
-        let height = image.height() as f32;
-        Rect {
-            min: Vec2::new(self.left * width, self.top * height),
-            max: Vec2::new(self.right * width, self.bottom * height),
+    pub fn rect_pixels(&self, width: u32, height: u32) -> PixelRect {
+        let width = width as f32;
+        let height = height as f32;
+        PixelRect {
+            min: [self.left * width, self.top * height],
+            max: [self.right * width, self.bottom * height],
         }
     }
 }

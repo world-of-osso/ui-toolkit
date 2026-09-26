@@ -69,7 +69,7 @@ fn label_text(registry: &FrameRegistry, index: usize) -> String {
     }
 }
 
-fn frame_top(registry: &FrameRegistry, name: &str) -> bevy::prelude::Val {
+fn frame_top(registry: &FrameRegistry, name: &str) -> crate::layout_values::Val {
     registry
         .get(registry.get_by_name(name).unwrap())
         .unwrap()
@@ -85,7 +85,7 @@ fn only_viewport_rows_exist_as_frames() {
     assert!(registry.get_by_name("QuestLabel5").is_none());
     assert_eq!(
         frame_top(&registry, "QuestsRow3"),
-        bevy::prelude::Val::Px(60.0)
+        crate::layout_values::Val::Px(60.0)
     );
     let thumb = registry
         .get(registry.get_by_name("QuestsScrollThumb").unwrap())
@@ -104,10 +104,10 @@ fn scrolling_rebuilds_rows_at_new_offset() {
     assert_eq!(label_text(&registry, 7), "Quest 7");
     assert_eq!(
         frame_top(&registry, "QuestsRow3"),
-        bevy::prelude::Val::Px(0.0)
+        crate::layout_values::Val::Px(0.0)
     );
     // 84px of thumb travel over 95 scrollable rows.
-    let bevy::prelude::Val::Px(top) = frame_top(&registry, "QuestsScrollThumb") else {
+    let crate::layout_values::Val::Px(top) = frame_top(&registry, "QuestsScrollThumb") else {
         panic!("thumb top is not pixels");
     };
     assert!((top - 84.0 * 3.0 / 95.0).abs() < 0.001);

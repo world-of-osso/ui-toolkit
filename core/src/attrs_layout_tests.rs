@@ -181,9 +181,9 @@ fn defaults_target_parent_without_positioning() {
     let frame = registry.get(id).unwrap();
     assert_eq!(frame.anchor, AnchorTarget::Parent);
     assert_eq!(frame.position_type, PositionType::Relative);
-    assert_eq!(frame.position, bevy::prelude::UiRect::AUTO);
-    assert_eq!(frame.translation, bevy::prelude::Val2::ZERO);
-    assert_eq!(frame.margin, bevy::prelude::UiRect::ZERO);
+    assert_eq!(frame.position, crate::layout_values::UiRect::AUTO);
+    assert_eq!(frame.translation, crate::layout_values::Val2::ZERO);
+    assert_eq!(frame.margin, crate::layout_values::UiRect::ZERO);
 }
 
 #[test]
@@ -194,7 +194,7 @@ fn stretch_uses_native_full_insets() {
     apply(&mut registry, id, "height", "20");
     apply(&mut registry, id, "stretch", "true");
     let frame = registry.get(id).unwrap();
-    assert_eq!(frame.position, bevy::prelude::UiRect::ZERO);
+    assert_eq!(frame.position, crate::layout_values::UiRect::ZERO);
     assert_eq!(frame.position_type, PositionType::Absolute);
     assert!(matches!(frame.width, Dimension::Auto));
     assert!(matches!(frame.height, Dimension::Auto));

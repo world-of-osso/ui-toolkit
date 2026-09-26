@@ -6,12 +6,15 @@ use crate::anchor::AnchorTarget;
 use crate::frame::{Frame, NineSlice, ThreeSlice, WidgetData, WidgetType};
 use crate::layout::LayoutRect;
 use crate::widgets::scroll_list::{ScrollGeometry, ScrollLists};
+use crate::widgets::texture::{DynamicTexture, DynamicTextureId, TextureSource};
 
 /// Central registry owning all UI frames, keyed by ID.
 pub struct FrameRegistry {
     frames: HashMap<u64, Frame>,
     names: HashMap<String, u64>,
     next_id: u64,
+    next_dynamic_texture_id: u64,
+    dynamic_textures: HashMap<DynamicTextureId, DynamicTexture>,
     /// Screen size in UI units: window logical size divided by [`Self::ui_scale`].
     pub screen_width: f32,
     pub screen_height: f32,
@@ -42,6 +45,8 @@ impl FrameRegistry {
             frames: HashMap::new(),
             names: HashMap::new(),
             next_id: 1,
+            next_dynamic_texture_id: 1,
+            dynamic_textures: HashMap::new(),
             screen_width,
             screen_height,
             ui_scale: 1.0,
@@ -55,6 +60,64 @@ impl FrameRegistry {
             scroll_lists: ScrollLists::default(),
             loading_texts: HashMap::new(),
         }
+    }
+
+    /// Create a runtime image whose ID remains stable through pixel updates.
+    pub fn create_dynamic_texture(
+        &mut self,
+        width: u32,
+        height: u32,
+        rgba8: Vec<u8>,
+    ) -> Result<DynamicTextureId, &'static str> {
+        let texture = DynamicTexture::new(width, height, rgba8)?;
+        let id = DynamicTextureId(self.next_dynamic_texture_id);
+        self.next_dynamic_texture_id = self
+            .next_dynamic_texture_id
+            .checked_add(1)
+            .ok_or("dynamic texture IDs exhausted")?;
+        self.dynamic_textures.insert(id, texture);
+        Ok(id)
+    }
+
+    pub fn dynamic_texture(&self, id: DynamicTextureId) -> Option<&DynamicTexture> {
+        self.dynamic_textures.get(&id)
+    }
+
+    /// Replace pixel data without changing the texture source stored on a frame.
+    pub fn update_dynamic_texture(
+        &mut self,
+        id: DynamicTextureId,
+        width: u32,
+        height: u32,
+        rgba8: Vec<u8>,
+    ) -> Result<(), &'static str> {
+        let replacement = DynamicTexture::new(width, height, rgba8)?;
+        let texture = self
+            .dynamic_textures
+            .get_mut(&id)
+            .ok_or("unknown dynamic texture ID")?;
+        if *texture != replacement {
+            *texture = replacement;
+            self.resolve_pending_writes();
+            self.mark_dynamic_texture_frames_dirty(id);
+        }
+        Ok(())
+    }
+
+    fn mark_dynamic_texture_frames_dirty(&mut self, id: DynamicTextureId) {
+        self.render_dirty.extend(
+            self.frames
+                .iter()
+                .filter(|(_, frame)| frame_uses_dynamic_texture(frame, id))
+                .map(|(&frame_id, _)| frame_id),
+        );
+    }
+
+    pub fn remove_dynamic_texture(&mut self, id: DynamicTextureId) -> Option<DynamicTexture> {
+        let removed = self.dynamic_textures.remove(&id)?;
+        self.resolve_pending_writes();
+        self.mark_dynamic_texture_frames_dirty(id);
+        Some(removed)
     }
 
     pub fn screen_rect(&self) -> LayoutRect {
@@ -564,10 +627,99 @@ impl FrameRegistry {
     }
 }
 
+fn frame_uses_dynamic_texture(frame: &Frame, id: DynamicTextureId) -> bool {
+    let uses = |source: &TextureSource| *source == TextureSource::Dynamic(id);
+    let optional = |source: &Option<TextureSource>| source.as_ref().is_some_and(uses);
+    let widget_uses = match &frame.widget_data {
+        Some(WidgetData::Texture(texture)) => uses(&texture.source),
+        Some(WidgetData::Button(button)) => {
+            optional(&button.normal_texture)
+                || optional(&button.pushed_texture)
+                || optional(&button.highlight_texture)
+                || optional(&button.disabled_texture)
+        }
+        Some(WidgetData::Slider(slider)) => optional(&slider.thumb_texture),
+        Some(WidgetData::StatusBar(bar)) => optional(&bar.texture),
+        _ => false,
+    };
+    widget_uses
+        || frame.nine_slice.as_ref().is_some_and(|slice| {
+            optional(&slice.texture)
+                || slice
+                    .part_textures
+                    .as_ref()
+                    .is_some_and(|parts| parts.iter().any(uses))
+        })
+        || frame
+            .three_slice
+            .as_ref()
+            .is_some_and(|slice| uses(&slice.left) || uses(&slice.center) || uses(&slice.right))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::strata::FrameStrata;
+    use crate::widgets::texture::{TextureData, TextureSource};
+
+    #[test]
+    fn dynamic_texture_update_preserves_identity_and_invalidates_referencing_frame() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        let first = reg
+            .create_dynamic_texture(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255])
+            .unwrap();
+        let second = reg
+            .create_dynamic_texture(1, 1, vec![0, 255, 0, 255])
+            .unwrap();
+        assert_ne!(first, second);
+        let frame = reg.create_frame("icon", None);
+        reg.get_mut(frame).unwrap().widget_data = Some(WidgetData::Texture(TextureData {
+            source: TextureSource::Dynamic(first),
+            ..Default::default()
+        }));
+        let unrelated = reg.create_frame("unrelated", None);
+        reg.resolve_pending_writes();
+        reg.render_dirty.clear();
+
+        reg.update_dynamic_texture(first, 1, 1, vec![24, 32, 48, 255])
+            .unwrap();
+        assert_eq!(reg.dynamic_texture(first).unwrap().rgba8, [24, 32, 48, 255]);
+        assert_eq!(
+            (
+                reg.dynamic_texture(first).unwrap().width,
+                reg.dynamic_texture(first).unwrap().height
+            ),
+            (1, 1)
+        );
+        assert_eq!(reg.dynamic_texture(second).unwrap().rgba8, [0, 255, 0, 255]);
+        assert_eq!(
+            reg.get(frame)
+                .unwrap()
+                .widget_data
+                .as_ref()
+                .and_then(|data| match data {
+                    WidgetData::Texture(texture) => Some(&texture.source),
+                    _ => None,
+                }),
+            Some(&TextureSource::Dynamic(first))
+        );
+        assert_eq!(reg.render_dirty, HashSet::from([frame]));
+        assert!(!reg.render_dirty.contains(&unrelated));
+    }
+
+    #[test]
+    fn invalid_dynamic_texture_data_does_not_replace_existing_image() {
+        let mut reg = FrameRegistry::new(800.0, 600.0);
+        assert!(reg.create_dynamic_texture(2, 1, vec![0; 4]).is_err());
+        let id = reg.create_dynamic_texture(1, 1, vec![1, 2, 3, 4]).unwrap();
+        assert!(reg.update_dynamic_texture(id, 2, 1, vec![0; 4]).is_err());
+        assert_eq!(reg.dynamic_texture(id).unwrap().rgba8, [1, 2, 3, 4]);
+        assert!(reg.update_dynamic_texture(id, 0, 1, vec![]).is_err());
+        assert!(
+            reg.update_dynamic_texture(super::DynamicTextureId(999), 1, 1, vec![0; 4])
+                .is_err()
+        );
+    }
 
     #[test]
     fn set_pos_replaces_edges_and_preserves_position_mode() {

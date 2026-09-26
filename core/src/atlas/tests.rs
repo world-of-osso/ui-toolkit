@@ -1,6 +1,16 @@
 use super::*;
 
 #[test]
+fn atlas_pixel_rectangle_uses_actual_image_dimensions() {
+    let region = get_region("128-redbutton-up").unwrap();
+    let rect = region.rect_pixels(512, 256);
+    assert!((rect.min[0] - 1.0).abs() < 0.001);
+    assert!((rect.min[1] - 130.5).abs() < 0.001);
+    assert!((rect.max[0] - 471.0).abs() < 0.001);
+    assert!((rect.max[1] - 194.5).abs() < 0.001);
+}
+
+#[test]
 fn red_button_up_region_exists() {
     let region = get_region("128-redbutton-up").expect("atlas region");
     assert_eq!(
