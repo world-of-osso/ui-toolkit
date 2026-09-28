@@ -4,6 +4,8 @@ pub mod font_string;
 pub mod scroll_list;
 pub mod slider;
 pub mod texture;
+#[path = "../../../src/widgets/toggle.rs"]
+pub mod toggle;
 use crate::widget_def::{Attr, Element, WidgetChild};
 pub(crate) struct DynName(pub String);
 pub(crate) fn with_attr(mut element: Element, name: &'static str, value: String) -> Element {

@@ -12,6 +12,8 @@ RSX `button_highlight_size: "width,height"` gives the hover overlay an explicit 
 
 ## Shared widgets
 
+`ui-toolkit-core` reuses `widgets::toggle::toggle_widget(ToggleWidget { .. })` from the original toolkit. Only the inactive segment emits its action; updating the selected side rebuilds the labels and active segment. Native rendering remains host-owned.
+
 - `widgets::scroll_list::scroll_list(ctx, ScrollList { .. }, row)` builds only viewport rows (`{name}Row{index}`), snapped to whole rows. Positions live in `FrameRegistry::scroll_lists` keyed by list name, so they survive rebuilds and screen recreation; a `Screen` that built a list rebuilds when its position changes. `UiPlugin` handles wheel over the hovered list, dragging `{name}ScrollThumb`, and PgUp/PgDn/Home/End while the list holds `UiState::focused_frame` (set by clicking the list).
 - `widgets::tabs::tab_strip(TabStrip { .. })` emits `{name}Tab{index}` buttons whose onclick is the tab action. Disabled tabs get an empty onclick and the disabled button state.
 - `widgets::state_panel::state_panel(name, PanelState::..)` fills its parent with Loading (animated dots), Empty, Error (optional `{name}Retry` onclick) or Unavailable (default "Not available yet").
