@@ -49,7 +49,7 @@ fn load_or_get_font(
         let faces = context.collection.register_fonts(
             Blob::from(bytes),
             Some(FontInfoOverride {
-                family_name: Some(font.path()),
+                family_name: Some(font.file_name()),
                 ..Default::default()
             }),
         );
@@ -69,7 +69,9 @@ fn compute_size(
     font_size: f32,
 ) -> (f32, f32) {
     let mut builder = layout_context.ranged_builder(font_context, text, 1.0, true);
-    builder.push_default(StyleProperty::FontFamily(FontFamily::named(font.path())));
+    builder.push_default(StyleProperty::FontFamily(FontFamily::named(
+        font.file_name(),
+    )));
     builder.push_default(StyleProperty::FontSize(font_size));
     let mut layout = Layout::new();
     builder.build_into(&mut layout, text);
@@ -80,6 +82,31 @@ fn compute_size(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::widgets::font_string::set_font_directory;
+    use std::path::PathBuf;
+
+    /// ui-toolkit ships no fonts; its own tests read the wow-ui-sim copies.
+    const TEST_FONTS: &str = "/home/osso/Projects/wow/wow-ui-sim/fonts";
+
+    fn measure_text(text: &str, font: GameFont, font_size: f32) -> Option<(f32, f32)> {
+        set_font_directory(PathBuf::from(TEST_FONTS)).unwrap();
+        super::measure_text(text, font, font_size)
+    }
+
+    #[test]
+    fn font_paths_resolve_in_the_configured_directory_only() {
+        set_font_directory(PathBuf::from(TEST_FONTS)).unwrap();
+        assert_eq!(
+            GameFont::FrizQuadrata.path(),
+            PathBuf::from(TEST_FONTS).join("FRIZQT__.TTF")
+        );
+        assert_eq!(
+            GameFont::ArialNarrow.path(),
+            PathBuf::from(TEST_FONTS).join("ARIALN.ttf")
+        );
+        let error = set_font_directory(PathBuf::from("/elsewhere/fonts")).unwrap_err();
+        assert!(error.contains("/elsewhere/fonts"), "{error}");
+    }
 
     #[test]
     fn empty_text_returns_zero() {

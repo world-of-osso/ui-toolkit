@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+use std::sync::OnceLock;
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum GameFont {
     #[default]
@@ -5,12 +8,37 @@ pub enum GameFont {
     ArialNarrow,
 }
 
+static FONT_DIRECTORY: OnceLock<PathBuf> = OnceLock::new();
+
+/// Set the directory holding the game font files (the client's `data/fonts`), once,
+/// before the first text measurement; a second call must name the same directory.
+pub fn set_font_directory(directory: PathBuf) -> Result<(), String> {
+    let current = FONT_DIRECTORY.get_or_init(|| directory.clone());
+    if *current == directory {
+        Ok(())
+    } else {
+        Err(format!(
+            "Font directory is {}, not {}",
+            current.display(),
+            directory.display()
+        ))
+    }
+}
+
 impl GameFont {
-    pub fn path(self) -> &'static str {
+    pub fn file_name(self) -> &'static str {
         match self {
-            Self::FrizQuadrata => "/home/osso/Projects/wow/wow-ui-sim/fonts/FRIZQT__.TTF",
-            Self::ArialNarrow => "/home/osso/Projects/wow/wow-ui-sim/fonts/ARIALN.ttf",
+            Self::FrizQuadrata => "FRIZQT__.TTF",
+            Self::ArialNarrow => "ARIALN.ttf",
         }
+    }
+
+    /// The font file in the host-set font directory.
+    pub fn path(self) -> PathBuf {
+        FONT_DIRECTORY
+            .get()
+            .unwrap_or_else(|| panic!("{self} font read before the host set the font directory"))
+            .join(self.file_name())
     }
 
     pub fn from_attr(s: &str) -> Self {
