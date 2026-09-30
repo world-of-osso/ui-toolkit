@@ -5,6 +5,25 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
 }
 
 #[test]
+fn texture_rotation_round_trips_negative_and_positive_degrees() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("Spinner", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Texture(Default::default()));
+    for degrees in [-65.0, 180.0, -360.0, 0.0] {
+        apply(&mut registry, id, "rotation", &degrees.to_string());
+        let Some(WidgetData::Texture(texture)) = registry.get(id).unwrap().widget_data.as_ref()
+        else {
+            panic!("missing spinner texture");
+        };
+        assert_eq!(texture.rotation, degrees);
+        assert_eq!(
+            read_attribute(&registry, id, "rotation"),
+            Some(degrees.to_string())
+        );
+    }
+}
+
+#[test]
 fn hit_rect_insets_reject_malformed_values() {
     for value in ["1,2,3", "1,2,nope,4", "NaN,0,0,0", "0,0,inf,0"] {
         let mut registry = FrameRegistry::new(800.0, 600.0);
