@@ -24,6 +24,24 @@ fn texture_rotation_round_trips_negative_and_positive_degrees() {
 }
 
 #[test]
+fn texture_rotation_rejects_malformed_values_without_mutating_the_texture() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("Spinner", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Texture(Default::default()));
+    apply(&mut registry, id, "rotation", "22.5");
+    for value in ["nope", "NaN", "inf", "-inf"] {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            apply(&mut registry, id, "rotation", value);
+        }));
+        assert!(result.is_err(), "accepted invalid rotation {value}");
+        assert_eq!(
+            read_attribute(&registry, id, "rotation").as_deref(),
+            Some("22.5")
+        );
+    }
+}
+
+#[test]
 fn hit_rect_insets_reject_malformed_values() {
     for value in ["1,2,3", "1,2,nope,4", "NaN,0,0,0", "0,0,inf,0"] {
         let mut registry = FrameRegistry::new(800.0, 600.0);
