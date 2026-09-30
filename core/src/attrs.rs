@@ -186,6 +186,10 @@ fn read_edit_box_text_attr(frame: &Frame, name: &str) -> Option<String> {
 
 fn read_widget_texture_attr(frame: &Frame, name: &str) -> Option<String> {
     match name {
+        "rotation" => match &frame.widget_data {
+            Some(WidgetData::Texture(texture)) => Some(texture.rotation.to_string()),
+            _ => None,
+        },
         "tex_coords" => match &frame.widget_data {
             Some(WidgetData::Texture(texture)) => Some(format_color(texture.tex_coords)),
             _ => None,
@@ -660,6 +664,11 @@ fn apply_widget_texture_attrs(frame: &mut Frame, name: &str, value: &str) {
         "texture_fdid" => apply_texture_fdid(frame, value),
         "texture_atlas" => apply_texture_atlas(frame, value),
         "tex_coords" => apply_texture_coordinates(frame, value),
+        "rotation" => {
+            if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
+                set_f32(&mut texture.rotation, value);
+            }
+        }
         "vertex_color" => {
             if let Some(WidgetData::Texture(td)) = &mut frame.widget_data {
                 if let Some(color) = parse_color(value) {
