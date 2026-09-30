@@ -33,12 +33,9 @@ impl GameFont {
         }
     }
 
-    /// The font file in the host-set font directory.
-    pub fn path(self) -> PathBuf {
-        FONT_DIRECTORY
-            .get()
-            .unwrap_or_else(|| panic!("{self} font read before the host set the font directory"))
-            .join(self.file_name())
+    /// The font file in the host-set font directory; None before the host set it.
+    pub fn path(self) -> Option<PathBuf> {
+        Some(FONT_DIRECTORY.get()?.join(self.file_name()))
     }
 
     pub fn from_attr(s: &str) -> Self {

@@ -13,7 +13,8 @@ struct TextMeasureCache {
     sizes: HashMap<(String, GameFont, u32), (f32, f32)>,
 }
 
-/// Measure text dimensions (width, height) for a given font and pixel size.
+/// Measure text dimensions (width, height) for a given font and pixel size; None when the
+/// font is unavailable (no font directory set, or its file is unreadable).
 /// Results are cached permanently — same (text, font, size) triple always returns
 /// the cached value.
 pub fn measure_text(text: &str, font: GameFont, font_size: f32) -> Option<(f32, f32)> {
@@ -44,7 +45,7 @@ fn load_or_get_font(
     font: GameFont,
 ) -> Option<&mut (FontContext, LayoutContext<()>)> {
     if !cache.fonts.contains_key(&font) {
-        let bytes = std::fs::read(font.path()).ok()?;
+        let bytes = std::fs::read(font.path()?).ok()?;
         let mut context = FontContext::new();
         let faces = context.collection.register_fonts(
             Blob::from(bytes),
@@ -98,11 +99,11 @@ mod tests {
         set_font_directory(PathBuf::from(TEST_FONTS)).unwrap();
         assert_eq!(
             GameFont::FrizQuadrata.path(),
-            PathBuf::from(TEST_FONTS).join("FRIZQT__.TTF")
+            Some(PathBuf::from(TEST_FONTS).join("FRIZQT__.TTF"))
         );
         assert_eq!(
             GameFont::ArialNarrow.path(),
-            PathBuf::from(TEST_FONTS).join("ARIALN.ttf")
+            Some(PathBuf::from(TEST_FONTS).join("ARIALN.ttf"))
         );
         let error = set_font_directory(PathBuf::from("/elsewhere/fonts")).unwrap_err();
         assert!(error.contains("/elsewhere/fonts"), "{error}");
