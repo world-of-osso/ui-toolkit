@@ -708,8 +708,12 @@ fn apply_widget_texture_attrs(
         "texture_atlas" => apply_texture_atlas(frame, value),
         "tex_coords" => apply_texture_coordinates(frame, value),
         "rotation" => {
+            let rotation: f32 = value
+                .parse()
+                .unwrap_or_else(|_| panic!("Invalid texture rotation: {value}"));
+            assert!(rotation.is_finite(), "Invalid texture rotation: {value}");
             if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
-                set_f32(&mut texture.rotation, value);
+                texture.rotation = rotation;
             }
         }
         "vertex_color" => {
