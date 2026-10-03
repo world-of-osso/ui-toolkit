@@ -1,6 +1,6 @@
 # Retail character-creation atlas controls
 
-`src/atlas/retail.rs` supplies named artwork for registry-authored character creation. Rendering uses the existing host FileDataID loader; see [atlas source behavior](../../README.md#atlas-sources).
+Character-creation atlas names resolve from the Retail DB2 atlas tables (see [atlas sources](../../README.md#atlas-sources)). Rendering uses the existing host FileDataID loader; see [atlas source behavior](../../README.md#atlas-sources).
 
 ## What it must do
 
@@ -10,7 +10,7 @@
 - [x] Preserve exact physical crop bounds and logical override dimensions from the local `UiTextureAtlasElement` → `UiTextureAtlasMember` → `UiTextureAtlas` join.
 - [x] Resolve character artwork through FDID `1253496`, common icons through `3487944`, gray square buttons through `3534438`, dropdown panel pieces through `3575404`, and current Retail red-button slices through `7367529`.
 - [x] Preserve source pixels through the existing atlas crop path, except transparent RGB sanitization already required by that path.
-- [x] Return `None` for unsupported element IDs; retain existing named atlas sources unchanged.
+- [x] Return the Retail element name for any element ID in the loaded tables, `None` for unknown IDs; project art keeps its sources.
 
 ## How it works
 
@@ -25,14 +25,12 @@
 
 ## Implementation inventory
 
-- `src/atlas.rs`: named lookup and bounded public element-ID lookup.
-- `src/atlas/retail.rs`: six FileDataID sources, pixel rectangles and logical sizes; enabled/disabled dropdown arrows share the element-ID table rather than duplicate file-backed entries.
-- `src/atlas/retail_fixture.tsv`: independent golden crop rectangles from local DB2 CSV metadata.
-- `src/atlas/retail_tests.rs`: decoded-image fixture exercising production crop output and lookup.
+- `core/src/atlas.rs`: named lookup, project art, element-ID lookup.
+- `core/src/atlas/db2.rs`: the DB2 CSV join (element → member → atlas), keyed by name and `UiTextureAtlasSetID`.
 
 ## Tests asserting this spec
 
-- `atlas::retail_tests::retail_character_creation_atlases_crop_authored_pixels_and_keep_logical_sizes`: all 72 registered crops, complete coordinate-encoded RGBA payloads, transparent pixels, logical dimensions and element-ID/public-name mapping.
+- game-engine `godot/ui-model/tests/atlas_skins.rs` `every_old_baked_atlas_name_resolves_the_same_under_modern`: every name of the former baked table (fixture `old_atlas_regions.csv`) resolves from the DB2 tables bit-identically, or within its old 6-decimal rounding; three crops (`charactercreate-customize-dropdown-icon-lock`, `-newtagglow`, `-palette-glow`) pointed at the wrong pixels of FDID 1253496 and now use their 12.1 DB2 member.
 
 ## Known gaps (current cycle)
 
@@ -44,4 +42,3 @@
 ## Out of scope
 
 - Circular icon masking, additive glow blending, category/control authoring and whole-screen layout: this slice supplies exact atlas artwork, not a new rendering capability.
-- Full atlas-catalog import: only the reference controls required by this screen are registered.

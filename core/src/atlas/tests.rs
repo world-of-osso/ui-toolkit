@@ -55,26 +55,74 @@ fn char_select_list_backdrop_has_asymmetric_slice_margins() {
 }
 
 #[test]
-fn wow_action_bar_regions_exist() {
-    let region = get_region("ui-hud-actionbar-iconframe-addrow-down").expect("atlas region");
-    assert_eq!(
-        region.source,
-        AtlasSource::File("/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP")
-    );
-    assert_eq!(region.width, 51.0);
-    assert_eq!(region.height, 51.0);
-}
-
-#[test]
 fn atlas_lookup_is_case_insensitive() {
-    let mixed = get_region("UI-HUD-ActionBar-IconFrame-AddRow-Down").expect("atlas region");
-    let lower = get_region("ui-hud-actionbar-iconframe-addrow-down").expect("atlas region");
-    assert_eq!(mixed.source, lower.source);
-    assert_eq!(mixed.width, lower.width);
-    assert_eq!(mixed.height, lower.height);
+    let mixed = get_region("128-RedButton-Up").expect("atlas region");
+    let lower = get_region("128-redbutton-up").expect("atlas region");
+    assert_eq!(mixed, lower);
 }
 
 #[test]
 fn unknown_region_returns_none() {
     assert!(get_region("this-atlas-does-not-exist").is_none());
+}
+
+/// One element drawn by four members: Retail 1x and 2x (set 0), a newer Retail 1x
+/// duplicate, and a Forever set-1 1x member.
+fn write_tables(dir: &std::path::Path) {
+    std::fs::create_dir_all(dir.join("retail")).unwrap();
+    std::fs::create_dir_all(dir.join("forever")).unwrap();
+    let write = |file: &str, text: &str| std::fs::write(dir.join(file), text).unwrap();
+    write(
+        "retail/UiTextureAtlas.csv",
+        "ID,FileDataID,AtlasWidth,AtlasHeight,UiCanvasID\n10,100,256,128,1\n11,110,512,256,2\n12,120,64,64,1\n",
+    );
+    write(
+        "retail/UiTextureAtlasElement.csv",
+        "Name,ID\n\"Glow Frame \",7\n",
+    );
+    write(
+        "retail/UiTextureAtlasMember.csv",
+        "CommittedName,ID,UiTextureAtlasID,Width,Height,CommittedLeft,CommittedRight,CommittedTop,CommittedBottom,UiTextureAtlasElementID,OverrideWidth,OverrideHeight,CommittedFlags,UiCanvasID\n\
+         a,1,10,32,16,0,32,0,16,7,0,0,0,0\n\
+         a,2,11,64,32,0,64,0,32,7,0,0,0,0\n\
+         a,3,12,32,16,32,64,16,32,7,16,8,0,0\n",
+    );
+    write(
+        "forever/UiTextureAtlas.csv",
+        "ID,FileDataID,UiTextureAtlasSetID,AtlasWidth,AtlasHeight,UiCanvasID\n10,100,0,256,128,1\n20,200,1,128,128,1\n",
+    );
+    write(
+        "forever/UiTextureAtlasElement.csv",
+        "Name,ID\n\"Glow Frame \",7\n",
+    );
+    write(
+        "forever/UiTextureAtlasMember.csv",
+        "CommittedName,ID,UiTextureAtlasID,Width,Height,CommittedLeft,CommittedRight,CommittedTop,CommittedBottom,UiTextureAtlasElementID,OverrideWidth,OverrideHeight,CommittedFlags,UiCanvasID\n\
+         a,1,10,32,16,0,32,0,16,7,0,0,0,0\n\
+         a-c60,4,20,32,16,64,96,0,16,7,0,0,0,0\n",
+    );
+}
+
+#[test]
+fn db2_member_selection_prefers_newest_1x_member_of_the_skin_set() {
+    let dir = std::env::temp_dir().join(format!("atlas-db2-{}", std::process::id()));
+    write_tables(&dir);
+    let table = db2::AtlasTable::load(&dir.join("retail"), &dir.join("forever")).unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+
+    let modern = table.resolve("glow frame ", ActiveSkin::Modern).unwrap();
+    assert_eq!(modern.source, AtlasSource::FileDataId(120));
+    assert_eq!(
+        (modern.left, modern.right, modern.top, modern.bottom),
+        (0.5, 1.0, 0.25, 0.5)
+    );
+    assert_eq!((modern.width, modern.height), (16.0, 8.0));
+
+    let forever = table.resolve("glow frame ", ActiveSkin::Forever).unwrap();
+    assert_eq!(forever.source, AtlasSource::FileDataId(200));
+    assert_eq!(
+        (forever.left, forever.right, forever.top, forever.bottom),
+        (0.5, 0.75, 0.0, 0.125)
+    );
+    assert_eq!(table.name_of(7), Some("glow frame "));
 }

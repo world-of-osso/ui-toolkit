@@ -1,4 +1,10 @@
-mod retail;
+mod db2;
+
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU8, Ordering};
+
+pub use db2::ActiveSkin;
 
 /// Pixel-space atlas bounds, ordered as `[x, y]` corners.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -13,7 +19,7 @@ pub enum AtlasSource {
     FileDataId(u32),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AtlasRegion {
     pub source: AtlasSource,
     pub left: f32,
@@ -38,12 +44,56 @@ impl AtlasRegion {
     }
 }
 
-/// Resolve the supported retail character-creation control/category atlas names.
+/// Retail and Forever DB2 export directories the atlas table was loaded from.
+struct LoadedTable {
+    directories: (PathBuf, PathBuf),
+    table: db2::AtlasTable,
+}
+
+static TABLE: OnceLock<LoadedTable> = OnceLock::new();
+static ACTIVE_SKIN: AtomicU8 = AtomicU8::new(0);
+
+/// Load the atlas tables, once, before the first DB2 atlas lookup: Retail's
+/// `UiTextureAtlas*.csv` export in `retail_dir` and Forever's in `forever_dir`.
+/// A second call must name the same directories. Until then only project art resolves.
+pub fn set_atlas_directories(retail_dir: &Path, forever_dir: &Path) -> Result<(), String> {
+    let directories = (retail_dir.to_path_buf(), forever_dir.to_path_buf());
+    if TABLE.get().is_none() {
+        let table = db2::AtlasTable::load(retail_dir, forever_dir)?;
+        let _ = TABLE.set(LoadedTable {
+            directories: directories.clone(),
+            table,
+        });
+    }
+    let loaded = &TABLE.get().expect("atlas table set above").directories;
+    if *loaded == directories {
+        Ok(())
+    } else {
+        Err(format!(
+            "Atlas tables are {} and {}, not {} and {}",
+            loaded.0.display(),
+            loaded.1.display(),
+            retail_dir.display(),
+            forever_dir.display()
+        ))
+    }
+}
+
+/// Switch the atlas set every later [`get_region`] resolves.
+pub fn set_active_skin(skin: ActiveSkin) {
+    ACTIVE_SKIN.store(skin as u8, Ordering::Relaxed);
+}
+
+pub fn active_skin() -> ActiveSkin {
+    match ACTIVE_SKIN.load(Ordering::Relaxed) {
+        0 => ActiveSkin::Modern,
+        _ => ActiveSkin::Forever,
+    }
+}
+
+/// Lower-cased name of Retail `UiTextureAtlasElement` `element_id`.
 pub fn get_name_by_element_id(element_id: u32) -> Option<&'static str> {
-    retail::REGIONS
-        .iter()
-        .find(|(id, _, _)| *id == element_id)
-        .map(|(_, name, _)| *name)
+    TABLE.get()?.table.name_of(element_id)
 }
 
 pub fn nine_slice_margins(name: &str) -> Option<[f32; 4]> {
@@ -53,6 +103,21 @@ pub fn nine_slice_margins(name: &str) -> Option<[f32; 4]> {
             .and_then(|region| region.nine_slice_edge)
             .map(|edge| [edge, edge, edge, edge]),
     }
+}
+
+/// `name` under the active skin.
+pub fn get_region(name: &str) -> Option<AtlasRegion> {
+    resolve_region(name, active_skin())
+}
+
+/// `name` under `skin`: project art first, then the DB2 atlas members of `skin`'s sets.
+pub fn resolve_region(name: &str, skin: ActiveSkin) -> Option<AtlasRegion> {
+    let key = name.to_ascii_lowercase();
+    PROJECT_REGIONS
+        .iter()
+        .find(|(candidate, _)| *candidate == key)
+        .map(|(_, region)| *region)
+        .or_else(|| TABLE.get()?.table.resolve(&key, skin))
 }
 
 macro_rules! atlas_region {
@@ -75,79 +140,12 @@ macro_rules! atlas_region {
     };
 }
 
-const CHARACTER_SELECT_GLUES: AtlasSource = AtlasSource::FileDataId(5_648_070);
-const CHARACTER_SELECT_GLUES_GRAYSCALE: AtlasSource = AtlasSource::File(
-    "/home/osso/Projects/wow/Interface/GLUES/CharacterSelect/UICharacterSelectGluesGrayscale.BLP",
-);
-const COMMON_DROPDOWN: AtlasSource =
-    AtlasSource::File("/home/osso/Projects/wow/Interface/COMMON/CommonDropdown.BLP");
-const CHARACTER_CREATE: AtlasSource = AtlasSource::FileDataId(1_253_496);
-const ACTION_BAR: AtlasSource =
-    AtlasSource::File("/home/osso/Projects/wow/Interface/HUD/UIActionBar.BLP");
-
-pub fn get_region(name: &str) -> Option<AtlasRegion> {
-    let key = name.to_ascii_lowercase();
-    let key = key.as_str();
-    red_button_region(key)
-        .or_else(|| glue_big_button_region(key))
-        .or_else(|| default_button_nine_slice_region(key))
-        .or_else(|| char_select_region(key))
-        .or_else(|| char_select_grayscale_region(key))
-        .or_else(|| common_dropdown_region(key))
-        .or_else(|| character_create_region(key))
-        .or_else(|| retail_character_create_region(key))
-        .or_else(|| action_bar_region(key))
-}
-
-fn red_button_region(name: &str) -> Option<AtlasRegion> {
-    lookup_region(name, RED_BUTTON_REGIONS)
-}
-
-fn glue_big_button_region(name: &str) -> Option<AtlasRegion> {
-    lookup_region(name, GLUE_BIG_BUTTON_REGIONS)
-}
-
-fn default_button_nine_slice_region(name: &str) -> Option<AtlasRegion> {
-    lookup_region(name, DEFAULT_BUTTON_NINE_SLICE_REGIONS)
-}
-
-fn char_select_region(name: &str) -> Option<AtlasRegion> {
-    lookup_region(name, CHAR_SELECT_REGIONS)
-}
-
-fn char_select_grayscale_region(name: &str) -> Option<AtlasRegion> {
-    lookup_region(name, CHAR_SELECT_GRAYSCALE_REGIONS)
-}
-
-fn common_dropdown_region(name: &str) -> Option<AtlasRegion> {
-    lookup_region(name, COMMON_DROPDOWN_REGIONS)
-}
-
-fn character_create_region(name: &str) -> Option<AtlasRegion> {
-    lookup_region(name, CHARACTER_CREATE_REGIONS)
-}
-
-fn retail_character_create_region(name: &str) -> Option<AtlasRegion> {
-    retail::REGIONS
-        .iter()
-        .find(|(_, candidate, _)| *candidate == name)
-        .map(|(_, _, region)| *region)
-}
-
-fn action_bar_region(name: &str) -> Option<AtlasRegion> {
-    lookup_region(name, ACTION_BAR_REGIONS)
-}
-
-fn lookup_region(name: &str, regions: &[AtlasRegionEntry]) -> Option<AtlasRegion> {
-    regions
-        .iter()
-        .find(|(candidate, _)| *candidate == name)
-        .map(|(_, region)| *region)
-}
-
 type AtlasRegionEntry = (&'static str, AtlasRegion);
 
-const RED_BUTTON_REGIONS: &[AtlasRegionEntry] = &[
+/// Project-owned art: regenerated or recoloured button and nameplate images under
+/// `data/ui/`, drawn in place of the DB2 member of the same name, plus the Retail red
+/// button highlight under a `retail-` name (`128-redbutton-highlight` is the brown one).
+const PROJECT_REGIONS: &[AtlasRegionEntry] = &[
     (
         "128-redbutton-up",
         atlas_region!(
@@ -200,9 +198,6 @@ const RED_BUTTON_REGIONS: &[AtlasRegionEntry] = &[
             Some(16.0)
         ),
     ),
-];
-
-const GLUE_BIG_BUTTON_REGIONS: &[AtlasRegionEntry] = &[
     (
         "glue-bigbutton-brown-up",
         atlas_region!(
@@ -255,9 +250,6 @@ const GLUE_BIG_BUTTON_REGIONS: &[AtlasRegionEntry] = &[
             None
         ),
     ),
-];
-
-const DEFAULT_BUTTON_NINE_SLICE_REGIONS: &[AtlasRegionEntry] = &[
     (
         "defaultbutton-nineslice-up",
         atlas_region!(
@@ -310,100 +302,6 @@ const DEFAULT_BUTTON_NINE_SLICE_REGIONS: &[AtlasRegionEntry] = &[
             Some(24.0)
         ),
     ),
-];
-
-const CHAR_SELECT_REGIONS: &[AtlasRegionEntry] = &[
-    (
-        "glues-characterselect-card-all-bg",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.932617,
-            0.991211,
-            0.246094,
-            0.304688,
-            60.0,
-            60.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-listrealm-bg",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.659180,
-            0.933594,
-            0.219727,
-            0.242188,
-            281.0,
-            23.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-card-empty",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.622070,
-            0.930664,
-            0.246094,
-            0.338867,
-            316.0,
-            95.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-card-empty-hover",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.000977,
-            0.309570,
-            0.340820,
-            0.433594,
-            316.0,
-            95.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-card-singles",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.000977,
-            0.303711,
-            0.435547,
-            0.522461,
-            310.0,
-            89.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-card-singles-hover",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.305664,
-            0.608398,
-            0.435547,
-            0.522461,
-            310.0,
-            89.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-card-selected",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.340820,
-            0.674805,
-            0.000977,
-            0.120117,
-            342.0,
-            122.0,
-            None
-        ),
-    ),
     (
         "custom-nameplate-bg",
         atlas_region!(
@@ -418,289 +316,17 @@ const CHAR_SELECT_REGIONS: &[AtlasRegionEntry] = &[
         ),
     ),
     (
-        "glues-characterselect-namebg",
+        "retail-128-redbutton-highlight",
+        // UiTextureAtlasMember 34021 on UiTextureAtlas 3556 (FDID 7367529, 512x2048).
         atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.187500,
-            0.376953,
-            0.562500,
-            0.622070,
-            194.0,
-            61.0,
+            AtlasSource::FileDataId(7_367_529),
+            1.0 / 512.0,
+            442.0 / 512.0,
+            391.0 / 2048.0,
+            519.0 / 2048.0,
+            441.0,
+            128.0,
             None
-        ),
-    ),
-    (
-        "glues-characterselect-tophud-left-bg",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.378906,
-            0.585938,
-            0.562500,
-            0.612305,
-            212.0,
-            51.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-tophud-middle-bg",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.969727,
-            0.999023,
-            0.125000,
-            0.174805,
-            30.0,
-            51.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-tophud-right-bg",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES,
-            0.187500,
-            0.394531,
-            0.624023,
-            0.673828,
-            212.0,
-            51.0,
-            None
-        ),
-    ),
-];
-
-const CHAR_SELECT_GRAYSCALE_REGIONS: &[AtlasRegionEntry] = &[
-    (
-        "glues-characterselect-gs-tophud-left",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES_GRAYSCALE,
-            0.435547,
-            0.865234,
-            0.089844,
-            0.173828,
-            220.0,
-            43.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-gs-tophud-middle",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES_GRAYSCALE,
-            0.705078,
-            0.935547,
-            0.441406,
-            0.525391,
-            118.0,
-            43.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-gs-tophud-right",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES_GRAYSCALE,
-            0.001953,
-            0.431641,
-            0.353516,
-            0.437500,
-            220.0,
-            43.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-gs-tophud-left-selected",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES_GRAYSCALE,
-            0.435547,
-            0.865234,
-            0.001953,
-            0.085938,
-            220.0,
-            43.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-gs-tophud-middle-selected",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES_GRAYSCALE,
-            0.236328,
-            0.466797,
-            0.441406,
-            0.525391,
-            118.0,
-            43.0,
-            None
-        ),
-    ),
-    (
-        "glues-characterselect-gs-tophud-right-selected",
-        atlas_region!(
-            CHARACTER_SELECT_GLUES_GRAYSCALE,
-            0.001953,
-            0.431641,
-            0.265625,
-            0.349609,
-            220.0,
-            43.0,
-            None
-        ),
-    ),
-];
-
-const COMMON_DROPDOWN_REGIONS: &[AtlasRegionEntry] = &[(
-    "common-dropdown-c-button",
-    atlas_region!(
-        COMMON_DROPDOWN,
-        0.001953,
-        0.078125,
-        0.804688,
-        0.957031,
-        39.0,
-        39.0,
-        None
-    ),
-)];
-
-const CHARACTER_CREATE_REGIONS: &[AtlasRegionEntry] = &[
-    (
-        "charactercreate-customize-backbutton",
-        atlas_region!(
-            CHARACTER_CREATE,
-            0.841309,
-            0.878418,
-            0.204590,
-            0.241699,
-            38.0,
-            38.0,
-            None
-        ),
-    ),
-    (
-        "charactercreate-customize-backbutton-down",
-        atlas_region!(
-            CHARACTER_CREATE,
-            0.918457,
-            0.955566,
-            0.204590,
-            0.241699,
-            38.0,
-            38.0,
-            None
-        ),
-    ),
-    (
-        "charactercreate-customize-backbutton-disabled",
-        atlas_region!(
-            CHARACTER_CREATE,
-            0.879395,
-            0.916504,
-            0.204590,
-            0.241699,
-            38.0,
-            38.0,
-            None
-        ),
-    ),
-    (
-        "charactercreate-customize-nextbutton",
-        atlas_region!(
-            CHARACTER_CREATE,
-            0.956543,
-            0.993652,
-            0.204590,
-            0.241699,
-            38.0,
-            38.0,
-            None
-        ),
-    ),
-    (
-        "charactercreate-customize-nextbutton-down",
-        atlas_region!(
-            CHARACTER_CREATE,
-            0.175293,
-            0.212402,
-            0.918457,
-            0.955566,
-            38.0,
-            38.0,
-            None
-        ),
-    ),
-    (
-        "charactercreate-customize-nextbutton-disabled",
-        atlas_region!(
-            CHARACTER_CREATE,
-            0.137207,
-            0.174316,
-            0.918457,
-            0.955566,
-            38.0,
-            38.0,
-            None
-        ),
-    ),
-    (
-        "charactercreate-customize-palette-selected",
-        atlas_region!(
-            CHARACTER_CREATE,
-            0.888184,
-            0.937988,
-            0.104004,
-            0.123535,
-            51.0,
-            20.0,
-            None
-        ),
-    ),
-];
-
-const ACTION_BAR_REGIONS: &[AtlasRegionEntry] = &[
-    (
-        "ui-hud-actionbar-iconframe",
-        atlas_region!(
-            ACTION_BAR, 0.707031, 0.886719, 0.248047, 0.291992, 46.0, 45.0, None
-        ),
-    ),
-    (
-        "ui-hud-actionbar-iconframe-addrow",
-        atlas_region!(
-            ACTION_BAR, 0.707031, 0.906250, 0.297852, 0.347656, 51.0, 51.0, None
-        ),
-    ),
-    (
-        "ui-hud-actionbar-iconframe-down",
-        atlas_region!(
-            ACTION_BAR, 0.707031, 0.886719, 0.508789, 0.552734, 46.0, 45.0, None
-        ),
-    ),
-    (
-        "ui-hud-actionbar-iconframe-addrow-down",
-        atlas_region!(
-            ACTION_BAR, 0.707031, 0.906250, 0.349609, 0.399414, 51.0, 51.0, None
-        ),
-    ),
-    (
-        "ui-hud-actionbar-iconframe-mouseover",
-        atlas_region!(
-            ACTION_BAR, 0.707031, 0.886719, 0.627930, 0.671875, 46.0, 45.0, None
-        ),
-    ),
-    (
-        "ui-hud-actionbar-iconframe-border",
-        atlas_region!(
-            ACTION_BAR, 0.707031, 0.886719, 0.462891, 0.506836, 46.0, 45.0, None
-        ),
-    ),
-    (
-        "ui-hud-actionbar-iconframe-flash",
-        atlas_region!(
-            ACTION_BAR, 0.707031, 0.886719, 0.554688, 0.598633, 46.0, 45.0, None
         ),
     ),
 ];
