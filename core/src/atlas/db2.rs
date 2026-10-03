@@ -29,6 +29,14 @@ impl ActiveSkin {
     }
 }
 
+/// A `UiCanvasID`: the scale a member's atlas texture is drawn for (1 = 1x, 2 = 2x).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UiCanvas(pub u32);
+
+impl UiCanvas {
+    pub const X1: Self = Self(1);
+}
+
 const FOREVER_SET: u32 = 1;
 
 /// One member that can draw an element: its set, canvas and region.
@@ -41,10 +49,14 @@ struct Member {
 }
 
 impl Member {
-    /// Order members of one set: the 1x canvas (`UiCanvasID` 1) the client's Retail
-    /// art uses, then the lowest canvas; among equals the newest (highest) member id.
-    fn rank(&self) -> (bool, u32, std::cmp::Reverse<u32>) {
-        (self.canvas != 1, self.canvas, std::cmp::Reverse(self.id))
+    /// Order members of one set: those on `canvas`, then the lowest canvas; among
+    /// equals the newest (highest) member id.
+    fn rank(&self, canvas: UiCanvas) -> (bool, u32, std::cmp::Reverse<u32>) {
+        (
+            self.canvas != canvas.0,
+            self.canvas,
+            std::cmp::Reverse(self.id),
+        )
     }
 }
 
@@ -111,13 +123,18 @@ impl AtlasTable {
         Ok(())
     }
 
-    pub(super) fn resolve(&self, name: &str, skin: ActiveSkin) -> Option<AtlasRegion> {
+    pub(super) fn resolve(
+        &self,
+        name: &str,
+        skin: ActiveSkin,
+        canvas: UiCanvas,
+    ) -> Option<AtlasRegion> {
         let members = self.members.get(name)?;
         skin.sets().iter().find_map(|&set| {
             members
                 .iter()
                 .filter(|member| member.set == set)
-                .min_by_key(|member| member.rank())
+                .min_by_key(|member| member.rank(canvas))
                 .map(|member| member.region)
         })
     }

@@ -4,7 +4,11 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-pub use db2::ActiveSkin;
+pub use db2::{ActiveSkin, UiCanvas};
+
+/// The canvas whose atlas members the client draws: 1x, like every Retail crop the
+/// client used before the DB2 tables.
+pub const ATLAS_CANVAS: UiCanvas = UiCanvas::X1;
 
 /// Pixel-space atlas bounds, ordered as `[x, y]` corners.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -110,14 +114,15 @@ pub fn get_region(name: &str) -> Option<AtlasRegion> {
     resolve_region(name, active_skin())
 }
 
-/// `name` under `skin`: project art first, then the DB2 atlas members of `skin`'s sets.
+/// `name` under `skin`: project art (its own names), else the DB2 atlas members of
+/// `skin`'s sets on [`ATLAS_CANVAS`]; a name in neither is `None`.
 pub fn resolve_region(name: &str, skin: ActiveSkin) -> Option<AtlasRegion> {
     let key = name.to_ascii_lowercase();
     PROJECT_REGIONS
         .iter()
         .find(|(candidate, _)| *candidate == key)
         .map(|(_, region)| *region)
-        .or_else(|| TABLE.get()?.table.resolve(&key, skin))
+        .or_else(|| TABLE.get()?.table.resolve(&key, skin, ATLAS_CANVAS))
 }
 
 macro_rules! atlas_region {

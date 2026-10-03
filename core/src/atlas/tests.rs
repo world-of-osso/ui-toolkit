@@ -104,13 +104,15 @@ fn write_tables(dir: &std::path::Path) {
 }
 
 #[test]
-fn db2_member_selection_prefers_newest_1x_member_of_the_skin_set() {
+fn db2_member_selection_prefers_newest_member_on_the_canvas_within_the_skin_set() {
     let dir = std::env::temp_dir().join(format!("atlas-db2-{}", std::process::id()));
     write_tables(&dir);
     let table = db2::AtlasTable::load(&dir.join("retail"), &dir.join("forever")).unwrap();
     std::fs::remove_dir_all(&dir).unwrap();
 
-    let modern = table.resolve("glow frame ", ActiveSkin::Modern).unwrap();
+    let modern = table
+        .resolve("glow frame ", ActiveSkin::Modern, UiCanvas::X1)
+        .unwrap();
     assert_eq!(modern.source, AtlasSource::FileDataId(120));
     assert_eq!(
         (modern.left, modern.right, modern.top, modern.bottom),
@@ -118,11 +120,24 @@ fn db2_member_selection_prefers_newest_1x_member_of_the_skin_set() {
     );
     assert_eq!((modern.width, modern.height), (16.0, 8.0));
 
-    let forever = table.resolve("glow frame ", ActiveSkin::Forever).unwrap();
+    let forever = table
+        .resolve("glow frame ", ActiveSkin::Forever, UiCanvas::X1)
+        .unwrap();
     assert_eq!(forever.source, AtlasSource::FileDataId(200));
     assert_eq!(
         (forever.left, forever.right, forever.top, forever.bottom),
         (0.5, 0.75, 0.0, 0.125)
     );
     assert_eq!(table.name_of(7), Some("glow frame "));
+
+    let modern_2x = table
+        .resolve("glow frame ", ActiveSkin::Modern, UiCanvas(2))
+        .unwrap();
+    assert_eq!(modern_2x.source, AtlasSource::FileDataId(110));
+    assert_eq!((modern_2x.width, modern_2x.height), (64.0, 32.0));
+    // Forever has no 2x set-1 member here: its 1x set-1 member still wins over set 0.
+    let forever_2x = table
+        .resolve("glow frame ", ActiveSkin::Forever, UiCanvas(2))
+        .unwrap();
+    assert_eq!(forever_2x.source, AtlasSource::FileDataId(200));
 }
