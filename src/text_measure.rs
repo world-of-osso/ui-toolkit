@@ -86,24 +86,39 @@ mod tests {
     use crate::widgets::font_string::set_font_directory;
     use std::path::PathBuf;
 
-    /// ui-toolkit ships no fonts; its own tests read the wow-ui-sim copies.
-    const TEST_FONTS: &str = "/home/osso/Projects/wow/wow-ui-sim/fonts";
+    fn configure_test_fonts() -> PathBuf {
+        let directory = PathBuf::from(
+            std::env::var_os("UI_TOOLKIT_TEST_FONT_DIR")
+                .expect("Set UI_TOOLKIT_TEST_FONT_DIR to the client's staged data/fonts directory"),
+        );
+        for font in [GameFont::FrizQuadrata, GameFont::ArialNarrow] {
+            let path = directory.join(font.file_name());
+            std::fs::read(&path).unwrap_or_else(|error| {
+                panic!(
+                    "Required test font {} is unreadable: {error}",
+                    path.display()
+                )
+            });
+        }
+        set_font_directory(directory.clone()).unwrap();
+        directory
+    }
 
     fn measure_text(text: &str, font: GameFont, font_size: f32) -> Option<(f32, f32)> {
-        set_font_directory(PathBuf::from(TEST_FONTS)).unwrap();
+        configure_test_fonts();
         super::measure_text(text, font, font_size)
     }
 
     #[test]
     fn font_paths_resolve_in_the_configured_directory_only() {
-        set_font_directory(PathBuf::from(TEST_FONTS)).unwrap();
+        let directory = configure_test_fonts();
         assert_eq!(
             GameFont::FrizQuadrata.path(),
-            Some(PathBuf::from(TEST_FONTS).join("FRIZQT__.TTF"))
+            Some(directory.join("FRIZQT__.TTF"))
         );
         assert_eq!(
             GameFont::ArialNarrow.path(),
-            Some(PathBuf::from(TEST_FONTS).join("ARIALN.ttf"))
+            Some(directory.join("ARIALN.ttf"))
         );
         let error = set_font_directory(PathBuf::from("/elsewhere/fonts")).unwrap_err();
         assert!(error.contains("/elsewhere/fonts"), "{error}");

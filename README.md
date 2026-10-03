@@ -2,6 +2,16 @@
 
 Registry-authoritative UI frames projected to native Bevy UI. Screens use `rsx!`, `Screen`, and `SharedContext`; the registry owns authored layout, texture, input, visibility, and lifecycle state.
 
+## Text measurement tests
+
+Toolkit tests require the client's authored `FRIZQT__.TTF` and `ARIALN.ttf`, not system fonts. Set `UI_TOOLKIT_TEST_FONT_DIR` to the client's `data/fonts` directory before running core tests:
+
+```sh
+UI_TOOLKIT_TEST_FONT_DIR=/path/to/game-engine/data/fonts cargo test --manifest-path core/Cargo.toml -p ui-toolkit-core -j 4 text_measure
+```
+
+Missing configuration or unreadable font files fail explicitly. Fonts are external game data; do not commit them here. The game-engine build helper already stages both files through `godot/depot-test-assets.txt`; when running toolkit tests in that container, set `UI_TOOLKIT_TEST_FONT_DIR` to `/src/game-engine-godot-conversion/data/fonts`. Run the remaining core tests with the same variable and omit `text_measure`.
+
 ## Hit areas
 
 RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
