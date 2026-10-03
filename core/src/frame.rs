@@ -66,6 +66,9 @@ pub struct NineSlice {
     pub part_textures: Option<[TextureSource; 9]>,
     /// Optional normalized UV rects per part: [left, right, top, bottom].
     pub uv_rects: Option<[[f32; 4]; 9]>,
+    /// `SetBackdrop` `insets`: the centre covers the frame inset by this much on every
+    /// side, beneath the edges, instead of only the space between them.
+    pub center_inset: Option<f32>,
 }
 
 /// Horizontal three-slice frame rendering (left cap, center stretch, right cap).
@@ -103,6 +106,7 @@ impl Default for NineSlice {
             texture: None,
             part_textures: None,
             uv_rects: None,
+            center_inset: None,
         }
     }
 }

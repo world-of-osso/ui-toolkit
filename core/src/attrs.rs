@@ -514,12 +514,28 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
                 frame.nine_slice = Some(ns);
             }
         }
+        "nine_slice_border_color" => {
+            set_nine_slice_color(frame, value, |slice| &mut slice.border_color)
+        }
+        "nine_slice_bg_color" => set_nine_slice_color(frame, value, |slice| &mut slice.bg_color),
         "border" => frame.border = parse_border(value),
         "onclick" => {
             frame.onclick = Some(value.to_string());
             frame.mouse_enabled = true;
         }
         _ => {}
+    }
+}
+
+/// Recolour the frame's nine-slice (`SetBackdropBorderColor`/`SetBackdropColor` after a
+/// panel `style`); a frame without one is left alone.
+fn set_nine_slice_color(
+    frame: &mut Frame,
+    value: &str,
+    channel: fn(&mut crate::frame::NineSlice) -> &mut [f32; 4],
+) {
+    if let (Some(slice), Some(color)) = (frame.nine_slice.as_mut(), parse_color(value)) {
+        *channel(slice) = color;
     }
 }
 

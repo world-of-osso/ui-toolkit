@@ -133,4 +133,29 @@ mod tests {
         let frame = reg.get(id).unwrap();
         assert!(frame.nine_slice.is_some());
     }
+
+    #[test]
+    fn nine_slice_colour_attrs_recolour_a_styled_frame() {
+        let mut reg = FrameRegistry::new(1920.0, 1080.0);
+        reg.register_panel_style(
+            "bronze",
+            NineSlice {
+                border_color: [0.65, 0.49, 0.27, 1.0],
+                bg_color: [1.0, 1.0, 1.0, 0.6],
+                ..Default::default()
+            },
+        );
+        let id = reg.create_frame("Tip", None);
+        crate::attrs::apply_attribute(&mut reg, id, "style", "bronze");
+        crate::attrs::apply_attribute(&mut reg, id, "nine_slice_border_color", "0.8,0.6,0.34,1.0");
+        crate::attrs::apply_attribute(&mut reg, id, "nine_slice_bg_color", "0.05,0.05,0.06,0.9");
+        let slice = reg.get(id).unwrap().nine_slice.as_ref().unwrap();
+        assert_eq!(slice.border_color, [0.8, 0.6, 0.34, 1.0]);
+        assert_eq!(slice.bg_color, [0.05, 0.05, 0.06, 0.9]);
+        // The registered style keeps its own colours.
+        assert_eq!(
+            reg.panel_style("bronze").unwrap().border_color,
+            [0.65, 0.49, 0.27, 1.0]
+        );
+    }
 }
