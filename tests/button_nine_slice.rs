@@ -181,7 +181,7 @@ fn external_generated_nine_slice_edits_are_replaced_and_nonbuttons_untouched() {
         assert_eq!(logical_rect(f.app.world(), entity), rect);
         let image = f.app.world().get::<ImageNode>(entity).unwrap();
         assert_texture(f.app.world(), &image.image, f.textures[0]);
-        assert_eq!(image.color.to_srgba(), Color::WHITE.to_srgba());
+        assert_eq!(image.color, Color::srgba(1.0, 1.0, 1.0, 1.0));
     }
     assert_eq!(image_entities(f.app.world_mut(), f.other), other);
     assert_eq!(
