@@ -28,7 +28,12 @@ fn fixture() -> App {
     let (mut app, _) = native_app();
     app.init_resource::<Observed>();
     app.add_systems(PostUpdate, observe_before.before(UiRenderSet::Prepare));
-    app.add_systems(Last, observe_after);
+    app.add_systems(
+        PostUpdate,
+        observe_after
+            .after(UiRenderSet::Project)
+            .before(bevy::ui::UiSystems::Prepare),
+    );
     settle(&mut app);
     app
 }

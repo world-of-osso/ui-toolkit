@@ -44,7 +44,10 @@ fn observe(
 }
 
 fn native_app() -> (App, Entity) {
-    support::native_app()
+    let (mut app, window) = support::native_app();
+    app.init_resource::<Observed>();
+    app.add_systems(Last, observe);
+    (app, window)
 }
 
 struct Fixture {

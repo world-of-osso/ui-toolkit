@@ -123,19 +123,8 @@ fn password_content_preserves_byte_count_through_mode_and_text_changes() {
             data.password = password;
         }
         settle(&mut app);
-        // Empty native text is intentionally not projected; the visible contract
-        // is no content, not retention of an empty rendering entity.
-        if expected.is_empty() {
-            assert!(
-                app.world_mut()
-                    .query::<&RegistryText>()
-                    .iter(app.world())
-                    .all(|text| text.frame_id != id)
-            );
-        } else {
-            let entity = text_entity(app.world_mut(), id, 0);
-            assert_content_and_external_repair(&mut app, entity, expected);
-        }
+        let entity = text_entity(app.world_mut(), id, 0);
+        assert_content_and_external_repair(&mut app, entity, expected);
     }
 }
 
