@@ -227,6 +227,7 @@ pub fn sync_ui_button_highlights(
         }
         let Some(texture) = load_texture_source(
             source,
+            &state.registry,
             &mut images,
             &mut texture_cache,
             &mut file_texture_cache,
