@@ -2,6 +2,12 @@
 
 Registry-authoritative UI frames projected to native Bevy UI. Screens use `rsx!`, `Screen`, and `SharedContext`; the registry owns authored layout, texture, input, visibility, and lifecycle state.
 
+## Native-only rendering contract
+
+Native Bevy UI is the only root-crate projection. `UiPlugin` already scheduled `native_render::sync_registry`; this retirement removes the unused public Sprite/Text2d projection code, components and stale scheduling enum slots, not a second supported renderer. No legacy compatibility path remains. See [native projection](docs/specs/native-projection.md) for the contract and current inventory.
+
+`render` retains camera setup, frame ordering, shared geometry and `LoadedTexture`; border, nine-/three-slice and tiled modules retain native geometry/source helpers. `render_button` retains button preparation and source selection; `render_text` and `render_text_fx` retain native text properties, layout and outline offsets. Module names do not imply Sprite/Text2d support.
+
 ## Portable core integration
 
 `core/` contains Bevy-free `ui-toolkit-core`: shared frame/attribute/registry/screen models, widget wrappers and DB2 atlas skin/canvas resolution. The root crate retains the Bevy projection; Godot projection is engine-owned. Merge `96dbda4` integrated `godot-conversion` and ancestor `testinfra-godot`, including nine-slice attributes and font-directory support. This merge does not extend historical test or runtime proof to the integrated engine.
@@ -14,11 +20,13 @@ Canonical engine manifests `game-engine/godot/{rust,ui-model}/Cargo.toml` use `p
 
 The Bevy host in `src/render_texture.rs` owns cached image handles and projects registry pixels into `Rgba8UnormSrgb` images. Shared references reuse a handle; changed pixels or dimensions replace its image in place. A removed ID drops its cache entry and no longer resolves to a projected texture. This does not promise immediate removal of the asset from `Assets<Image>`.
 
-`load_texture_source` and `load_texture_source_pub` require `&FrameRegistry` after the source argument. Native images, legacy quads/sprites, nine-/three-slices and button highlights must pass the owning registry through their loader calls. Engine handles remain host-owned; there is no Handle-valued dynamic source compatibility path.
+`load_texture_source` and `load_texture_source_pub` require `&FrameRegistry` after the source argument. Native images, nine-/three-slices and button highlights pass the owning registry through their loader calls. Engine handles remain host-owned; there is no Handle-valued dynamic source compatibility path.
 
 ### Integration proof boundary
 
-Bridge repairs: `cb8f907` and `92c7937`. Reported targeted source proof covers native shared pixels, idle stability, resize and removal, plus legacy sprite pixel updates (2 tests passed); affected fixtures reported 46 passed and 1 failed because DB2 atlas tables were uninitialized. Hotreload also reported passing. Follow-up `a69d62f` initializes self-contained atlas CSV rows in that fixture; its presence alone is not passing proof. Independent whole-root verification remains pending. These results do not extend historical engine/runtime proof or establish rendered screen parity.
+Historical bridge repairs: `cb8f907` and `92c7937`. Reported targeted source proof covers native shared pixels, idle stability, resize and removal, plus legacy sprite pixel updates (2 tests passed); affected fixtures reported 46 passed and 1 failed because DB2 atlas tables were uninitialized. Hotreload also reported passing. Follow-up `a69d62f` initializes self-contained atlas CSV rows in that fixture; its presence alone is not passing proof. Those legacy sprite results describe retired code, not a supported alternate path. Independent whole-root verification remains pending. These results do not extend historical engine/runtime proof or establish rendered screen parity.
+
+Native retirement source revisions: `4026362`, `911e826`, `e682b5f` and `9ce6b0e`. Preservation fixtures at `24502b8` reported 7 passing development cases using actual native layout, images and text. Integration-suite migration and repairs for external-text reconciliation and unowned font weight remain in progress; this documentation records no final new gate pass. Existing portable-core proof (142 tests) is unaffected. Existing engine UI (31 tests), helper (34 tests) and bounded offscreen UI/IPC fixture evidence retain their original scopes; none proves clean-resource shutdown (known leaks) or full Skyborn support (blocked).
 
 ## Hit areas
 
@@ -26,7 +34,7 @@ RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in l
 
 ## Button highlights
 
-RSX `button_highlight_size: "width,height"` gives the hover overlay an explicit logical-pixel size, centered on the button without changing its layout or hit area. Both dimensions must be finite and positive. Omit the attribute to retain the button-sized overlay. Native UI and legacy sprite projection use the same override; disabled buttons suppress hover as before.
+RSX `button_highlight_size: "width,height"` gives the hover overlay an explicit logical-pixel size, centered on the button without changing its layout or hit area. Both dimensions must be finite and positive. Omit the attribute to retain the button-sized overlay. Native UI uses the override; disabled buttons suppress hover as before.
 
 ## Shared widgets
 

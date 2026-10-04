@@ -1,6 +1,6 @@
 # Native button visuals
 
-Registry buttons may own art or serve only as input targets for child textures. Native Bevy UI must project authored button visuals without inventing a background behind interaction-only artwork. See [toolkit rendering](../../README.md).
+Registry buttons may own art or serve only as input targets for child textures. Native Bevy UI, the only supported root-crate projection, must project authored button visuals without inventing a background behind interaction-only artwork. See [toolkit rendering](../../README.md).
 
 ## What it must do
 
@@ -13,7 +13,7 @@ Registry buttons may own art or serve only as input targets for child textures. 
 
 ### Portable texture projection
 
-- [ ] Authored dynamic base, state, slice and highlight sources resolve through their owning registry's portable ID and RGBA8 pixels; Bevy image handles remain host-owned. Updates and removal must reach each projection path. Targeted native/legacy pixel tests pass as reported below, but they do not establish complete button-path coverage.
+- [ ] Authored dynamic base, state, slice and highlight sources resolve through their owning registry's portable ID and RGBA8 pixels; Bevy image handles remain host-owned. Updates and removal must reach each projection path. Historical native/legacy pixel results below do not establish complete button-path coverage; legacy Sprite projection is now retired.
 
 ## How it works
 
@@ -33,11 +33,14 @@ Registry buttons may own art or serve only as input targets for child textures. 
 - `src/native_render/images_tests.rs` — emitted image roles, state transitions, authored visuals and explicit load failures.
 - `src/native_render/tests.rs` — native entity lifecycle and transparent child image.
 - `core/src/attrs_layout_tests.rs` — authored attribute roundtrip.
-- `tests/button_nine_slice.rs` — ordinary default-skin compatibility.
+- `tests/button_nine_slice.rs` — ordinary default-skin behavior; migration to native assertions is in progress.
+- `src/native_render/native_only_tests.rs` — native layout/image/text preservation fixtures at `24502b8` (7 reported development passes, not a final gate).
 
 ## Known gaps (current cycle)
 
 - [ ] Independent whole-root gate for bridge repairs `cb8f907` / `92c7937` and fixture follow-up `a69d62f` remains pending; see [integration proof boundary](../../README.md#integration-proof-boundary). Existing checked policy bullets retain their historical attribution, not a claim of renewed whole-root proof.
+
+- [ ] Native-only integration migration and external-text/font-weight repairs require a final gate; historical checked bullets are not renewed proof. See [native projection](native-projection.md).
 
 - [ ] Screen-specific artwork and rendered screenshot comparison belong to each host screen, not this toolkit policy.
 

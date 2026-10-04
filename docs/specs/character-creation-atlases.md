@@ -1,6 +1,6 @@
 # Retail character-creation atlas controls
 
-Character-creation atlas names resolve from the Retail DB2 atlas tables (see [atlas sources](../../README.md#atlas-sources)). Rendering uses the existing host FileDataID loader; see [atlas source behavior](../../README.md#atlas-sources).
+Character-creation atlas names resolve from the Retail DB2 atlas tables (see [atlas sources](../../README.md#atlas-sources)). Root-crate rendering is native Bevy UI only and retains the existing host FileDataID loader; see [atlas source behavior](../../README.md#atlas-sources).
 
 ## What it must do
 
@@ -40,7 +40,7 @@ Character-creation atlas names resolve from the Retail DB2 atlas tables (see [at
 
 ## Known gaps (current cycle)
 
-- [ ] Independent root gate remains pending after `cb8f907` / `92c7937`. The affected fixture run reported 46 passed and one uninitialized-DB2 failure; `a69d62f` now supplies self-contained atlas CSV rows, but no passing follow-up result is claimed here. Historical proof below remains scoped to its named revisions.
+- [ ] Native-only retirement does not renew the historical atlas proof or establish host screen parity; see [native projection](native-projection.md). Independent root gate remains pending after `cb8f907` / `92c7937`. The affected fixture run reported 46 passed and one uninitialized-DB2 failure; `a69d62f` now supplies self-contained atlas CSV rows, but no passing follow-up result is claimed here. Historical proof below remains scoped to its named revisions.
 
 - Targeted proof at toolkit `3fb0138`: `cargo test --lib atlas:: -- --nocapture` passes 8/8 (54-region crop test plus seven existing atlas regressions). The decoded atlas fixture encodes coordinates and source identity; it is not proprietary artwork.
 - Dropdown-arrow follow-up at `8cad72b`: the single exact crop regression passes 1/1 across all 58 entries after failing specifically on the four missing arrows and element IDs. It uses the same decoded-image fixture, not original BLP artwork.
