@@ -139,6 +139,20 @@ pub(crate) struct ProjectionQueries<'w, 's> {
             &'static TextColor,
         ),
     >,
+    changed_texts: Query<
+        'w,
+        's,
+        Entity,
+        (
+            With<RegistryText>,
+            Or<(
+                Changed<Text>,
+                Changed<TextFont>,
+                Changed<TextLayout>,
+                Changed<TextColor>,
+            )>,
+        ),
+    >,
     nodes: Query<'w, 's, &'static Node>,
     layers: Query<'w, 's, &'static GlobalZIndex>,
     transforms: Query<'w, 's, &'static UiTransform>,
@@ -199,6 +213,7 @@ pub(crate) fn sync_registry(
     if !order.is_changed()
         && !text_enabled.is_changed()
         && !removed
+        && query.changed_texts.is_empty()
         && query.canvas.single().is_ok()
     {
         return;
@@ -588,8 +603,11 @@ fn update_text(
     if old_text.0 != part.text {
         commands.entity(entity).insert(Text::new(part.text));
     }
-    if *font != part.font {
-        commands.entity(entity).insert(part.font);
+    if font.font != part.font.font || font.font_size != part.font.font_size {
+        let mut desired_font = font.clone();
+        desired_font.font = part.font.font;
+        desired_font.font_size = part.font.font_size;
+        commands.entity(entity).insert(desired_font);
     }
     if layout.justify != part.layout.justify || layout.linebreak != part.layout.linebreak {
         commands.entity(entity).insert(part.layout);
