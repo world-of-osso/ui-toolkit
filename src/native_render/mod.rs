@@ -12,6 +12,8 @@ use std::collections::{HashMap, HashSet};
 
 pub mod caret;
 #[cfg(test)]
+mod native_only_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 
 mod images;

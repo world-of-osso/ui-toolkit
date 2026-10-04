@@ -1,20 +1,12 @@
-//! Button nine-slice sync and highlight overlay rendering.
-
-use bevy::camera::visibility::RenderLayers;
-use bevy::prelude::*;
-use std::collections::{HashMap, HashSet};
+//! Authored button preparation and native texture selection.
 
 use crate::atlas;
 use crate::frame::{Frame, NineSlice, WidgetData};
 use crate::plugin::UiState;
-use crate::render::{LoadedTexture, UI_RENDER_LAYER};
-use crate::render_texture::{BlpLoaderRes, load_texture_source};
 use crate::widgets::button::{ButtonData, ButtonState};
 use crate::widgets::texture::TextureSource;
-
-/// Marks a highlight overlay sprite entity for a button frame.
-#[derive(Component)]
-pub struct UiButtonHighlight(pub u64);
+use bevy::prelude::*;
+use std::collections::HashMap;
 
 const BUTTON_NINE_SLICE_EDGE: f32 = 4.0;
 const DEFAULT_BUTTON_ATLAS: &str = "defaultbutton-nineslice-up";
@@ -191,58 +183,6 @@ fn default_button_texture(button: &ButtonData) -> TextureSource {
     TextureSource::Atlas(name.to_string())
 }
 
-// --- Button highlight overlay ---
-
-/// Manages highlight overlay sprites for hovered buttons.
-pub fn sync_ui_button_highlights(
-    state: Res<UiState>,
-    mut commands: Commands,
-    mut images: Option<ResMut<Assets<Image>>>,
-    highlights: Query<(Entity, &UiButtonHighlight)>,
-    visuals: Query<(&Transform, &Sprite)>,
-    mut texture_cache: Local<HashMap<u32, Handle<Image>>>,
-    mut file_texture_cache: Local<HashMap<String, Handle<Image>>>,
-    mut missing_textures: Local<HashSet<u32>>,
-    mut missing_file_textures: Local<HashSet<String>>,
-    blp_loader: Option<Res<BlpLoaderRes>>,
-) {
-    let existing: HashMap<u64, Entity> = highlights.iter().map(|(e, h)| (h.0, e)).collect();
-    let mut seen: HashSet<u64> = HashSet::new();
-    let sw = state.registry.screen_width;
-    let sh = state.registry.screen_height;
-
-    for frame in state.registry.frames_iter() {
-        let Some(source) = button_highlight_source(frame) else {
-            continue;
-        };
-        seen.insert(frame.id);
-        let Some(WidgetData::Button(btn)) = &frame.widget_data else {
-            continue;
-        };
-        if !btn.hovered || btn.state == ButtonState::Disabled {
-            if let Some(&entity) = existing.get(&frame.id) {
-                commands.entity(entity).despawn();
-            }
-            continue;
-        }
-        let Some(texture) = load_texture_source(
-            source,
-            &state.registry,
-            &mut images,
-            &mut texture_cache,
-            &mut file_texture_cache,
-            &mut missing_textures,
-            &mut missing_file_textures,
-            blp_loader.as_deref(),
-        ) else {
-            continue;
-        };
-        upsert_highlight_sprite(frame, texture, sw, sh, &existing, &visuals, &mut commands);
-    }
-
-    despawn_stale_highlights(&existing, &seen, &mut commands);
-}
-
 pub(crate) fn button_highlight_source(frame: &crate::frame::Frame) -> Option<&TextureSource> {
     // Nine-slice buttons handle their own visual states; skip the flat highlight overlay.
     if frame.nine_slice.is_some() {
@@ -252,65 +192,4 @@ pub(crate) fn button_highlight_source(frame: &crate::frame::Frame) -> Option<&Te
         return None;
     };
     btn.highlight_texture.as_ref()
-}
-
-fn upsert_highlight_sprite(
-    frame: &crate::frame::Frame,
-    texture: LoadedTexture,
-    sw: f32,
-    sh: f32,
-    existing: &HashMap<u64, Entity>,
-    visuals: &Query<(&Transform, &Sprite)>,
-    commands: &mut Commands,
-) {
-    let Some(WidgetData::Button(button)) = &frame.widget_data else {
-        return;
-    };
-    let alpha = frame.effective_alpha * 0.5;
-    let color = Color::srgba(1.0, 1.0, 1.0, alpha);
-    let button_size = Vec2::new(frame.resolved_width(), frame.resolved_height());
-    let size = button.highlight_size.map_or(button_size, Vec2::from_array);
-    let center_x = if button.highlight_size.is_some() {
-        button_size.x / 2.0
-    } else {
-        frame.width.value() / 2.0
-    };
-    let bx = center_x + frame.layout_rect.as_ref().map_or(0.0, |r| r.x) - sw * 0.5;
-    let by = sh * 0.5 - frame.layout_rect.as_ref().map_or(0.0, |r| r.y) - button_size.y * 0.5;
-    let transform = Transform::from_xyz(bx, by, 500.0);
-    let sprite = Sprite {
-        color,
-        custom_size: Some(size),
-        image: texture.handle,
-        rect: texture.rect,
-        ..default()
-    };
-    if let Some(&entity) = existing.get(&frame.id) {
-        crate::render::insert_changed_quad_visuals(
-            commands,
-            entity,
-            visuals.get(entity).ok(),
-            transform,
-            sprite,
-        );
-    } else {
-        commands.spawn((
-            sprite,
-            transform,
-            RenderLayers::layer(UI_RENDER_LAYER),
-            UiButtonHighlight(frame.id),
-        ));
-    }
-}
-
-fn despawn_stale_highlights(
-    existing: &HashMap<u64, Entity>,
-    seen: &HashSet<u64>,
-    commands: &mut Commands,
-) {
-    for (&frame_id, &entity) in existing {
-        if !seen.contains(&frame_id) {
-            commands.entity(entity).despawn();
-        }
-    }
 }

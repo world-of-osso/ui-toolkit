@@ -1,41 +1,5 @@
 use bevy::prelude::{Color, Transform, Vec2};
 
-use crate::plugin::UiState;
-
-use super::UiBackdropQuad;
-
-pub(super) fn should_keep_backdrop_part(state: &UiState, backdrop_part: &UiBackdropQuad) -> bool {
-    let Some(frame) = state.registry.get(backdrop_part.0) else {
-        return false;
-    };
-    if !super::uses_backdrop_parts(frame) {
-        return false;
-    }
-    let size = backdrop_part_geometry(
-        frame,
-        backdrop_part.1,
-        0,
-        state.registry.screen_width,
-        state.registry.screen_height,
-    )
-    .1;
-    size.x > 0.0 && size.y > 0.0
-}
-
-pub(super) fn backdrop_part_geometry_for_id(
-    state: &UiState,
-    backdrop_part: &UiBackdropQuad,
-    sort_idx: usize,
-    screen_w: f32,
-    screen_h: f32,
-) -> (Transform, Vec2, Color) {
-    let frame = state
-        .registry
-        .get(backdrop_part.0)
-        .expect("backdrop part should have a frame");
-    backdrop_part_geometry(frame, backdrop_part.1, sort_idx, screen_w, screen_h)
-}
-
 pub(super) fn backdrop_part_geometry(
     frame: &crate::frame::Frame,
     part: u8,
