@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.95"
 
 [dependencies]
+ui-toolkit-core = { path = "core" }
 ui-toolkit-macros = { git = "ssh://git@github.com/world-of-osso/ui-toolkit-macros.git", rev = "1979e54" }
 bevy = { version = "0.19", default-features = false, features = ["default"] }
 image-blp = "1"

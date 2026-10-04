@@ -10,7 +10,6 @@ use bevy::window::PrimaryWindow;
 use std::time::Duration;
 
 pub(crate) fn app_with_real_fonts(scale: f32) -> App {
-    assert!(std::path::Path::new(GameFont::ArialNarrow.path()).is_file());
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,

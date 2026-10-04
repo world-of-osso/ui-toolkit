@@ -4,15 +4,18 @@ use crate::frame::{Dimension, FlexAlign, FlexDirection as RegistryDirection, Fle
 use crate::layout::LayoutRect;
 use crate::plugin::UiState;
 use bevy::{math::Affine2, prelude::*};
+use ui_toolkit_core::layout_values::{
+    PositionType as ModelPositionType, UiRect as ModelUiRect, Val as ModelVal, Val2 as ModelVal2,
+};
 
 pub(super) fn node(frame: &Frame) -> Node {
     let mut node = Node {
-        position_type: frame.position_type,
-        left: frame.position.left,
-        right: frame.position.right,
-        top: frame.position.top,
-        bottom: frame.position.bottom,
-        margin: frame.margin,
+        position_type: position_type(frame.position_type),
+        left: val(frame.position.left),
+        right: val(frame.position.right),
+        top: val(frame.position.top),
+        bottom: val(frame.position.bottom),
+        margin: rect(frame.margin),
         width: dimension(frame.width),
         height: dimension(frame.height),
         display: if frame.visible {
@@ -49,6 +52,37 @@ pub(super) fn node(frame: &Frame) -> Node {
         };
     }
     node
+}
+
+pub(super) fn val(value: ModelVal) -> Val {
+    match value {
+        ModelVal::Auto => Val::Auto,
+        ModelVal::Px(value) => px(value),
+        ModelVal::Percent(value) => percent(value),
+    }
+}
+
+pub(super) fn rect(value: ModelUiRect) -> UiRect {
+    UiRect {
+        left: val(value.left),
+        right: val(value.right),
+        top: val(value.top),
+        bottom: val(value.bottom),
+    }
+}
+
+pub(super) fn translation(value: ModelVal2) -> Val2 {
+    Val2 {
+        x: val(value.x),
+        y: val(value.y),
+    }
+}
+
+pub(super) fn position_type(value: ModelPositionType) -> PositionType {
+    match value {
+        ModelPositionType::Relative => PositionType::Relative,
+        ModelPositionType::Absolute => PositionType::Absolute,
+    }
 }
 
 fn dimension(value: Dimension) -> Val {

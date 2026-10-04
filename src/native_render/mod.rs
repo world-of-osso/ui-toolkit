@@ -328,7 +328,7 @@ fn sync_frame_transform(
     query: &ProjectionQueries,
 ) {
     let transform = UiTransform {
-        translation: frame.translation,
+        translation: layout::translation(frame.translation),
         scale: Vec2::splat(frame.scale),
         ..default()
     };

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use bevy::prelude::*;
 use bevy::text::Font;
@@ -30,10 +30,7 @@ impl FontRegistry {
         if let Some(handle) = self.cache.get(&font) {
             return handle.clone();
         }
-        let filename = Path::new(font.path())
-            .file_name()
-            .expect("GameFont path must contain a filename");
-        let path = self.directory.join(filename);
+        let path = self.directory.join(font.file_name());
         let bytes = std::fs::read(&path)
             .unwrap_or_else(|e| panic!("failed to read font {font:?} at {}: {e}", path.display()));
         ab_glyph::FontRef::try_from_slice(&bytes)
@@ -77,8 +74,7 @@ mod tests {
         let mut registry = FontRegistry::with_directory(&directory.0);
         let mut assets = Assets::<Font>::default();
         for font in [GameFont::FrizQuadrata, GameFont::ArialNarrow] {
-            let source = Path::new(font.path());
-            let destination = directory.0.join(source.file_name().unwrap());
+            let destination = directory.0.join(font.file_name());
             std::fs::write(&destination, bevy::text::DEFAULT_FONT_DATA)
                 .expect("write embedded real font fixture");
             let handle = registry.get(font, &mut assets);

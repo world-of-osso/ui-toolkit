@@ -5294,6 +5294,18 @@ dependencies = [
  "notify",
  "parley",
  "serde",
+ "ui-toolkit-core",
+ "ui-toolkit-macros",
+]
+
+[[package]]
+name = "ui-toolkit-core"
+version = "0.1.0"
+dependencies = [
+ "bevy_asset",
+ "bevy_image",
+ "bevy_math",
+ "log",
  "ui-toolkit-macros",
 ]
 
