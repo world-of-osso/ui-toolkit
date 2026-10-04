@@ -8,6 +8,18 @@ Registry-authoritative UI frames projected to native Bevy UI. Screens use `rsx!`
 
 Canonical engine manifests `game-engine/godot/{rust,ui-model}/Cargo.toml` use `package = "ui-toolkit-core", path = "../../../ui-toolkit/core"`, resolving to `/syncthing/Sync/Projects/world-of-osso/ui-toolkit/core`. Engine build-helper override: `DEPOT_SIBLING_UI_TOOLKIT`. Historical `ui-toolkit-godot-conversion` paths identify earlier evidence only.
 
+## Runtime texture host contract
+
+`TextureSource::Dynamic(DynamicTextureId)` stores a portable ID owned by its `FrameRegistry`, not a Bevy `Handle<Image>`. Register row-major RGBA8 pixels with `registry.create_dynamic_texture(width, height, rgba8)`, replace them with `update_dynamic_texture(id, width, height, rgba8)`, and remove them with `remove_dynamic_texture(id)`. Dimensions must be nonzero and the buffer exactly `width * height * 4` bytes. Updates keep the ID; changed pixels/dimensions and removal mark referencing frames render-dirty. Identical updates leave them unchanged.
+
+The Bevy host in `src/render_texture.rs` owns cached image handles and projects registry pixels into `Rgba8UnormSrgb` images. Shared references reuse a handle; changed pixels or dimensions replace its image in place. A removed ID drops its cache entry and no longer resolves to a projected texture. This does not promise immediate removal of the asset from `Assets<Image>`.
+
+`load_texture_source` and `load_texture_source_pub` require `&FrameRegistry` after the source argument. Native images, legacy quads/sprites, nine-/three-slices and button highlights must pass the owning registry through their loader calls. Engine handles remain host-owned; there is no Handle-valued dynamic source compatibility path.
+
+### Integration proof boundary
+
+Bridge repairs: `cb8f907` and `92c7937`. Reported targeted source proof covers native shared pixels, idle stability, resize and removal, plus legacy sprite pixel updates (2 tests passed); affected fixtures reported 46 passed and 1 failed because DB2 atlas tables were uninitialized. Hotreload also reported passing. Follow-up `a69d62f` initializes self-contained atlas CSV rows in that fixture; its presence alone is not passing proof. Independent whole-root verification remains pending. These results do not extend historical engine/runtime proof or establish rendered screen parity.
+
 ## Hit areas
 
 RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
@@ -31,8 +43,10 @@ RSX `button_highlight_size: "width,height"` gives the hover overlay an explicit 
 - `AtlasSource::File` loads an explicit KTX2/PNG/BLP file.
 - `AtlasSource::FileDataId` calls the host `BlpLoader::ensure_texture`, then decodes and caches the resolved BLP.
 
-WoW atlas names resolve from the host's DB2 CSV exports (`UiTextureAtlas`, `UiTextureAtlasElement`, `UiTextureAtlasMember`), loaded once by `atlas::set_atlas_directories(retail_dir, forever_dir)`. Retail members are `UiTextureAtlasSetID` 0; the Forever export contributes its set-1 (`*c60`) members for the same names. `atlas::set_active_skin(ActiveSkin::Modern | ActiveSkin::Forever)` picks the sets: Modern resolves set 0, Forever set 1 then set 0, as Forever's client does. Within a set the member on `atlas::ATLAS_CANVAS` (`UiCanvas::X1`, `UiCanvasID` 1) wins, then the lowest canvas, then the newest member ID; that constant is the single place to switch to 2x. Sizes keep DB2 `OverrideWidth`/`OverrideHeight`. `atlas::resolve_region(name, skin)` resolves under an explicit skin; `get_region(name)` under the active one. `atlas::get_name_by_element_id` returns the lower-cased Retail element name. Project art and DB2 names are disjoint sources: a name that is neither resolves to `None` (the host reports it as an unknown atlas). Before the tables are loaded only project art resolves.
+WoW atlas names resolve from the host's DB2 CSV exports (`UiTextureAtlas`, `UiTextureAtlasElement`, `UiTextureAtlasMember`), loaded by the host before its first DB2 lookup with `atlas::set_atlas_directories(retail_dir, forever_dir)`. The call returns `Result<(), String>`; the host must handle initialization errors. Subsequent calls must specify the same directories. Retail members are `UiTextureAtlasSetID` 0; the Forever export contributes its set-1 (`*c60`) members for the same names. `atlas::set_active_skin(ActiveSkin::Modern | ActiveSkin::Forever)` picks the sets: Modern resolves set 0, Forever set 1 then set 0, as Forever's client does. Within a set the member on `atlas::ATLAS_CANVAS` (`UiCanvas::X1`, `UiCanvasID` 1) wins, then the lowest canvas, then the newest member ID; that constant is the single place to switch to 2x. Sizes keep DB2 `OverrideWidth`/`OverrideHeight`. `atlas::resolve_region(name, skin)` resolves under an explicit skin; `get_region(name)` under the active one. `atlas::get_name_by_element_id` returns the lower-cased Retail element name. Project art and DB2 names are disjoint sources: a name that is neither resolves to `None` (the host reports it as an unknown atlas). Before the tables are loaded only project art resolves.
 
 Project art (`PROJECT_REGIONS` in `core/src/atlas.rs`) wins over a DB2 member of the same name: the brown `128-redbutton-*` buttons, `glue-bigbutton-brown-*`, `defaultbutton-nineslice-*`, `custom-nameplate-bg`, and Retail's red highlight under `retail-128-redbutton-highlight`.
+
+`AtlasRegion::rect_pixels(image_width, image_height)` takes backing-image dimensions and returns portable `PixelRect { min: [x, y], max: [x, y] }` corners. The Bevy host converts these with `Rect::from_corners(Vec2::from_array(rect.min), Vec2::from_array(rect.max))`; logical `AtlasRegion.width`/`height` remain separate from physical crop bounds. FileDataID atlas regions are materialized as cropped images by the host.
 
 Adding an atlas: use a file source only for a repository-owned stable asset. Use the authored FileDataID for WoW atlas content; do not add machine-specific install paths or one-off extracted copies.

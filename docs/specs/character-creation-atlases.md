@@ -12,6 +12,11 @@ Character-creation atlas names resolve from the Retail DB2 atlas tables (see [at
 - [x] Preserve source pixels through the existing atlas crop path, except transparent RGB sanitization already required by that path.
 - [x] Return the Retail element name for any element ID in the loaded tables, `None` for unknown IDs; project art keeps its sources.
 
+### Portable host boundary
+
+- [ ] Hosts initialize DB2 atlas export directories before lookup and handle initialization errors; repeated initialization must name the same directories.
+- [ ] Physical bounds use backing-image width/height through portable `PixelRect`; Bevy converts its corners to `Rect`, separately from logical override dimensions. Whole-root verification of the repaired bridge remains pending.
+
 ## How it works
 
 - [Host loader and atlas sources](../../README.md#atlas-sources).
@@ -27,12 +32,15 @@ Character-creation atlas names resolve from the Retail DB2 atlas tables (see [at
 
 - `core/src/atlas.rs`: named lookup, project art, element-ID lookup.
 - `core/src/atlas/db2.rs`: the DB2 CSV join (element → member → atlas), keyed by name and `UiTextureAtlasSetID`.
+- `src/render_texture.rs`: host FileDataID loading, materialized crops and portable-corner conversion to Bevy `Rect`.
 
 ## Tests asserting this spec
 
 - game-engine `godot/ui-model/tests/atlas_skins.rs` `every_old_baked_atlas_name_resolves_the_same_under_modern`: every name of the former baked table (fixture `old_atlas_regions.csv`) resolves from the DB2 tables bit-identically, or within its old 6-decimal rounding; three crops (`charactercreate-customize-dropdown-icon-lock`, `-newtagglow`, `-palette-glow`) pointed at the wrong pixels of FDID 1253496 and now use their 12.1 DB2 member.
 
 ## Known gaps (current cycle)
+
+- [ ] Independent root gate remains pending after `cb8f907` / `92c7937`. The affected fixture run reported 46 passed and one uninitialized-DB2 failure; `a69d62f` now supplies self-contained atlas CSV rows, but no passing follow-up result is claimed here. Historical proof below remains scoped to its named revisions.
 
 - Targeted proof at toolkit `3fb0138`: `cargo test --lib atlas:: -- --nocapture` passes 8/8 (54-region crop test plus seven existing atlas regressions). The decoded atlas fixture encodes coordinates and source identity; it is not proprietary artwork.
 - Dropdown-arrow follow-up at `8cad72b`: the single exact crop regression passes 1/1 across all 58 entries after failing specifically on the four missing arrows and element IDs. It uses the same decoded-image fixture, not original BLP artwork.
