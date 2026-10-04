@@ -55,13 +55,20 @@ impl UiState {
     }
 }
 
-/// Ordering points for native UI projection.
+/// Ordering points for the plugin's shared-order render pipeline.
 ///
-/// Registry changes run before `Prepare`; native reconciliation runs in `Project`.
+/// Registry changes affecting render order must run before `Prepare`, which
+/// includes window sizing, layout, button derivation, and order preparation.
+/// Standalone renderer functions retain their independent ordering behavior.
 #[derive(SystemSet, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum UiRenderSet {
     Prepare,
-    Project,
+    Quads,
+    Text,
+    Shadows,
+    Outlines,
+    NineSlices,
+    ThreeSlices,
 }
 
 pub struct UiPlugin;
@@ -136,7 +143,7 @@ fn register_ui_update_systems(app: &mut App) {
             crate::render_button::sync_button_nine_slices.in_set(UiRenderSet::Prepare),
             (
                 crate::render::prepare_ui_frame_order.in_set(UiRenderSet::Prepare),
-                crate::native_render::sync_registry.in_set(UiRenderSet::Project),
+                crate::native_render::sync_registry.in_set(UiRenderSet::Quads),
             )
                 .chain()
                 .run_if(ui_render_enabled),

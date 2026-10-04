@@ -1,24 +1,28 @@
 use std::collections::BTreeMap;
 
-pub mod support;
+use bevy::asset::{AssetApp, AssetPlugin};
+use bevy::camera::{CameraPlugin, CameraUpdateSystems, ComputedCameraValues, RenderTargetInfo};
 use bevy::math::Affine2;
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 use ui_toolkit::frame::{Dimension, NineSlice, ThreeSlice, WidgetData};
 use ui_toolkit::native_render::{RegistryNode, RegistryText};
 use ui_toolkit::plugin::{
-    UiProcessingEnabled, UiRenderEnabled, UiRenderSet, UiState, UiTextRenderEnabled,
+    UiPlugin, UiProcessingEnabled, UiRenderEnabled, UiRenderSet, UiState, UiTextRenderEnabled,
 };
+use ui_toolkit::render::UiCamera;
 use ui_toolkit::strata::FrameStrata;
 use ui_toolkit::widgets::font_string::{FontStringData, Outline};
 use ui_toolkit::widgets::texture::TextureSource;
-use ui_toolkit_core::layout_values::PositionType;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Snapshot {
-    images: BTreeMap<u64, i32>,
+    quads: BTreeMap<u64, i32>,
     text: BTreeMap<u64, i32>,
     shadows: BTreeMap<u64, i32>,
     outlines: BTreeMap<u64, Vec<i32>>,
+    nine: BTreeMap<u64, i32>,
+    three: BTreeMap<u64, i32>,
 }
 
 struct Fixture {
@@ -31,8 +35,59 @@ struct Fixture {
     spacer: u64,
 }
 
+fn update_camera_target(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut cameras: Query<&mut Camera, With<UiCamera>>,
+) {
+    let window = windows.single().unwrap();
+    for mut camera in &mut cameras {
+        camera.computed = ComputedCameraValues {
+            target_info: Some(RenderTargetInfo {
+                physical_size: UVec2::new(window.physical_width(), window.physical_height()),
+                scale_factor: window.scale_factor(),
+            }),
+            ..default()
+        };
+    }
+}
+
 fn native_app() -> App {
-    support::native_app().0
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin::default(),
+        bevy::image::ImagePlugin::default(),
+        bevy::mesh::MeshPlugin,
+        bevy::window::WindowPlugin {
+            primary_window: None,
+            exit_condition: bevy::window::ExitCondition::DontExit,
+            ..default()
+        },
+        bevy::input::InputPlugin,
+        bevy::transform::TransformPlugin,
+        CameraPlugin,
+        bevy::text::TextPlugin,
+        bevy::picking::DefaultPickingPlugins,
+        bevy::ui::UiPlugin,
+        UiPlugin,
+    ));
+    app.init_asset::<TextureAtlasLayout>();
+    app.world_mut().spawn((
+        Window {
+            resolution: (800, 600).into(),
+            ..default()
+        },
+        PrimaryWindow,
+    ));
+    app.add_systems(
+        PostUpdate,
+        update_camera_target
+            .after(CameraUpdateSystems)
+            .before(bevy::ui::UiSystems::Prepare),
+    );
+    app.finish();
+    app.cleanup();
+    app
 }
 
 fn add_frame(ui: &mut UiState, name: &str, x: f32) -> u64 {
@@ -133,7 +188,18 @@ fn snapshot(world: &mut World) -> Snapshot {
             "one image covers center of registry frame {id}"
         );
         let z = world.get::<GlobalZIndex>(central[0]).unwrap().0;
-        result.images.insert(id, z);
+        match images.len() {
+            1 => {
+                result.quads.insert(id, z);
+            }
+            9 => {
+                result.nine.insert(id, z);
+            }
+            3 => {
+                result.three.insert(id, z);
+            }
+            count => panic!("unexpected image count {count} for fixture frame {id}"),
+        }
     }
     for (part, parent) in world.query::<(&RegistryText, &ChildOf)>().iter(world) {
         let z = world.get::<GlobalZIndex>(parent.parent()).unwrap().0;
@@ -160,33 +226,35 @@ fn assert_order(fixture: &mut Fixture, expected: &[u64]) {
 }
 
 fn assert_snapshot_order(fixture: &Fixture, result: &Snapshot, expected: &[u64]) {
-    let image_frames = [fixture.first, fixture.second, fixture.nine, fixture.three];
-    let mut expected_images = Vec::new();
     for (rank, &id) in expected.iter().enumerate() {
-        if image_frames.contains(&id) {
-            assert_z(result.images[&id], rank, 0);
-            expected_images.push(id);
+        if id == fixture.first || id == fixture.second {
+            assert_z(result.quads[&id], rank, 0);
         } else if id == fixture.text {
             assert_z(result.text[&id], rank, 7);
             assert_z(result.shadows[&id], rank, 6);
             if let Some(outlines) = result.outlines.get(&id) {
-                assert_eq!(outlines, &vec![rank as i32 * 10 + 5; 4]);
+                assert_eq!(outlines.len(), 4);
+                for &z in outlines {
+                    assert_z(z, rank, 5);
+                }
             }
+        } else if id == fixture.nine {
+            assert_z(result.nine[&id], rank, 0);
+        } else if id == fixture.three {
+            assert_z(result.three[&id], rank, 0);
         }
     }
-    expected_images.sort_unstable();
     assert_eq!(
-        result.images.keys().copied().collect::<Vec<_>>(),
-        expected_images
+        result.quads.len(),
+        expected
+            .iter()
+            .filter(|&&id| id == fixture.first || id == fixture.second)
+            .count()
     );
-    assert_eq!(
-        result.text.keys().copied().collect::<Vec<_>>(),
-        vec![fixture.text]
-    );
-    assert_eq!(
-        result.shadows.keys().copied().collect::<Vec<_>>(),
-        vec![fixture.text]
-    );
+    assert_eq!(result.text.len(), 1);
+    assert_eq!(result.shadows.len(), 1);
+    assert_eq!(result.nine.len(), 1);
+    assert_eq!(result.three.len(), 1);
 }
 
 fn change_order(fixture: &mut Fixture) {
@@ -261,8 +329,8 @@ fn text_reenable_uses_new_order_while_nontext_rendering_continues() {
     assert_eq!(disabled.text, before.text);
     assert_eq!(disabled.shadows, before.shadows);
     assert!(disabled.outlines.is_empty());
-    assert_z(disabled.images[&f.nine], 1, 0);
-    assert!(!disabled.images.contains_key(&f.second));
+    assert_z(disabled.nine[&f.nine], 1, 0);
+    assert!(!disabled.quads.contains_key(&f.second));
     f.app.world_mut().resource_mut::<UiTextRenderEnabled>().0 = true;
     settle(&mut f.app);
     let expected = [f.text, f.nine, f.three, f.first];

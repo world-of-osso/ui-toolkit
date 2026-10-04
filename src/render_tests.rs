@@ -11,7 +11,6 @@ use crate::widgets::button::{ButtonData, ButtonState};
 use crate::widgets::edit_box::EditBoxData;
 use crate::widgets::font_string::{FontStringData, GameFont};
 use crate::widgets::texture::TextureSource;
-use ui_toolkit_core::layout_values::PositionType;
 
 fn setup_app() -> App {
     let mut app = crate::native_render::tests::app_with_real_fonts(1.0);
@@ -55,22 +54,21 @@ fn fixture_image() -> Image {
 }
 
 fn supply_dynamic_art(app: &mut App) {
-    let pixels = fixture_image();
     let image = app
         .world_mut()
-        .resource_mut::<UiState>()
-        .registry
-        .create_dynamic_texture(pixels.width(), pixels.height(), pixels.data.unwrap())
-        .unwrap();
+        .resource_mut::<Assets<Image>>()
+        .add(fixture_image());
     let mut ui = app.world_mut().resource_mut::<UiState>();
     let ids: Vec<_> = ui.registry.frames_iter().map(|frame| frame.id).collect();
     for id in ids {
         match &mut ui.registry.get_mut(id).unwrap().widget_data {
-            Some(WidgetData::Texture(texture)) => texture.source = TextureSource::Dynamic(image),
+            Some(WidgetData::Texture(texture)) => {
+                texture.source = TextureSource::Dynamic(image.clone())
+            }
             Some(WidgetData::Button(button)) => {
-                button.normal_texture = Some(TextureSource::Dynamic(image));
-                button.highlight_texture = Some(TextureSource::Dynamic(image));
-                button.pushed_texture = Some(TextureSource::Dynamic(image));
+                button.normal_texture = Some(TextureSource::Dynamic(image.clone()));
+                button.highlight_texture = Some(TextureSource::Dynamic(image.clone()));
+                button.pushed_texture = Some(TextureSource::Dynamic(image.clone()));
             }
             _ => {}
         }
@@ -140,13 +138,10 @@ fn button_without_texture_no_nine_slice() {
 #[test]
 fn button_nine_slice_spawns_all_9_native_parts() {
     let mut app = setup_app();
-    let pixels = fixture_image();
     let image = app
         .world_mut()
-        .resource_mut::<UiState>()
-        .registry
-        .create_dynamic_texture(pixels.width(), pixels.height(), pixels.data.unwrap())
-        .unwrap();
+        .resource_mut::<Assets<Image>>()
+        .add(fixture_image());
     let btn = ButtonData {
         normal_texture: Some(TextureSource::Dynamic(image)),
         ..Default::default()
@@ -632,6 +627,7 @@ fn nested_texture_quad_renders_above_button_nine_slice_even_with_visible_text() 
 fn texture_crop_preserves_left_pixels_and_updates_native_uv_without_stale_image() {
     use bevy::asset::RenderAssetUsages;
     use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    use std::collections::HashSet;
 
     let mut app = setup_app();
     let pixels: Vec<u8> = (0..32)
@@ -648,7 +644,8 @@ fn texture_crop_preserves_left_pixels_and_updates_native_uv_without_stale_image(
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::default(),
     );
-    let id = create_dynamic_texture(&mut app, "CroppedMask", image);
+    let handle = app.world_mut().resource_mut::<Assets<Image>>().add(image);
+    let id = create_dynamic_texture(&mut app, "CroppedMask", handle.clone());
     {
         let mut ui = app.world_mut().resource_mut::<UiState>();
         ui.registry
@@ -660,7 +657,14 @@ fn texture_crop_preserves_left_pixels_and_updates_native_uv_without_stale_image(
         {
             let mut ui = app.world_mut().resource_mut::<UiState>();
             for (name, value) in [("width", width), ("height", "4"), ("tex_coords", crop)] {
-                crate::attrs::apply_attribute(&mut ui.registry, id, name, value);
+                crate::attrs::apply_attribute(
+                    &mut ui.registry,
+                    id,
+                    name,
+                    value,
+                    &mut HashSet::new(),
+                    &mut HashSet::new(),
+                );
             }
         }
         settle(&mut app);
@@ -672,7 +676,7 @@ fn texture_crop_preserves_left_pixels_and_updates_native_uv_without_stale_image(
             "UV crop must select left source columns, not squeeze all eight"
         );
         assert_eq!(native_size(app.world(), entity), Vec2::new(right, 4.0));
-        let handle = sprite.image.clone();
+        assert_eq!(sprite.image, handle);
         assert_eq!(
             app.world()
                 .resource::<Assets<Image>>()
@@ -704,35 +708,28 @@ fn texture_crop_preserves_left_pixels_and_updates_native_uv_without_stale_image(
 #[test]
 fn default_texture_coordinates_preserve_full_image() {
     let mut app = setup_app();
-    let id = create_dynamic_texture(&mut app, "FullTexture", fixture_image());
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::default());
+    let id = create_dynamic_texture(&mut app, "FullTexture", handle.clone());
     app.update();
     settle(&mut app);
     let entity = image_entity(app.world_mut(), id, 0).unwrap();
     let sprite = app.world().get::<ImageNode>(entity).unwrap();
     assert_eq!(sprite.rect, None);
-    assert_eq!(
-        app.world()
-            .resource::<Assets<Image>>()
-            .get(&sprite.image)
-            .unwrap()
-            .data,
-        fixture_image().data
-    );
+    assert_eq!(sprite.image, handle);
 }
 
-fn create_dynamic_texture(app: &mut App, name: &str, image: Image) -> u64 {
+fn create_dynamic_texture(app: &mut App, name: &str, handle: Handle<Image>) -> u64 {
     let mut ui = app.world_mut().resource_mut::<UiState>();
-    let texture = ui
-        .registry
-        .create_dynamic_texture(image.width(), image.height(), image.data.unwrap())
-        .unwrap();
     let id = ui.registry.create_frame(name, None);
     let frame = ui.registry.get_mut(id).unwrap();
     frame.width = Dimension::Fixed(200.0);
     frame.height = Dimension::Fixed(200.0);
     frame.widget_type = WidgetType::Texture;
     frame.widget_data = Some(WidgetData::Texture(crate::widgets::texture::TextureData {
-        source: TextureSource::Dynamic(texture),
+        source: TextureSource::Dynamic(handle),
         ..Default::default()
     }));
     id
@@ -741,7 +738,11 @@ fn create_dynamic_texture(app: &mut App, name: &str, image: Image) -> u64 {
 #[test]
 fn dynamic_texture_spawns_quad() {
     let mut app = setup_app();
-    let id = create_dynamic_texture(&mut app, "DynTex", fixture_image());
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::default());
+    let id = create_dynamic_texture(&mut app, "DynTex", handle);
     app.update();
     assert!(
         quad_z(app.world_mut(), id).is_some(),
@@ -758,7 +759,11 @@ fn quad_rotation_z(world: &mut World, frame_id: u64) -> Option<f32> {
 #[test]
 fn texture_rotation_applies_to_transform() {
     let mut app = setup_app();
-    let id = create_dynamic_texture(&mut app, "RotTex", fixture_image());
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::default());
+    let id = create_dynamic_texture(&mut app, "RotTex", handle);
     {
         let mut ui = app.world_mut().resource_mut::<UiState>();
         let frame = ui.registry.get_mut(id).unwrap();
@@ -777,7 +782,11 @@ fn texture_rotation_applies_to_transform() {
 #[test]
 fn texture_zero_rotation_no_transform_rotation() {
     let mut app = setup_app();
-    let id = create_dynamic_texture(&mut app, "NoRot", fixture_image());
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<Image>>()
+        .add(Image::default());
+    let id = create_dynamic_texture(&mut app, "NoRot", handle);
     app.update();
     let rot = quad_rotation_z(app.world_mut(), id).expect("quad should exist");
     assert!(

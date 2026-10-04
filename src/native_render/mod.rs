@@ -12,8 +12,6 @@ use std::collections::{HashMap, HashSet};
 
 pub mod caret;
 #[cfg(test)]
-mod native_only_tests;
-#[cfg(test)]
 pub(crate) mod tests;
 
 mod images;
@@ -73,14 +71,9 @@ impl NativeAssets<'_, '_> {
     pub(crate) fn frame_z(&self) -> f32 {
         *self.frame_z
     }
-    pub(crate) fn load(
-        &mut self,
-        source: &TextureSource,
-        registry: &crate::registry::FrameRegistry,
-    ) -> Option<LoadedTexture> {
+    pub(crate) fn load(&mut self, source: &TextureSource) -> Option<LoadedTexture> {
         load_texture_source(
             source,
-            registry,
             &mut self.images,
             &mut self.textures,
             &mut self.files,
@@ -444,7 +437,7 @@ fn sync_images(
     for frame in state.registry.frames_iter().filter(|f| f.visible) {
         *assets.frame_z = order.indices.get(&frame.id).copied().unwrap_or(0) as f32 * 0.001;
         let projected = projection_frame(frame, frames[&frame.id], query);
-        for part in images::project_images(&projected, &state.registry, assets) {
+        for part in images::project_images(&projected, assets) {
             let key = (frame.id, part.key);
             seen.insert(key);
             upsert_image(

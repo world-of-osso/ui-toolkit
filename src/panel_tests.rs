@@ -5,6 +5,8 @@
 //! document the expected nine-slice behavior that needs to be ported from
 //! wow-ui-sim.
 
+use std::collections::HashSet;
+
 use crate::frame::{Dimension, NineSlice, WidgetData, WidgetType};
 use crate::registry::FrameRegistry;
 use crate::widgets::button::ButtonData;
@@ -558,10 +560,33 @@ fn read_attribute_returns_editbox_text_insets() {
 fn apply_attribute_updates_editbox_text_attributes() {
     let mut reg = test_registry();
     let eb = create_editbox(&mut reg, "LoginInput", None, 320.0, 42.0);
+    let mut validated = HashSet::new();
+    let mut missing = HashSet::new();
 
-    crate::attrs::apply_attribute(&mut reg, eb, "text_insets", "12,5,8,8");
-    crate::attrs::apply_attribute(&mut reg, eb, "password", "true");
-    crate::attrs::apply_attribute(&mut reg, eb, "password", "not-a-bool");
+    crate::attrs::apply_attribute(
+        &mut reg,
+        eb,
+        "text_insets",
+        "12,5,8,8",
+        &mut validated,
+        &mut missing,
+    );
+    crate::attrs::apply_attribute(
+        &mut reg,
+        eb,
+        "password",
+        "true",
+        &mut validated,
+        &mut missing,
+    );
+    crate::attrs::apply_attribute(
+        &mut reg,
+        eb,
+        "password",
+        "not-a-bool",
+        &mut validated,
+        &mut missing,
+    );
 
     let frame = reg.get(eb).expect("editbox frame");
     let WidgetData::EditBox(eb_data) = frame.widget_data.as_ref().expect("editbox data") else {
@@ -581,11 +606,41 @@ fn apply_attribute_updates_font_string_text_style_attributes() {
     if let Some(frame) = reg.get_mut(id) {
         frame.widget_data = Some(WidgetData::FontString(Default::default()));
     }
+    let mut validated = HashSet::new();
+    let mut missing = HashSet::new();
 
-    crate::attrs::apply_attribute(&mut reg, id, "justify_h", "RIGHT");
-    crate::attrs::apply_attribute(&mut reg, id, "shadow_color", "0.1,0.2,0.3,0.4");
-    crate::attrs::apply_attribute(&mut reg, id, "shadow_offset", "7,9");
-    crate::attrs::apply_attribute(&mut reg, id, "outline", "THICKOUTLINE");
+    crate::attrs::apply_attribute(
+        &mut reg,
+        id,
+        "justify_h",
+        "RIGHT",
+        &mut validated,
+        &mut missing,
+    );
+    crate::attrs::apply_attribute(
+        &mut reg,
+        id,
+        "shadow_color",
+        "0.1,0.2,0.3,0.4",
+        &mut validated,
+        &mut missing,
+    );
+    crate::attrs::apply_attribute(
+        &mut reg,
+        id,
+        "shadow_offset",
+        "7,9",
+        &mut validated,
+        &mut missing,
+    );
+    crate::attrs::apply_attribute(
+        &mut reg,
+        id,
+        "outline",
+        "THICKOUTLINE",
+        &mut validated,
+        &mut missing,
+    );
 
     let frame = reg.get(id).expect("font string frame");
     let WidgetData::FontString(fs) = frame.widget_data.as_ref().expect("font string data") else {

@@ -47,35 +47,8 @@ impl BlpLoader for ExtractedAtlas {
     }
 }
 
-fn load_fixture_atlas_tables() {
-    let directory = std::env::temp_dir().join(format!("render-atlas-{}", std::process::id()));
-    std::fs::create_dir_all(&directory).unwrap();
-    for (name, contents) in [
-        (
-            "UiTextureAtlas.csv",
-            "ID,FileDataID,AtlasWidth,AtlasHeight,UiCanvasID\n1,5648070,1024,1024,1\n",
-        ),
-        (
-            "UiTextureAtlasElement.csv",
-            "Name,ID\nglues-characterselect-card-singles,1\nglues-characterselect-card-all-bg,2\nglues-characterselect-card-selected,3\n",
-        ),
-        (
-            "UiTextureAtlasMember.csv",
-            "ID,UiTextureAtlasElementID,UiTextureAtlasID,Width,Height,CommittedLeft,CommittedRight,CommittedTop,CommittedBottom,OverrideWidth,OverrideHeight\n\
-             1,1,1,310,89,1,311,446,535,0,0\n\
-             2,2,1,60,60,202,262,1,61,0,0\n\
-             3,3,1,342,122,98,440,1,123,0,0\n",
-        ),
-    ] {
-        std::fs::write(directory.join(name), contents).unwrap();
-    }
-    atlas::set_atlas_directories(&directory, &directory).unwrap();
-    std::fs::remove_dir_all(directory).unwrap();
-}
-
 #[test]
 fn fdid_atlas_loads_authored_crops_and_reuses_cached_pixels() {
-    load_fixture_atlas_tables();
     let available = Arc::new(AtomicBool::new(true));
     let loader = BlpLoaderRes(Box::new(ExtractedAtlas {
         available: available.clone(),
@@ -91,7 +64,6 @@ fn fdid_atlas_loads_authored_crops_and_reuses_cached_pixels() {
     let mut load = |name: &str, images: &mut Option<ResMut<Assets<Image>>>| {
         load_texture_source(
             &TextureSource::Atlas(name.into()),
-            &crate::registry::FrameRegistry::new(800.0, 600.0),
             images,
             &mut fdid_cache,
             &mut file_cache,

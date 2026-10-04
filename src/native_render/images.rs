@@ -16,14 +16,10 @@ mod tests;
 
 type LoadedImage = (LoadedTexture, Option<Vec2>);
 
-pub(super) fn project_images(
-    frame: &Frame,
-    registry: &crate::registry::FrameRegistry,
-    assets: &mut NativeAssets,
-) -> Vec<ImagePart> {
+pub(super) fn project_images(frame: &Frame, assets: &mut NativeAssets) -> Vec<ImagePart> {
     let z = assets.frame_z();
     project_at_z(frame, z, &mut |source| {
-        let texture = assets.load(source, registry)?;
+        let texture = assets.load(source)?;
         let size = assets.image_size(&texture.handle);
         Some((texture, size))
     })

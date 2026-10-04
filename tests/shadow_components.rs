@@ -1,74 +1,81 @@
-pub mod support;
-
 use bevy::prelude::*;
-use bevy::text::{FontWeight, Justify, LineBreak};
-use support::{create_frame, logical_rect, native_app, settle, text_entity};
+use bevy::sprite::Anchor;
+use bevy::text::{FontWeight, Justify, LineBreak, TextBounds};
+use ui_toolkit::event::EventBus;
+use ui_toolkit::font_registry::FontRegistry;
 use ui_toolkit::frame::{Dimension, WidgetData};
-use ui_toolkit::native_render::RegistryText;
 use ui_toolkit::plugin::UiState;
+use ui_toolkit::registry::FrameRegistry;
+use ui_toolkit::render_text_fx::UiTextShadow;
+use ui_toolkit::render_text_fx::sync_ui_text_shadows;
 use ui_toolkit::widgets::font_string::{FontStringData, GameFont, JustifyH};
 
 fn fixture() -> (App, Entity, u64) {
-    let (mut app, _) = native_app();
-    let id = create_frame(&mut app, "RegressionShadow", 180.0, 40.0);
-    app.world_mut()
-        .resource_mut::<UiState>()
-        .registry
-        .get_mut(id)
-        .unwrap()
-        .widget_data = Some(WidgetData::FontString(FontStringData {
+    let mut app = App::new();
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("RegressionShadow", None);
+    let frame = registry.get_mut(id).unwrap();
+    frame.width = Dimension::Fixed(180.0);
+    frame.height = Dimension::Fixed(40.0);
+    frame.widget_data = Some(WidgetData::FontString(FontStringData {
         text: "Before".into(),
         shadow_color: Some([0.1, 0.2, 0.3, 0.7]),
-        shadow_offset: [2.0, 3.0],
         ..default()
     }));
-    app.init_resource::<Observed>();
-    app.add_systems(Last, observe);
-    settle(&mut app);
-    let entity = text_entity(app.world_mut(), id, 1);
+    app.insert_resource(UiState {
+        registry,
+        event_bus: EventBus::new(),
+        focused_frame: None,
+    });
+    app.init_resource::<Assets<Font>>();
+    app.init_resource::<FontRegistry>();
+    app.init_resource::<ObservedTicks>();
+    app.add_systems(Update, (sync_ui_text_shadows, observe_ticks).chain());
+    app.update();
+    let entity = app
+        .world_mut()
+        .query_filtered::<Entity, With<UiTextShadow>>()
+        .single(app.world())
+        .unwrap();
     (app, entity, id)
 }
 
 #[derive(Resource, Default)]
-struct Observed(bool);
+struct ObservedTicks([bool; 7]);
 
-fn observe(
-    texts: Query<(
-        &RegistryText,
-        Ref<Text>,
-        Ref<TextFont>,
-        Ref<TextLayout>,
-        Ref<TextColor>,
-    )>,
-    mut observed: ResMut<Observed>,
-) {
-    observed.0 = texts.iter().any(|(part, text, font, layout, color)| {
-        part.key == 1
-            && (text.is_changed() || font.is_changed() || layout.is_changed() || color.is_changed())
-    });
+fn observe_ticks(world: &mut World) {
+    fn did_change<T: Component>(world: &mut World) -> bool {
+        world
+            .query_filtered::<Entity, (With<UiTextShadow>, Changed<T>)>()
+            .iter(world)
+            .next()
+            .is_some()
+    }
+    let observed = [
+        did_change::<Text2d>(world),
+        did_change::<TextLayout>(world),
+        did_change::<TextBounds>(world),
+        did_change::<TextFont>(world),
+        did_change::<TextColor>(world),
+        did_change::<Transform>(world),
+        did_change::<Anchor>(world),
+    ];
+    world.resource_mut::<ObservedTicks>().0 = observed;
+}
+
+fn ticks(app: &mut App) -> [bool; 7] {
+    app.world().resource::<ObservedTicks>().0
 }
 
 #[test]
 fn unchanged_shadow_components_keep_change_ticks_clean() {
-    let (mut app, shadow, id) = fixture();
-    let foreground = text_entity(app.world_mut(), id, 0);
-    let before = logical_rect(app.world(), shadow);
+    let (mut app, _, _) = fixture();
+    app.world_mut().clear_trackers();
     app.update();
-    assert!(!app.world().resource::<Observed>().0);
-    assert_eq!(logical_rect(app.world(), shadow), before);
     assert_eq!(
-        before.min - logical_rect(app.world(), foreground).min,
-        Vec2::new(2.0, 3.0)
-    );
-    let shadow_bounds = app.world().get::<ChildOf>(shadow).unwrap().parent();
-    let foreground_bounds = app.world().get::<ChildOf>(foreground).unwrap().parent();
-    assert!(
-        app.world().get::<GlobalZIndex>(shadow_bounds).unwrap().0
-            < app
-                .world()
-                .get::<GlobalZIndex>(foreground_bounds)
-                .unwrap()
-                .0
+        ticks(&mut app),
+        [false; 7],
+        "Text2d/layout/bounds/font/color/Transform/Anchor"
     );
 }
 
@@ -76,50 +83,39 @@ fn unchanged_shadow_components_keep_change_ticks_clean() {
 fn source_updates_change_owned_shadow_components() {
     let (mut app, entity, id) = fixture();
     app.world_mut().get_mut::<TextFont>(entity).unwrap().weight = FontWeight::BOLD;
+    app.world_mut().clear_trackers();
     {
-        let mut ui = app.world_mut().resource_mut::<UiState>();
-        let frame = ui.registry.get_mut(id).unwrap();
+        let mut state = app.world_mut().resource_mut::<UiState>();
+        let frame = state.registry.get_mut(id).unwrap();
         frame.width = Dimension::Fixed(250.0);
         frame.height = Dimension::Fixed(70.0);
         let Some(WidgetData::FontString(data)) = &mut frame.widget_data else {
-            panic!("fontstring")
+            panic!("fontstring fixture")
         };
         data.text = "After".into();
         data.font = GameFont::ArialNarrow;
         data.font_size = 24.0;
         data.justify_h = JustifyH::Right;
         data.shadow_color = Some([0.2, 0.4, 0.6, 0.8]);
-        data.shadow_offset = [4.0, 5.0];
     }
-    settle(&mut app);
-    assert_eq!(text_entity(app.world_mut(), id, 1), entity);
-    assert_eq!(app.world().get::<Text>(entity).unwrap().0, "After");
+    app.update();
+    assert_eq!(app.world().get::<Text2d>(entity).unwrap().0, "After");
     assert_eq!(
         app.world().get::<TextLayout>(entity).unwrap().justify,
         Justify::Right
     );
     assert_eq!(
-        app.world().get::<TextFont>(entity).unwrap().font_size,
-        FontSize::Px(24.0)
+        app.world().get::<TextBounds>(entity).unwrap().width,
+        Some(250.0)
     );
-    assert_eq!(
-        app.world().get::<TextFont>(entity).unwrap().weight,
-        FontWeight::BOLD
-    );
+    let font = app.world().get::<TextFont>(entity).unwrap();
+    assert_eq!(font.font_size, FontSize::Px(24.0));
+    assert_eq!(font.weight, FontWeight::BOLD);
     assert_eq!(
         app.world().get::<TextColor>(entity).unwrap().0,
         Color::srgba(0.2, 0.4, 0.6, 0.8)
     );
-    let foreground = text_entity(app.world_mut(), id, 0);
-    assert_eq!(
-        logical_rect(app.world(), entity).min - logical_rect(app.world(), foreground).min,
-        Vec2::new(4.0, 5.0)
-    );
-    let bounds = app.world().get::<ChildOf>(entity).unwrap().parent();
-    assert_eq!(
-        logical_rect(app.world(), bounds).size(),
-        Vec2::new(250.0, 70.0)
-    );
+    assert_eq!(ticks(&mut app), [true, true, true, true, true, true, false]);
 }
 
 #[test]
@@ -127,12 +123,19 @@ fn external_component_edits_are_repaired_without_resetting_unowned_font_fields()
     let (mut app, entity, _) = fixture();
     let expected_font = app.world().get::<TextFont>(entity).unwrap().clone();
     let expected_layout = *app.world().get::<TextLayout>(entity).unwrap();
+    let expected_bounds = *app.world().get::<TextBounds>(entity).unwrap();
     let expected_color = *app.world().get::<TextColor>(entity).unwrap();
-    let expected_rect = logical_rect(app.world(), entity);
+    let expected_transform = *app.world().get::<Transform>(entity).unwrap();
     app.world_mut().entity_mut(entity).insert((
-        Text::new("External"),
+        Text2d::new("External"),
         TextLayout::new(Justify::Right, LineBreak::NoWrap),
+        TextBounds {
+            width: Some(1.0),
+            height: Some(1.0),
+        },
         TextColor(Color::BLACK),
+        Transform::from_xyz(1.0, 2.0, 3.0),
+        Anchor::BOTTOM_RIGHT,
     ));
     {
         let mut font = app.world_mut().get_mut::<TextFont>(entity).unwrap();
@@ -140,26 +143,30 @@ fn external_component_edits_are_repaired_without_resetting_unowned_font_fields()
         font.font_size = FontSize::Px(1.0);
         font.weight = FontWeight::BOLD;
     }
-    settle(&mut app);
-    assert_eq!(app.world().get::<Text>(entity).unwrap().0, "Before");
-    assert_eq!(
-        app.world().get::<TextLayout>(entity).unwrap().justify,
-        expected_layout.justify
-    );
-    assert_eq!(
-        app.world().get::<TextLayout>(entity).unwrap().linebreak,
-        expected_layout.linebreak
-    );
+    app.world_mut().clear_trackers();
+    app.update();
+    assert_eq!(app.world().get::<Text2d>(entity).unwrap().0, "Before");
+    let layout = app.world().get::<TextLayout>(entity).unwrap();
+    assert_eq!(layout.justify, expected_layout.justify);
+    assert_eq!(layout.linebreak, expected_layout.linebreak);
+    let bounds = app.world().get::<TextBounds>(entity).unwrap();
+    assert_eq!(bounds.width, expected_bounds.width);
+    assert_eq!(bounds.height, expected_bounds.height);
     assert_eq!(
         *app.world().get::<TextColor>(entity).unwrap(),
         expected_color
+    );
+    assert_eq!(
+        *app.world().get::<Transform>(entity).unwrap(),
+        expected_transform
+    );
+    assert_eq!(
+        *app.world().get::<Anchor>(entity).unwrap(),
+        Anchor::TOP_LEFT
     );
     let font = app.world().get::<TextFont>(entity).unwrap();
     assert_eq!(font.font, expected_font.font);
     assert_eq!(font.font_size, expected_font.font_size);
     assert_eq!(font.weight, FontWeight::BOLD);
-    assert_eq!(
-        logical_rect(app.world(), entity).size(),
-        expected_rect.size()
-    );
+    assert_eq!(ticks(&mut app), [true; 7]);
 }

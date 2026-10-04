@@ -6,7 +6,7 @@ use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
 
 use crate::plugin::{UiPlugin, UiRenderEnabled, UiState};
-use crate::widget_def::{Attr, AttrValue, WidgetChild, WidgetDef};
+use crate::widget_def::{Attr, AttrValue, WidgetDef};
 
 struct ReloadFixture;
 

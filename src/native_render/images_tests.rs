@@ -225,7 +225,14 @@ fn button_hover_alpha_is_authored_in_native_image_output() {
         ..default()
     }));
     *registry.get_mut(id).unwrap() = authored;
-    crate::attrs::apply_attribute(&mut registry, id, "button_highlight_alpha", "0.15");
+    crate::attrs::apply_attribute(
+        &mut registry,
+        id,
+        "button_highlight_alpha",
+        "0.15",
+        &mut Default::default(),
+        &mut Default::default(),
+    );
     let output = project_with_loader(registry.get(id).unwrap(), &mut load);
     assert_eq!(
         output.len(),
@@ -275,11 +282,7 @@ fn interaction_only_buttons_do_not_cover_their_child_icon_in_any_state() {
     button_frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
     let mut icon_frame = frame();
     icon_frame.widget_data = Some(WidgetData::Texture(TextureData {
-        source: TextureSource::Dynamic(
-            crate::registry::FrameRegistry::new(200.0, 100.0)
-                .create_dynamic_texture(1, 1, vec![255; 4])
-                .unwrap(),
-        ),
+        source: TextureSource::Dynamic(Handle::default()),
         ..default()
     }));
     let icon_parts = project_with_loader(&icon_frame, &mut load);
@@ -322,7 +325,14 @@ fn prepared_interaction_only_button_has_no_implicit_sliced_background() {
         frame.height = Dimension::Fixed(79.0);
         frame.effective_alpha = 1.0;
         frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
-        crate::attrs::apply_attribute(&mut ui.registry, id, "button_default_skin", "false");
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            id,
+            "button_default_skin",
+            "false",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
         id
     };
     app.update();
@@ -363,7 +373,14 @@ fn prepared_interaction_only_button_has_no_implicit_sliced_background() {
             unreachable!()
         };
         button.hovered = false;
-        crate::attrs::apply_attribute(&mut ui.registry, id, "button_default_skin", "true");
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            id,
+            "button_default_skin",
+            "true",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
     }
     app.update();
     let ui = app.world().resource::<crate::plugin::UiState>();
@@ -378,7 +395,14 @@ fn prepared_interaction_only_button_has_no_implicit_sliced_background() {
     );
     {
         let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();
-        crate::attrs::apply_attribute(&mut ui.registry, id, "button_default_skin", "false");
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            id,
+            "button_default_skin",
+            "false",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
     }
     app.update();
     let ui = app.world().resource::<crate::plugin::UiState>();
@@ -412,7 +436,14 @@ fn opted_out_buttons_keep_authored_slices_and_state_textures() {
             pushed_texture: Some(TextureSource::File("pressed.png".into())),
             ..default()
         }));
-        crate::attrs::apply_attribute(&mut ui.registry, id, "button_default_skin", "false");
+        crate::attrs::apply_attribute(
+            &mut ui.registry,
+            id,
+            "button_default_skin",
+            "false",
+            &mut Default::default(),
+            &mut Default::default(),
+        );
         id
     };
     app.update();
@@ -607,7 +638,14 @@ fn tex_coords_attribute_accepts_reversed_axes() {
     let mut reg = crate::registry::FrameRegistry::new(100.0, 100.0);
     let id = reg.create_frame("ReversedTexture", None);
     reg.get_mut(id).expect("frame").widget_data = Some(WidgetData::Texture(TextureData::default()));
-    crate::attrs::apply_attribute(&mut reg, id, "tex_coords", "0,1,1,0.25");
+    crate::attrs::apply_attribute(
+        &mut reg,
+        id,
+        "tex_coords",
+        "0,1,1,0.25",
+        &mut Default::default(),
+        &mut Default::default(),
+    );
     match reg.get(id).and_then(|f| f.widget_data.as_ref()) {
         Some(WidgetData::Texture(texture)) => assert_eq!(texture.tex_coords, [0.0, 1.0, 1.0, 0.25]),
         _ => panic!("texture widget data missing"),

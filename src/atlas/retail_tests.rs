@@ -152,7 +152,6 @@ fn retail_character_creation_atlases_crop_authored_pixels_and_keep_logical_sizes
         }
         let loaded = load_texture_source_pub(
             &TextureSource::Atlas(crop.name.into()),
-            &crate::registry::FrameRegistry::new(800.0, 600.0),
             &mut images,
             &mut texture_cache,
             &mut file_cache,

@@ -7,7 +7,6 @@ use std::fs;
 use std::path::Path;
 
 use crate::atlas;
-use crate::registry::FrameRegistry;
 use crate::render::LoadedTexture;
 use crate::widgets::texture::TextureSource;
 
@@ -25,7 +24,6 @@ pub struct BlpLoaderRes(pub Box<dyn BlpLoader>);
 
 pub fn load_texture_source_pub(
     source: &TextureSource,
-    registry: &FrameRegistry,
     images: &mut Option<ResMut<Assets<Image>>>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
     file_texture_cache: &mut HashMap<String, Handle<Image>>,
@@ -35,7 +33,6 @@ pub fn load_texture_source_pub(
 ) -> Option<LoadedTexture> {
     load_texture_source(
         source,
-        registry,
         images,
         texture_cache,
         file_texture_cache,
@@ -47,7 +44,6 @@ pub fn load_texture_source_pub(
 
 pub fn load_texture_source(
     source: &TextureSource,
-    registry: &FrameRegistry,
     images: &mut Option<ResMut<Assets<Image>>>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
     file_texture_cache: &mut HashMap<String, Handle<Image>>,
@@ -75,53 +71,12 @@ pub fn load_texture_source(
             missing_file_textures,
             blp_loader,
         ),
-        TextureSource::Dynamic(id) => {
-            load_dynamic_texture(*id, registry, images, file_texture_cache)
-                .map(|handle| LoadedTexture { handle, rect: None })
-        }
+        TextureSource::Dynamic(handle) => Some(LoadedTexture {
+            handle: handle.clone(),
+            rect: None,
+        }),
         _ => None,
     }
-}
-
-fn load_dynamic_texture(
-    id: crate::widgets::texture::DynamicTextureId,
-    registry: &FrameRegistry,
-    images: &mut Option<ResMut<Assets<Image>>>,
-    cache: &mut HashMap<String, Handle<Image>>,
-) -> Option<Handle<Image>> {
-    let key = format!("dynamic::{}", id.0);
-    let Some(texture) = registry.dynamic_texture(id) else {
-        cache.remove(&key);
-        return None;
-    };
-    let assets = images.as_mut()?;
-    if let Some(handle) = cache.get(&key) {
-        let image = assets.get(handle)?;
-        if image.width() != texture.width
-            || image.height() != texture.height
-            || image.data.as_deref() != Some(texture.rgba8.as_slice())
-        {
-            *assets.get_mut(handle)? = project_dynamic_image(texture);
-        }
-        return Some(handle.clone());
-    }
-    let handle = assets.add(project_dynamic_image(texture));
-    cache.insert(key, handle.clone());
-    Some(handle)
-}
-
-fn project_dynamic_image(texture: &crate::widgets::texture::DynamicTexture) -> Image {
-    Image::new(
-        Extent3d {
-            width: texture.width,
-            height: texture.height,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        texture.rgba8.clone(),
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::default(),
-    )
 }
 
 fn load_atlas_texture(
@@ -152,10 +107,7 @@ fn load_atlas_texture(
     let rect = images
         .as_ref()
         .and_then(|assets| assets.get(&handle))
-        .map(|image| {
-            let rect = region.rect_pixels(image.width(), image.height());
-            Rect::from_corners(Vec2::from_array(rect.min), Vec2::from_array(rect.max))
-        });
+        .map(|image| region.rect_pixels(image));
     Some(LoadedTexture { handle, rect })
 }
 
