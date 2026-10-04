@@ -31,6 +31,9 @@ pub struct FrameRegistry {
     /// Frames removed since the last [`Self::drain_removed_frames`]; the host
     /// drops their event listeners and stale focus ownership.
     pub removed_frames: Vec<u64>,
+    /// Parents whose child order changed after their children existed; the host
+    /// reorders its own child nodes to match, then clears the set.
+    pub child_order_dirty: HashSet<u64>,
     pub focused_frame: Option<u64>,
     pub(crate) panel_styles: HashMap<String, NineSlice>,
     pub(crate) three_slice_styles: HashMap<String, ThreeSlice>,
@@ -54,6 +57,7 @@ impl FrameRegistry {
             pending_writes: HashMap::new(),
             rect_dirty: HashSet::new(),
             removed_frames: Vec::new(),
+            child_order_dirty: HashSet::new(),
             focused_frame: None,
             panel_styles: HashMap::new(),
             three_slice_styles: HashMap::new(),
@@ -504,6 +508,24 @@ impl FrameRegistry {
             .get(&id)
             .map(|f| f.children.clone())
             .unwrap_or_default()
+    }
+
+    /// Replace `parent`'s children with `order`, the same frames in a new order.
+    /// An unchanged order is a no-op; a changed one is marked for layout and host
+    /// node reordering ([`Self::child_order_dirty`]).
+    pub fn set_child_order(&mut self, parent: u64, order: Vec<u64>) {
+        self.resolve_pending_writes();
+        let frame = self
+            .frames
+            .get_mut(&parent)
+            .expect("set_child_order parent exists");
+        if frame.children == order {
+            return;
+        }
+        debug_assert_eq!(frame.children.len(), order.len());
+        frame.children = order;
+        self.child_order_dirty.insert(parent);
+        self.mark_rect_dirty(parent);
     }
 
     pub fn parent_of(&self, id: u64) -> Option<u64> {

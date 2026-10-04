@@ -56,6 +56,9 @@ impl DiffContext {
             self.remove_subtree(slot, registry);
         }
 
+        // Frame for each new def, by def index: the order a fresh build produces.
+        let mut order = vec![0; new_defs.len()];
+
         // Update matched frames
         for (fid, i, reuse) in matched {
             let def = new_defs[i];
@@ -64,6 +67,7 @@ impl DiffContext {
             }
             self.apply_def(def, fid, registry);
             self.diff_roots(&def.children, Some(fid), registry);
+            order[i] = fid;
         }
 
         // Create new frames for unmatched defs
@@ -71,6 +75,14 @@ impl DiffContext {
             let def = new_defs[i];
             let fid = self.create_def(def, parent_id, registry);
             self.diff_roots(&def.children, Some(fid), registry);
+            order[i] = fid;
+        }
+
+        // Matched frames keep their old positions and new frames are appended;
+        // put siblings in def order, which drives draw order and stack layout.
+        match parent_id {
+            Some(pid) => registry.set_child_order(pid, order),
+            None => self.created_frames = order,
         }
     }
 
@@ -786,5 +798,140 @@ mod named_reuse_tests {
         diff.diff_roots(&panel(), None, &mut registry);
 
         assert!(frame(&registry, "Panel").hidden);
+    }
+
+    fn make_registry() -> FrameRegistry {
+        FrameRegistry::new(1024.0, 768.0)
+    }
+
+    fn node(name: &str, children: Vec<WidgetChild>) -> WidgetChild {
+        WidgetChild::Widget(WidgetDef {
+            tag: "Frame",
+            tag_owned: None,
+            name: Some(name.to_string()),
+            attrs: vec![],
+            nine_slice: None,
+            children,
+        })
+    }
+
+    fn leaves(names: &[&str]) -> Vec<WidgetChild> {
+        names.iter().map(|name| node(name, vec![])).collect()
+    }
+
+    fn names(registry: &FrameRegistry, ids: &[u64]) -> Vec<String> {
+        ids.iter()
+            .map(|&id| registry.get(id).unwrap().name.clone().unwrap())
+            .collect()
+    }
+
+    fn child_names(registry: &FrameRegistry, parent: &str) -> Vec<String> {
+        names(registry, &registry.children_of(id(registry, parent)))
+    }
+
+    fn id(registry: &FrameRegistry, name: &str) -> u64 {
+        registry.get_by_name(name).unwrap()
+    }
+
+    /// Diffs `first` then `second` under root frame "P" and returns P's children.
+    fn rebuild_children(first: &[&str], second: &[&str]) -> (FrameRegistry, Vec<String>) {
+        let mut registry = make_registry();
+        let mut diff = DiffContext::new();
+        diff.diff_roots(&[node("P", leaves(first))], None, &mut registry);
+        diff.diff_roots(&[node("P", leaves(second))], None, &mut registry);
+        let children = child_names(&registry, "P");
+        (registry, children)
+    }
+
+    #[test]
+    fn inserted_child_takes_its_def_position() {
+        let mut registry = make_registry();
+        let mut diff = DiffContext::new();
+        diff.diff_roots(&[node("P", leaves(&["A", "B"]))], None, &mut registry);
+        let (a, b) = (id(&registry, "A"), id(&registry, "B"));
+
+        diff.diff_roots(&[node("P", leaves(&["A", "X", "B"]))], None, &mut registry);
+
+        assert_eq!(child_names(&registry, "P"), ["A", "X", "B"]);
+        assert_eq!((id(&registry, "A"), id(&registry, "B")), (a, b));
+    }
+
+    #[test]
+    fn reordered_children_follow_new_defs_and_keep_their_frames() {
+        let mut registry = make_registry();
+        let mut diff = DiffContext::new();
+        diff.diff_roots(&[node("P", leaves(&["A", "B"]))], None, &mut registry);
+        let (a, b) = (id(&registry, "A"), id(&registry, "B"));
+
+        diff.diff_roots(&[node("P", leaves(&["B", "A"]))], None, &mut registry);
+
+        assert_eq!(registry.children_of(id(&registry, "P")), [b, a]);
+    }
+
+    #[test]
+    fn removal_and_insertion_yield_new_def_order() {
+        let (registry, children) = rebuild_children(&["A", "B", "C"], &["C", "X", "A"]);
+
+        assert_eq!(children, ["C", "X", "A"]);
+        assert!(registry.get_by_name("B").is_none());
+    }
+
+    #[test]
+    fn rebuilt_order_matches_fresh_build() {
+        let (_, rebuilt) = rebuild_children(&["B", "D"], &["A", "B", "C", "D", "E"]);
+        let (_, fresh) = rebuild_children(&[], &["A", "B", "C", "D", "E"]);
+
+        assert_eq!(rebuilt, fresh);
+    }
+
+    #[test]
+    fn nested_inserted_child_takes_its_def_position() {
+        let mut registry = make_registry();
+        let mut diff = DiffContext::new();
+        diff.diff_roots(
+            &[node("P", vec![node("Q", leaves(&["A", "B"]))])],
+            None,
+            &mut registry,
+        );
+
+        diff.diff_roots(
+            &[node("P", vec![node("Q", leaves(&["A", "X", "B"]))])],
+            None,
+            &mut registry,
+        );
+
+        assert_eq!(child_names(&registry, "Q"), ["A", "X", "B"]);
+    }
+
+    #[test]
+    fn inserted_root_takes_its_def_position() {
+        let mut registry = make_registry();
+        let mut diff = DiffContext::new();
+        diff.diff_roots(&leaves(&["A", "B"]), None, &mut registry);
+
+        diff.diff_roots(&leaves(&["A", "X", "B"]), None, &mut registry);
+
+        assert_eq!(names(&registry, &diff.created_frames), ["A", "X", "B"]);
+    }
+
+    #[test]
+    fn reordered_parent_is_reported_once_and_unchanged_order_is_not() {
+        let mut registry = make_registry();
+        let mut diff = DiffContext::new();
+        diff.diff_roots(&[node("P", leaves(&["A", "B"]))], None, &mut registry);
+        registry.child_order_dirty.clear();
+
+        diff.diff_roots(&[node("P", leaves(&["A", "B"]))], None, &mut registry);
+        assert!(registry.child_order_dirty.is_empty());
+
+        diff.diff_roots(&[node("P", leaves(&["B", "A"]))], None, &mut registry);
+        assert_eq!(
+            registry
+                .child_order_dirty
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [id(&registry, "P")]
+        );
     }
 }
