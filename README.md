@@ -2,6 +2,12 @@
 
 Registry-authoritative UI frames projected to native Bevy UI. Screens use `rsx!`, `Screen`, and `SharedContext`; the registry owns authored layout, texture, input, visibility, and lifecycle state.
 
+## Portable core integration
+
+`core/` contains Bevy-free `ui-toolkit-core`: shared frame/attribute/registry/screen models, widget wrappers and DB2 atlas skin/canvas resolution. The root crate retains the Bevy projection; Godot projection is engine-owned. Merge `96dbda4` integrated `godot-conversion` and ancestor `testinfra-godot`, including nine-slice attributes and font-directory support. This merge does not extend historical test or runtime proof to the integrated engine.
+
+Canonical engine manifests `game-engine/godot/{rust,ui-model}/Cargo.toml` use `package = "ui-toolkit-core", path = "../../../ui-toolkit/core"`, resolving to `/syncthing/Sync/Projects/world-of-osso/ui-toolkit/core`. Engine build-helper override: `DEPOT_SIBLING_UI_TOOLKIT`. Historical `ui-toolkit-godot-conversion` paths identify earlier evidence only.
+
 ## Hit areas
 
 RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
