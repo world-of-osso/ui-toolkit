@@ -64,6 +64,7 @@ fn fdid_atlas_loads_authored_crops_and_reuses_cached_pixels() {
     let mut load = |name: &str, images: &mut Option<ResMut<Assets<Image>>>| {
         load_texture_source(
             &TextureSource::Atlas(name.into()),
+            &crate::registry::FrameRegistry::new(800.0, 600.0),
             images,
             &mut fdid_cache,
             &mut file_cache,

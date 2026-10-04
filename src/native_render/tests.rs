@@ -8,6 +8,7 @@ use bevy::math::Affine2;
 use bevy::time::TimeUpdateStrategy;
 use bevy::window::PrimaryWindow;
 use std::time::Duration;
+use ui_toolkit_core::layout_values::{PositionType, Val2};
 
 pub(crate) fn app_with_real_fonts(scale: f32) -> App {
     let mut app = App::new();
@@ -103,8 +104,8 @@ fn place_centered(world: &mut World, id: u64, target: Option<u64>) {
         .unwrap();
     ui.registry.set_anchor(id, AnchorTarget::Parent).unwrap();
     let frame = ui.registry.get_mut(id).unwrap();
-    frame.position.left = percent(50.0);
-    frame.position.top = percent(50.0);
+    frame.position.left = ui_toolkit_core::layout_values::Val::Percent(50.0);
+    frame.position.top = ui_toolkit_core::layout_values::Val::Percent(50.0);
     frame.translation = Val2::percent(-50.0, -50.0);
 }
 
@@ -516,26 +517,20 @@ fn stable_panel_and_label(app: &mut App) -> (u64, u64) {
 #[test]
 fn removing_authored_button_background_keeps_transparent_child_image_without_stale_native_parts() {
     use crate::widgets::{button::ButtonData, texture::TextureData};
-    use bevy::asset::RenderAssetUsages;
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
     let mut app = app_with_real_fonts(1.0);
     let icon_image = app
         .world_mut()
-        .resource_mut::<Assets<Image>>()
-        .add(Image::new(
-            Extent3d {
-                width: 2,
-                height: 2,
-                depth_or_array_layers: 1,
-            },
-            TextureDimension::D2,
+        .resource_mut::<UiState>()
+        .registry
+        .create_dynamic_texture(
+            2,
+            2,
             vec![
                 220, 60, 30, 0, 220, 60, 30, 255, 220, 60, 30, 255, 220, 60, 30, 255,
             ],
-            TextureFormat::Rgba8UnormSrgb,
-            RenderAssetUsages::default(),
-        ));
+        )
+        .unwrap();
     let button = create_frame(app.world_mut(), "IconButton", None, 79.0, 79.0);
     let icon = create_frame(app.world_mut(), "Icon", Some(button), 79.0, 79.0);
     place_top_left(app.world_mut(), button, None, 30.0, 40.0);
@@ -549,17 +544,10 @@ fn removing_authored_button_background_keeps_transparent_child_image_without_sta
         let frame = ui.registry.get_mut(icon).unwrap();
         frame.widget_type = WidgetType::Texture;
         frame.widget_data = Some(WidgetData::Texture(TextureData {
-            source: TextureSource::Dynamic(icon_image.clone()),
+            source: TextureSource::Dynamic(icon_image),
             ..default()
         }));
-        crate::attrs::apply_attribute(
-            &mut ui.registry,
-            button,
-            "button_default_skin",
-            "false",
-            &mut Default::default(),
-            &mut Default::default(),
-        );
+        crate::attrs::apply_attribute(&mut ui.registry, button, "button_default_skin", "false");
     }
     settle(&mut app);
     let initial: Vec<_> = app
@@ -576,7 +564,12 @@ fn removing_authored_button_background_keeps_transparent_child_image_without_sta
     let child_entity = projected_image(app.world_mut(), icon);
     let image = app.world().resource::<Assets<Image>>();
     assert_eq!(
-        image.get(&icon_image).unwrap().data.as_ref().unwrap()[3],
+        image
+            .get(&app.world().get::<ImageNode>(child_entity).unwrap().image)
+            .unwrap()
+            .data
+            .as_ref()
+            .unwrap()[3],
         0,
         "a transparent icon corner should stay transparent"
     );
@@ -608,24 +601,14 @@ fn removing_authored_button_background_keeps_transparent_child_image_without_sta
 #[test]
 fn authored_button_hover_size_is_centered_on_button_and_removed_when_inactive() {
     use crate::widgets::button::{ButtonData, ButtonState};
-    use bevy::asset::RenderAssetUsages;
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
     let mut app = app_with_real_fonts(1.0);
     let art = app
         .world_mut()
-        .resource_mut::<Assets<Image>>()
-        .add(Image::new(
-            Extent3d {
-                width: 2,
-                height: 2,
-                depth_or_array_layers: 1,
-            },
-            TextureDimension::D2,
-            vec![255; 16],
-            TextureFormat::Rgba8UnormSrgb,
-            RenderAssetUsages::default(),
-        ));
+        .resource_mut::<UiState>()
+        .registry
+        .create_dynamic_texture(2, 2, vec![255; 16])
+        .unwrap();
     let button = create_frame(app.world_mut(), "RingedButton", None, 79.0, 79.0);
     place_top_left(app.world_mut(), button, None, 30.0, 40.0);
     {
@@ -636,17 +619,10 @@ fn authored_button_hover_size_is_centered_on_button_and_removed_when_inactive() 
         frame.widget_data = Some(WidgetData::Button(ButtonData {
             use_default_skin: false,
             hovered: true,
-            highlight_texture: Some(TextureSource::Dynamic(art.clone())),
+            highlight_texture: Some(TextureSource::Dynamic(art)),
             ..default()
         }));
-        crate::attrs::apply_attribute(
-            &mut ui.registry,
-            button,
-            "button_highlight_size",
-            "99,100",
-            &mut Default::default(),
-            &mut Default::default(),
-        );
+        crate::attrs::apply_attribute(&mut ui.registry, button, "button_highlight_size", "99,100");
     }
     {
         let world = app.world_mut();
@@ -666,7 +642,16 @@ fn authored_button_hover_size_is_centered_on_button_and_removed_when_inactive() 
         .map(|(entity, _)| entity)
         .expect("authored hover image");
     let image = app.world().get::<ImageNode>(projected).unwrap();
-    assert_eq!(image.image, art);
+    assert_eq!(
+        app.world()
+            .resource::<Assets<Image>>()
+            .get(&image.image)
+            .unwrap()
+            .data
+            .as_ref()
+            .unwrap(),
+        &vec![255; 16]
+    );
     let rect = logical_rect(app.world(), projected);
     assert_eq!(rect.size(), Vec2::new(99.0, 100.0));
     assert!((rect.center() - Vec2::new(69.5, 79.5)).abs().max_element() <= 0.5);
@@ -999,22 +984,95 @@ fn ui_camera_scale_sizes_registry_screen_and_hit_tests_in_reference_units() {
     assert!(!button_hovered(app.world(), button));
 }
 
-fn two_pixel_image(app: &mut App, rgba: [u8; 4]) -> Handle<Image> {
-    use bevy::asset::RenderAssetUsages;
-    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+#[test]
+fn registry_dynamic_pixels_update_shared_native_images_after_idle_and_remove_projection() {
+    let mut app = app_with_real_fonts(1.0);
+    let texture = two_pixel_image(&mut app, [255, 0, 0, 255]);
+    let first = create_frame(app.world_mut(), "DynamicFirst", None, 32.0, 32.0);
+    let second = create_frame(app.world_mut(), "DynamicSecond", None, 32.0, 32.0);
+    {
+        let mut ui = app.world_mut().resource_mut::<UiState>();
+        for id in [first, second] {
+            let frame = ui.registry.get_mut(id).unwrap();
+            frame.widget_type = WidgetType::Texture;
+            frame.widget_data = Some(WidgetData::Texture(crate::widgets::texture::TextureData {
+                source: TextureSource::Dynamic(texture),
+                ..default()
+            }));
+        }
+    }
+    settle(&mut app);
+    let first_entity = projected_image(app.world_mut(), first);
+    let second_entity = projected_image(app.world_mut(), second);
+    let handle = app
+        .world()
+        .get::<ImageNode>(first_entity)
+        .unwrap()
+        .image
+        .clone();
+    assert_eq!(
+        app.world().get::<ImageNode>(second_entity).unwrap().image,
+        handle
+    );
+    let image = app
+        .world()
+        .resource::<Assets<Image>>()
+        .get(&handle)
+        .unwrap();
+    assert_eq!((image.width(), image.height()), (2, 1));
+    assert_eq!(
+        image.data.as_deref(),
+        Some([255, 0, 0, 255, 255, 0, 0, 255].as_slice())
+    );
+    let image_count = app.world().resource::<Assets<Image>>().len();
+    let tick = last_changed::<ImageNode>(app.world(), first_entity);
+    settle(&mut app);
+    assert_eq!(last_changed::<ImageNode>(app.world(), first_entity), tick);
+    assert_eq!(app.world().resource::<Assets<Image>>().len(), image_count);
+
     app.world_mut()
-        .resource_mut::<Assets<Image>>()
-        .add(Image::new(
-            Extent3d {
-                width: 2,
-                height: 1,
-                depth_or_array_layers: 1,
-            },
-            TextureDimension::D2,
-            [rgba, rgba].concat(),
-            TextureFormat::Rgba8UnormSrgb,
-            RenderAssetUsages::default(),
-        ))
+        .resource_mut::<UiState>()
+        .registry
+        .update_dynamic_texture(texture, 1, 2, vec![0, 0, 255, 255, 20, 40, 60, 0])
+        .unwrap();
+    app.update();
+    assert_eq!(projected_image(app.world_mut(), first), first_entity);
+    assert_eq!(
+        app.world().get::<ImageNode>(first_entity).unwrap().image,
+        handle
+    );
+    assert_eq!(
+        app.world().get::<ImageNode>(second_entity).unwrap().image,
+        handle
+    );
+    let image = app
+        .world()
+        .resource::<Assets<Image>>()
+        .get(&handle)
+        .unwrap();
+    assert_eq!((image.width(), image.height()), (1, 2));
+    assert_eq!(
+        image.data.as_deref(),
+        Some([0, 0, 255, 255, 20, 40, 60, 0].as_slice())
+    );
+    assert_eq!(app.world().resource::<Assets<Image>>().len(), image_count);
+
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .remove_dynamic_texture(texture)
+        .unwrap();
+    app.update();
+    assert!(app.world().get_entity(first_entity).is_err());
+    assert!(app.world().get_entity(second_entity).is_err());
+}
+
+fn two_pixel_image(app: &mut App, rgba: [u8; 4]) -> crate::widgets::texture::DynamicTextureId {
+    app.world_mut()
+        .resource_mut::<UiState>()
+        .registry
+        .create_dynamic_texture(2, 1, [rgba, rgba].concat())
+        .unwrap()
 }
 
 /// A settled registry is not reconciled: a native value tampered outside the registry
@@ -1062,7 +1120,7 @@ fn changes_after_idle_frames_reach_native_projection_next_update() {
         let frame = ui.registry.get_mut(icon).unwrap();
         frame.widget_type = WidgetType::Texture;
         frame.widget_data = Some(WidgetData::Texture(crate::widgets::texture::TextureData {
-            source: TextureSource::Dynamic(red.clone()),
+            source: TextureSource::Dynamic(red),
             ..default()
         }));
     }
@@ -1115,14 +1173,20 @@ fn changes_after_idle_frames_reach_native_projection_next_update() {
         .unwrap()
         .widget_data
     {
-        Some(WidgetData::Texture(data)) => data.source = TextureSource::Dynamic(blue.clone()),
+        Some(WidgetData::Texture(data)) => data.source = TextureSource::Dynamic(blue),
         _ => panic!("texture"),
     }
     app.update();
     let image_entity = projected_image(app.world_mut(), icon);
     assert_eq!(
-        app.world().get::<ImageNode>(image_entity).unwrap().image,
-        blue
+        app.world()
+            .resource::<Assets<Image>>()
+            .get(&app.world().get::<ImageNode>(image_entity).unwrap().image)
+            .unwrap()
+            .data
+            .as_ref()
+            .unwrap(),
+        &vec![0, 0, 255, 255, 0, 0, 255, 255]
     );
 
     idle(&mut app);

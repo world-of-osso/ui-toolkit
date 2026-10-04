@@ -32,6 +32,7 @@ pub fn sync_ui_three_slices(
     let screen_h = state.registry.screen_height;
     let order = UiFrameOrder::from_state(&state);
     let mut sync = ThreeSliceSyncContext {
+        registry: &state.registry,
         screen_w,
         screen_h,
         commands: &mut commands,
@@ -75,6 +76,7 @@ fn should_keep(state: &UiState, frame_id: u64) -> bool {
 }
 
 struct ThreeSliceSyncContext<'a, 'w, 's, 'i> {
+    registry: &'a crate::registry::FrameRegistry,
     screen_w: f32,
     screen_h: f32,
     commands: &'a mut Commands<'w, 's>,
@@ -170,6 +172,7 @@ fn resolve_texture(
     }
     load_texture_source_pub(
         source,
+        sync.registry,
         sync.images,
         sync.texture_cache,
         sync.file_texture_cache,

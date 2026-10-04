@@ -9,6 +9,7 @@ use crate::widgets::texture::TextureSource;
 
 pub(super) fn frame_visual(
     frame: &crate::frame::Frame,
+    registry: &crate::registry::FrameRegistry,
     images: &mut Option<ResMut<Assets<Image>>>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
     file_texture_cache: &mut HashMap<String, Handle<Image>>,
@@ -34,6 +35,7 @@ pub(super) fn frame_visual(
     ) = args;
     statusbar_visual(
         frame,
+        registry,
         images,
         texture_cache,
         file_texture_cache,
@@ -44,6 +46,7 @@ pub(super) fn frame_visual(
     .or_else(|| {
         frame_button_visual(
             frame,
+            registry,
             images,
             texture_cache,
             file_texture_cache,
@@ -55,6 +58,7 @@ pub(super) fn frame_visual(
     .or_else(|| {
         texture_visual(
             frame,
+            registry,
             images,
             texture_cache,
             file_texture_cache,
@@ -68,6 +72,7 @@ pub(super) fn frame_visual(
 
 pub(super) fn frame_button_visual(
     frame: &crate::frame::Frame,
+    registry: &crate::registry::FrameRegistry,
     images: &mut Option<ResMut<Assets<Image>>>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
     file_texture_cache: &mut HashMap<String, Handle<Image>>,
@@ -80,6 +85,7 @@ pub(super) fn frame_button_visual(
     };
     button_texture(
         btn,
+        registry,
         frame.effective_alpha,
         images,
         texture_cache,
@@ -92,6 +98,7 @@ pub(super) fn frame_button_visual(
 
 pub(super) fn statusbar_visual(
     frame: &crate::frame::Frame,
+    registry: &crate::registry::FrameRegistry,
     images: &mut Option<ResMut<Assets<Image>>>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
     file_texture_cache: &mut HashMap<String, Handle<Image>>,
@@ -108,6 +115,7 @@ pub(super) fn statusbar_visual(
             Color::srgba(r, g, b, a * frame.effective_alpha),
             load_texture_source(
                 source,
+                registry,
                 images,
                 texture_cache,
                 file_texture_cache,
@@ -128,6 +136,7 @@ pub(super) fn statusbar_visual(
 
 pub(super) fn texture_visual(
     frame: &crate::frame::Frame,
+    registry: &crate::registry::FrameRegistry,
     images: &mut Option<ResMut<Assets<Image>>>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
     file_texture_cache: &mut HashMap<String, Handle<Image>>,
@@ -139,6 +148,7 @@ pub(super) fn texture_visual(
     // TODO: additive blend requires custom pipeline
     let mut texture = load_texture_source(
         source,
+        registry,
         images,
         texture_cache,
         file_texture_cache,
@@ -204,6 +214,7 @@ mod crop_tests {
 
 pub(super) fn button_texture(
     btn: &crate::widgets::button::ButtonData,
+    registry: &crate::registry::FrameRegistry,
     effective_alpha: f32,
     images: &mut Option<ResMut<Assets<Image>>>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
@@ -215,6 +226,7 @@ pub(super) fn button_texture(
     let source = select_button_texture_source(btn)?;
     let texture = load_texture_source(
         source,
+        registry,
         images,
         texture_cache,
         file_texture_cache,

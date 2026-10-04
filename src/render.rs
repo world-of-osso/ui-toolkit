@@ -397,6 +397,7 @@ fn update_quad(
     transform.translation.y += sprite_offset.y;
     let (color, image, rect) = frame_visual(
         frame,
+        &state.registry,
         images,
         texture_cache,
         file_texture_cache,
@@ -512,6 +513,7 @@ fn spawn_new_quads(
         transform.translation.y += sprite_offset.y;
         let (color, image, rect) = frame_visual(
             frame,
+            &state.registry,
             images,
             texture_cache,
             file_texture_cache,
@@ -573,6 +575,7 @@ fn spawn_new_backdrop_quads(
 
 fn frame_visual(
     frame: &crate::frame::Frame,
+    registry: &crate::registry::FrameRegistry,
     images: &mut Option<ResMut<Assets<Image>>>,
     texture_cache: &mut HashMap<u32, Handle<Image>>,
     file_texture_cache: &mut HashMap<String, Handle<Image>>,
@@ -582,6 +585,7 @@ fn frame_visual(
 ) -> (Color, Handle<Image>, Option<Rect>) {
     visual::frame_visual(
         frame,
+        registry,
         images,
         texture_cache,
         file_texture_cache,
