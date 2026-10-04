@@ -21,7 +21,6 @@ pub(crate) struct TextProps<'a> {
     pub font: GameFont,
     pub font_size: f32,
     pub color: Color,
-    pub justify_h: JustifyH,
     pub justify_v: JustifyV,
 }
 
@@ -32,7 +31,6 @@ impl Default for TextProps<'_> {
             font: GameFont::default(),
             font_size: 12.0,
             color: Color::WHITE,
-            justify_h: JustifyH::Center,
             justify_v: JustifyV::Middle,
         }
     }
@@ -62,7 +60,6 @@ fn extract_fontstring_text(
         font: fs.font,
         font_size: fs.font_size,
         color: Color::srgba(r, g, b, a * alpha),
-        justify_h: fs.justify_h,
         justify_v: fs.justify_v,
     }
 }
@@ -79,7 +76,6 @@ fn extract_editbox_text(eb: &crate::widgets::edit_box::EditBoxData, alpha: f32) 
         font: eb.font,
         font_size: eb.font_size,
         color: Color::srgba(r, g, b, a * alpha),
-        justify_h: JustifyH::Left,
         justify_v: JustifyV::Middle,
     }
 }
@@ -98,7 +94,6 @@ pub(crate) fn extract_button_text(
         font: GameFont::default(),
         font_size: btn.font_size,
         color: Color::srgba(r, g, b, alpha),
-        justify_h: JustifyH::Center,
         justify_v: JustifyV::Middle,
     }
 }
