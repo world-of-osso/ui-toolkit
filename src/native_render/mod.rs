@@ -139,6 +139,15 @@ pub(crate) struct ProjectionQueries<'w, 's> {
             &'static TextColor,
         ),
     >,
+    changed_images: Query<
+        'w,
+        's,
+        Entity,
+        (
+            With<RegistryImage>,
+            Or<(Changed<ImageNode>, Changed<Node>, Changed<UiTransform>)>,
+        ),
+    >,
     changed_texts: Query<
         'w,
         's,
@@ -214,6 +223,7 @@ pub(crate) fn sync_registry(
         && !text_enabled.is_changed()
         && !removed
         && query.changed_texts.is_empty()
+        && query.changed_images.is_empty()
         && query.canvas.single().is_ok()
     {
         return;
