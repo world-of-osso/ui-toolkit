@@ -1,17 +1,14 @@
-use bevy::asset::{AssetApp, AssetPlugin, RenderAssetUsages};
-use bevy::camera::{CameraPlugin, CameraUpdateSystems, ComputedCameraValues, RenderTargetInfo};
+pub mod support;
 use bevy::math::Affine2;
 use bevy::prelude::*;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use bevy::window::PrimaryWindow;
 use ui_toolkit::anchor::AnchorTarget;
 use ui_toolkit::frame::{Dimension, NineSlice, WidgetData};
 use ui_toolkit::native_render::{RegistryNode, RegistryText};
-use ui_toolkit::plugin::{UiPlugin, UiState};
-use ui_toolkit::render::UiCamera;
+use ui_toolkit::plugin::UiState;
 use ui_toolkit::widgets::button::ButtonData;
 use ui_toolkit::widgets::font_string::FontStringData;
-use ui_toolkit::widgets::texture::TextureSource;
+use ui_toolkit::widgets::texture::{DynamicTextureId, TextureSource};
+use ui_toolkit_core::layout_values::{PositionType, UiRect, Val};
 
 #[derive(Resource, Default)]
 struct Observed {
@@ -46,78 +43,8 @@ fn observe(
         .count();
 }
 
-fn update_camera_target(
-    windows: Query<&Window, With<PrimaryWindow>>,
-    mut cameras: Query<&mut Camera, With<UiCamera>>,
-) {
-    let window = windows.single().unwrap();
-    for mut camera in &mut cameras {
-        camera.computed = ComputedCameraValues {
-            target_info: Some(RenderTargetInfo {
-                physical_size: UVec2::new(window.physical_width(), window.physical_height()),
-                scale_factor: window.scale_factor(),
-            }),
-            ..default()
-        };
-    }
-}
-
 fn native_app() -> (App, Entity) {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        AssetPlugin::default(),
-        bevy::image::ImagePlugin::default(),
-        bevy::mesh::MeshPlugin,
-        bevy::window::WindowPlugin {
-            primary_window: None,
-            exit_condition: bevy::window::ExitCondition::DontExit,
-            ..default()
-        },
-        bevy::input::InputPlugin,
-        bevy::transform::TransformPlugin,
-        CameraPlugin,
-        bevy::text::TextPlugin,
-        bevy::picking::DefaultPickingPlugins,
-        bevy::ui::UiPlugin,
-        UiPlugin,
-    ));
-    app.init_asset::<TextureAtlasLayout>();
-    let window = app
-        .world_mut()
-        .spawn((
-            Window {
-                resolution: (800, 600).into(),
-                ..default()
-            },
-            PrimaryWindow,
-        ))
-        .id();
-    app.add_systems(
-        PostUpdate,
-        update_camera_target
-            .after(CameraUpdateSystems)
-            .before(bevy::ui::UiSystems::Prepare),
-    );
-    app.init_resource::<Observed>();
-    app.add_systems(Last, observe);
-    app.finish();
-    app.cleanup();
-    (app, window)
-}
-
-fn image() -> Image {
-    Image::new_fill(
-        Extent3d {
-            width: 64,
-            height: 64,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        &[255, 255, 255, 255],
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::default(),
-    )
+    support::native_app()
 }
 
 struct Fixture {
@@ -125,8 +52,8 @@ struct Fixture {
     window: Entity,
     button: u64,
     panel: u64,
-    normal: Handle<Image>,
-    hover: Handle<Image>,
+    normal: DynamicTextureId,
+    hover: DynamicTextureId,
 }
 
 fn place(ui: &mut UiState, id: u64, x: f32, y: f32) {
@@ -145,8 +72,8 @@ fn settle(app: &mut App) {
 
 fn fixture() -> Fixture {
     let (mut app, window) = native_app();
-    let normal = app.world_mut().resource_mut::<Assets<Image>>().add(image());
-    let hover = app.world_mut().resource_mut::<Assets<Image>>().add(image());
+    let normal = support::add_texture(&mut app);
+    let hover = support::add_texture(&mut app);
     let (button, panel) = {
         let mut ui = app.world_mut().resource_mut::<UiState>();
         let button = ui.registry.create_frame("PluginButton", None);
@@ -181,20 +108,18 @@ fn fixture() -> Fixture {
         (button, panel)
     };
     settle(&mut app);
+    let label = app
+        .world_mut()
+        .query::<(Entity, &RegistryText)>()
+        .iter(app.world())
+        .find(|(_, text)| text.key == 0)
+        .unwrap()
+        .0;
     assert_eq!(
-        app.world_mut()
-            .query::<&ImageNode>()
-            .iter(app.world())
-            .count(),
-        18
+        app.world().get::<Text>(label).unwrap().0,
+        "Static plugin text"
     );
-    assert_eq!(
-        app.world_mut()
-            .query::<&RegistryText>()
-            .iter(app.world())
-            .count(),
-        1
-    );
+    assert!(rect(app.world(), label).width() > 0.0);
     Fixture {
         app,
         window,
@@ -247,8 +172,8 @@ fn resize_fixture() -> Fixture {
         let mut ui = fixture.app.world_mut().resource_mut::<UiState>();
         let panel = ui.registry.get_mut(fixture.panel).unwrap();
         panel.position = UiRect {
-            right: px(20),
-            bottom: px(20),
+            right: Val::Px(20.0),
+            bottom: Val::Px(20.0),
             ..UiRect::AUTO
         };
     }
@@ -307,8 +232,8 @@ fn real_native_layout_reads_subpixel_resize_without_authored_size_changes() {
             (panel.width, panel.height),
             (Dimension::Fixed(100.0), Dimension::Fixed(60.0))
         );
-        assert_eq!(panel.position.right, px(20));
-        assert_eq!(panel.position.bottom, px(20));
+        assert_eq!(panel.position.right, Val::Px(20.0));
+        assert_eq!(panel.position.bottom, Val::Px(20.0));
         assert!(ui.registry.rect_dirty.is_empty());
     }
 }
@@ -373,15 +298,17 @@ fn real_plugin_input_last_updates_hover_visuals_on_next_frame() {
         panic!("button")
     };
     assert!(button.hovered);
-    assert_eq!(
-        fixture.app.world().get::<ImageNode>(entity).unwrap().image,
-        fixture.normal
+    support::assert_texture(
+        fixture.app.world(),
+        &fixture.app.world().get::<ImageNode>(entity).unwrap().image,
+        fixture.normal,
     );
     fixture.app.update();
     assert_eq!(center(&mut fixture.app, fixture.button), entity);
-    assert_eq!(
-        fixture.app.world().get::<ImageNode>(entity).unwrap().image,
-        fixture.hover
+    support::assert_texture(
+        fixture.app.world(),
+        &fixture.app.world().get::<ImageNode>(entity).unwrap().image,
+        fixture.hover,
     );
 }
 
@@ -433,8 +360,9 @@ fn real_plugin_layout_and_missing_component_repair_preserve_entities() {
     settle(&mut fixture.app);
     assert_eq!(center(&mut fixture.app, fixture.panel), entity);
     assert_eq!(rect(fixture.app.world(), entity).size(), after);
-    assert_eq!(
-        fixture.app.world().get::<ImageNode>(entity).unwrap().image,
-        fixture.normal
+    support::assert_texture(
+        fixture.app.world(),
+        &fixture.app.world().get::<ImageNode>(entity).unwrap().image,
+        fixture.normal,
     );
 }
