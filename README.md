@@ -18,6 +18,8 @@ Missing configuration or unreadable font files fail explicitly. Fonts are extern
 
 Canonical engine manifests `game-engine/godot/{rust,ui-model}/Cargo.toml` use `package = "ui-toolkit-core", path = "../../../ui-toolkit/core"`, resolving to `/syncthing/Sync/Projects/world-of-osso/ui-toolkit/core`. Engine build-helper override: `DEPOT_SIBLING_UI_TOOLKIT`. Historical `ui-toolkit-godot-conversion` paths identify earlier evidence only.
 
+`Screen` rebuilds place children and roots in the new definition order while retaining matched frame identity. Child order lives in `FrameRegistry`; root order lives in `DiffContext::created_frames`. `FrameRegistry::set_child_order` marks changed parents in `child_order_dirty`; the host must reorder its own child nodes to match registry order, then clear that set. Godot's engine-owned consumer is `game-engine/godot/rust/src/ui/projection.rs` (`UiProjection::order_child_nodes`, called by `sync`).
+
 ## Hit areas
 
 RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
