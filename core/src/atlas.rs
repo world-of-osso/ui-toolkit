@@ -1,8 +1,8 @@
 mod db2;
 
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU8, Ordering};
 
 pub use db2::{ActiveSkin, UiCanvas};
 
@@ -55,7 +55,9 @@ struct LoadedTable {
 }
 
 static TABLE: OnceLock<LoadedTable> = OnceLock::new();
-static ACTIVE_SKIN: AtomicU8 = AtomicU8::new(0);
+thread_local! {
+    static BUILD_SKIN: Cell<ActiveSkin> = const { Cell::new(ActiveSkin::Modern) };
+}
 
 /// Load the atlas tables, once, before the first DB2 atlas lookup: Retail's
 /// `UiTextureAtlas*.csv` export in `retail_dir` and Forever's in `forever_dir`.
@@ -83,16 +85,16 @@ pub fn set_atlas_directories(retail_dir: &Path, forever_dir: &Path) -> Result<()
     }
 }
 
-/// Switch the atlas set every later [`get_region`] resolves.
-pub fn set_active_skin(skin: ActiveSkin) {
-    ACTIVE_SKIN.store(skin as u8, Ordering::Relaxed);
+/// Select the skin for UI builds and atlas lookups on the calling thread.
+/// Hosts must set it on their UI thread; asset workers receive resolved sources,
+/// not atlas names. New threads start with Modern independently of their parent.
+pub fn set_thread_skin(skin: ActiveSkin) {
+    BUILD_SKIN.set(skin);
 }
 
-pub fn active_skin() -> ActiveSkin {
-    match ACTIVE_SKIN.load(Ordering::Relaxed) {
-        0 => ActiveSkin::Modern,
-        _ => ActiveSkin::Forever,
-    }
+/// The calling UI thread's skin; never inherited from another thread.
+pub fn thread_skin() -> ActiveSkin {
+    BUILD_SKIN.get()
 }
 
 /// Lower-cased name of Retail `UiTextureAtlasElement` `element_id`.
@@ -109,9 +111,9 @@ pub fn nine_slice_margins(name: &str) -> Option<[f32; 4]> {
     }
 }
 
-/// `name` under the active skin.
+/// `name` under the calling UI thread's skin.
 pub fn get_region(name: &str) -> Option<AtlasRegion> {
-    resolve_region(name, active_skin())
+    resolve_region(name, thread_skin())
 }
 
 /// `name` under `skin`: project art (its own names), else the DB2 atlas members of

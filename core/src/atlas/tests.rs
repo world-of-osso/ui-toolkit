@@ -104,6 +104,41 @@ fn write_tables(dir: &std::path::Path) {
 }
 
 #[test]
+fn concurrent_thread_atlas_lookups_keep_their_own_skin() {
+    use std::sync::Barrier;
+
+    let dir = std::env::temp_dir().join(format!("atlas-thread-skins-{}", std::process::id()));
+    write_tables(&dir);
+    set_atlas_directories(&dir.join("retail"), &dir.join("forever")).unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+    let modern_set = Barrier::new(2);
+    let both_set = Barrier::new(2);
+    std::thread::scope(|scope| {
+        let resolve_skin = |skin, expected_fdid| {
+            assert_eq!(thread_skin(), ActiveSkin::Modern);
+            if skin == ActiveSkin::Modern {
+                set_thread_skin(skin);
+                modern_set.wait();
+            } else {
+                modern_set.wait();
+                set_thread_skin(skin);
+            }
+            both_set.wait();
+            assert_eq!(thread_skin(), skin);
+            assert_eq!(
+                get_region("glow frame ").unwrap().source,
+                AtlasSource::FileDataId(expected_fdid)
+            );
+        };
+        let modern = scope.spawn(move || resolve_skin(ActiveSkin::Modern, 120));
+        let forever = scope.spawn(move || resolve_skin(ActiveSkin::Forever, 200));
+        modern.join().unwrap();
+        forever.join().unwrap();
+    });
+    assert_eq!(thread_skin(), ActiveSkin::Modern);
+}
+
+#[test]
 fn db2_member_selection_prefers_newest_member_on_the_canvas_within_the_skin_set() {
     let dir = std::env::temp_dir().join(format!("atlas-db2-{}", std::process::id()));
     write_tables(&dir);
