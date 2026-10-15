@@ -6,6 +6,7 @@ pub enum GameFont {
     #[default]
     FrizQuadrata,
     ArialNarrow,
+    Morpheus,
 }
 
 static FONT_DIRECTORY: OnceLock<PathBuf> = OnceLock::new();
@@ -30,6 +31,7 @@ impl GameFont {
         match self {
             Self::FrizQuadrata => "FRIZQT__.TTF",
             Self::ArialNarrow => "ARIALN.ttf",
+            Self::Morpheus => "MORPHEUS.TTF",
         }
     }
 
@@ -42,6 +44,7 @@ impl GameFont {
         match s {
             "FrizQuadrata" => Self::FrizQuadrata,
             "ArialNarrow" => Self::ArialNarrow,
+            "Morpheus" => Self::Morpheus,
             _ => Self::default(),
         }
     }
@@ -52,6 +55,7 @@ impl std::fmt::Display for GameFont {
         f.write_str(match self {
             Self::FrizQuadrata => "FrizQuadrata",
             Self::ArialNarrow => "ArialNarrow",
+            Self::Morpheus => "Morpheus",
         })
     }
 }
@@ -152,6 +156,13 @@ impl Default for FontStringData {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn morpheus_attr_uses_authored_font_file() {
+        let font = GameFont::from_attr("Morpheus");
+        assert_eq!(font.file_name(), "MORPHEUS.TTF");
+        assert_eq!(font.to_string(), "Morpheus");
+    }
 
     #[test]
     fn default_font_string_data() {
