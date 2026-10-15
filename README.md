@@ -24,6 +24,10 @@ Canonical engine manifests `game-engine/godot/{rust,ui-model}/Cargo.toml` use `p
 
 RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
 
+## Texture tiling
+
+Texture RSX `horiz_tile` and `vert_tile` independently set the existing `TextureData` repeat flags. Values are booleans. New textures default to false; rebuilding with explicit false clears a previously true flag. Hosts repeat the cropped texture member on the selected axes.
+
 ## Button file textures
 
 RSX `button_fdid_up`, `button_fdid_pressed`, `button_fdid_highlight`, and `button_fdid_disabled` set the corresponding `ButtonData` texture to `TextureSource::FileDataId`. Values are unsigned 32-bit integers, preserved exactly across Screen rebuilds. Existing `button_atlas_*` attributes set atlas sources instead; normal/pushed/highlight/disabled are independent slots. Hosts own texture decoding, slicing and blend projection.

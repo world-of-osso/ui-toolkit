@@ -679,6 +679,16 @@ fn apply_widget_texture_attrs(frame: &mut Frame, name: &str, value: &str) {
         "texture_file" => apply_texture_file(frame, value),
         "texture_fdid" => apply_texture_fdid(frame, value),
         "texture_atlas" => apply_texture_atlas(frame, value),
+        "horiz_tile" => {
+            if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
+                texture.horiz_tile = value.parse().expect("horiz_tile must be true or false");
+            }
+        }
+        "vert_tile" => {
+            if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
+                texture.vert_tile = value.parse().expect("vert_tile must be true or false");
+            }
+        }
         "tex_coords" => apply_texture_coordinates(frame, value),
         "rotation" => {
             let rotation: f32 = value
