@@ -154,6 +154,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn morpheus_attr_uses_authored_font_file() {
+        let font = GameFont::from_attr("Morpheus");
+        assert_eq!(font.file_name(), "MORPHEUS.TTF");
+        assert_eq!(font.to_string(), "Morpheus");
+    }
+
+    #[test]
     fn default_font_string_data() {
         let fs = FontStringData::default();
         assert!(fs.text.is_empty());
