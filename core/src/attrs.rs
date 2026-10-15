@@ -696,6 +696,18 @@ fn apply_widget_texture_attrs(frame: &mut Frame, name: &str, value: &str) {
                 }
             }
         }
+        "button_fdid_up" => apply_button_fdid(frame, value, |button, source| {
+            button.normal_texture = Some(source)
+        }),
+        "button_fdid_pressed" => apply_button_fdid(frame, value, |button, source| {
+            button.pushed_texture = Some(source)
+        }),
+        "button_fdid_highlight" => apply_button_fdid(frame, value, |button, source| {
+            button.highlight_texture = Some(source)
+        }),
+        "button_fdid_disabled" => apply_button_fdid(frame, value, |button, source| {
+            button.disabled_texture = Some(source)
+        }),
         "button_atlas_up" => {
             apply_button_texture(frame, value, |bd, src| bd.normal_texture = Some(src))
         }
@@ -848,6 +860,19 @@ fn apply_text_attr(frame: &mut Frame, value: &str) {
         Some(WidgetData::EditBox(eb)) => eb.text = value.to_string(),
         Some(WidgetData::Button(bd)) => bd.text = value.to_string(),
         _ => {}
+    }
+}
+
+fn apply_button_fdid(
+    frame: &mut Frame,
+    value: &str,
+    apply: impl FnOnce(&mut ButtonData, TextureSource),
+) {
+    let fdid = value
+        .parse::<u32>()
+        .expect("button texture FDID must be a u32");
+    if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
+        apply(button, TextureSource::FileDataId(fdid));
     }
 }
 
