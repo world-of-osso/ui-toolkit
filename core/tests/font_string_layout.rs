@@ -8,12 +8,10 @@ use ui_toolkit_core::{
     widget_def::Element,
 };
 
-type CaptionLayout = Option<(bool, Option<u32>)>;
+type CaptionLayout = (bool, Option<u32>);
 
 fn caption(shared: &SharedContext) -> Element {
-    let Some((wrap, lines)) = *shared.get::<CaptionLayout>().unwrap() else {
-        return rsx! { fontstring { name: "Caption", text: "A long selected caption", width: 126.0, height: 25.0 } };
-    };
+    let (wrap, lines) = *shared.get::<CaptionLayout>().unwrap();
     let limit = lines.map_or_else(|| "none".to_owned(), |lines| lines.to_string());
     rsx! { fontstring {
         name: "Caption", text: "A long selected caption", width: 126.0, height: 25.0,
@@ -22,16 +20,16 @@ fn caption(shared: &SharedContext) -> Element {
 }
 
 #[test]
-fn font_string_layout_attributes_reach_render_input_and_clear_on_rebuild() {
+fn font_string_layout_attributes_reach_render_input_and_update_on_rebuild() {
     let mut shared = SharedContext::new();
     let mut registry = FrameRegistry::new(1920.0, 1080.0);
     let mut screen = Screen::new(caption);
     for state in [
-        Some((false, Some(1))),
-        Some((true, Some(3))),
-        Some((false, None)),
-        Some((true, Some(2))),
-        None,
+        (false, Some(1)),
+        (true, Some(3)),
+        (false, None),
+        (true, Some(2)),
+        (false, Some(1)),
     ] {
         shared.insert::<CaptionLayout>(state);
         screen.sync(&shared, &mut registry);
@@ -39,7 +37,7 @@ fn font_string_layout_attributes_reach_render_input_and_clear_on_rebuild() {
         let Some(WidgetData::FontString(text)) = &registry.get(id).unwrap().widget_data else {
             panic!("Caption must supply font render input");
         };
-        let (wrap, lines) = state.unwrap_or((false, None));
+        let (wrap, lines) = state;
         assert_eq!((text.word_wrap, text.max_lines), (wrap, lines));
         assert_eq!(
             read_attribute(&registry, id, "word_wrap"),
