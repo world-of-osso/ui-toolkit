@@ -141,19 +141,18 @@ fn read_basic_text_attr(frame: &Frame, name: &str) -> Option<String> {
 }
 
 fn read_font_string_text_attr(frame: &Frame, name: &str) -> Option<String> {
+    let Some(WidgetData::FontString(fs)) = &frame.widget_data else {
+        return None;
+    };
     match name {
-        "shadow_color" => match &frame.widget_data {
-            Some(WidgetData::FontString(fs)) => fs.shadow_color.map(format_color),
-            _ => None,
-        },
-        "shadow_offset" => match &frame.widget_data {
-            Some(WidgetData::FontString(fs)) => Some(format_vec2(fs.shadow_offset)),
-            _ => None,
-        },
-        "outline" => match &frame.widget_data {
-            Some(WidgetData::FontString(fs)) => Some(format_outline(fs.outline)),
-            _ => None,
-        },
+        "shadow_color" => fs.shadow_color.map(format_color),
+        "shadow_offset" => Some(format_vec2(fs.shadow_offset)),
+        "outline" => Some(format_outline(fs.outline)),
+        "word_wrap" => Some(fs.word_wrap.to_string()),
+        "max_lines" => Some(
+            fs.max_lines
+                .map_or_else(|| "none".to_owned(), |lines| lines.to_string()),
+        ),
         _ => None,
     }
 }
@@ -582,6 +581,7 @@ fn apply_widget_text_attrs(frame: &mut Frame, name: &str, value: &str) {
         "justify_h" | "shadow_color" | "shadow_offset" | "outline" => {
             apply_font_style_attr(frame, name, value)
         }
+        "word_wrap" | "max_lines" => apply_font_layout_attr(frame, name, value),
         "text_insets" => apply_text_insets_attr(frame, value),
         "password" => apply_password_attr(frame, value),
         _ => {}
@@ -633,6 +633,32 @@ fn apply_font_style_attr(frame: &mut Frame, name: &str, value: &str) {
         "outline" => fs.outline = parse_outline(value),
         _ => {}
     }
+}
+
+fn apply_font_layout_attr(frame: &mut Frame, name: &str, value: &str) {
+    let Some(WidgetData::FontString(fs)) = &mut frame.widget_data else {
+        return;
+    };
+    match name {
+        "word_wrap" => {
+            fs.word_wrap = value
+                .parse()
+                .unwrap_or_else(|_| panic!("word_wrap must be true or false: {value}"))
+        }
+        "max_lines" => fs.max_lines = parse_font_max_lines(value),
+        _ => unreachable!("font layout attribute dispatch: {name}"),
+    }
+}
+
+fn parse_font_max_lines(value: &str) -> Option<u32> {
+    if value == "none" {
+        return None;
+    }
+    let lines = value
+        .parse::<u32>()
+        .unwrap_or_else(|_| panic!("max_lines must be positive or none: {value}"));
+    assert!(lines > 0, "max_lines must be positive or none: {value}");
+    Some(lines)
 }
 
 fn apply_text_insets_attr(frame: &mut Frame, value: &str) {

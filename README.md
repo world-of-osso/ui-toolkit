@@ -36,6 +36,10 @@ RSX `button_fdid_up`, `button_fdid_pressed`, `button_fdid_highlight`, and `butto
 
 RSX `button_highlight_size: "width,height"` gives the hover overlay an explicit logical-pixel size, centered on the button without changing its layout or hit area. Both dimensions must be finite and positive. Omit the attribute to retain the button-sized overlay. Native UI and legacy sprite projection use the same override; disabled buttons suppress hover as before.
 
+## FontString layout attributes
+
+FontString RSX layout attributes populate the existing `FontStringData` render input and support attribute readback and Screen rebuilds. [Contract and accepted values](docs/specs/font-string-layout.md).
+
 ## Shared widgets
 
 `ui-toolkit-core` reuses `widgets::toggle::toggle_widget(ToggleWidget { .. })` from the original toolkit. Only the inactive segment emits its action; updating the selected side rebuilds the labels and active segment. Native rendering remains host-owned.
