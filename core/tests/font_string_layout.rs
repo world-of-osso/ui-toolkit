@@ -1,6 +1,6 @@
 use ui_toolkit_core as ui_toolkit;
 use ui_toolkit_core::{
-    attrs::get_attr,
+    attrs::read_attribute,
     frame::WidgetData,
     registry::FrameRegistry,
     rsx,
@@ -41,9 +41,12 @@ fn font_string_layout_attributes_reach_render_input_and_clear_on_rebuild() {
         };
         let (wrap, lines) = state.unwrap_or((false, None));
         assert_eq!((text.word_wrap, text.max_lines), (wrap, lines));
-        assert_eq!(get_attr(&registry, id, "word_wrap"), Some(wrap.to_string()));
         assert_eq!(
-            get_attr(&registry, id, "max_lines"),
+            read_attribute(&registry, id, "word_wrap"),
+            Some(wrap.to_string())
+        );
+        assert_eq!(
+            read_attribute(&registry, id, "max_lines"),
             Some(lines.map_or_else(|| "none".to_owned(), |lines| lines.to_string()))
         );
     }
