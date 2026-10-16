@@ -5302,10 +5302,8 @@ dependencies = [
 name = "ui-toolkit-core"
 version = "0.1.0"
 dependencies = [
- "bevy_asset",
- "bevy_image",
- "bevy_math",
  "log",
+ "parley",
  "ui-toolkit-macros",
 ]
 
