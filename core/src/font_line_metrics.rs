@@ -22,8 +22,55 @@ pub struct FontLineMetrics {
     pub baseline_ui: f32,
 }
 
-pub fn resolve_font_lines(_request: FontLineRequest) -> Result<FontLineMetrics, String> {
-    Err("Raster FontString line allocation is not implemented".into())
+pub fn resolve_font_lines(request: FontLineRequest) -> Result<FontLineMetrics, String> {
+    validate_font_line_request(request)?;
+    let pixels_per_ui = request.pixels_per_ui;
+    let raster_pixels = (request.nominal_height * pixels_per_ui)
+        .round()
+        .clamp(2.0, 32.0) as u8;
+    let line_height_ui = f32::from(raster_pixels) / pixels_per_ui;
+    let spacing_ui = (request.spacing.max(0.0) * pixels_per_ui).ceil() / pixels_per_ui;
+    let advance_ui = line_height_ui + spacing_ui;
+    let gap_count = request.line_count.saturating_sub(1);
+    let block_height_ui =
+        request.line_count as f32 * line_height_ui + gap_count as f32 * spacing_ui;
+    let face_height = request.face_ascent + request.face_descent.abs();
+    let baseline_pixels = (request.face_ascent / face_height * f32::from(raster_pixels)).round();
+    Ok(FontLineMetrics {
+        raster_pixels,
+        line_height_ui,
+        spacing_ui,
+        advance_ui,
+        block_height_ui,
+        baseline_ui: baseline_pixels / pixels_per_ui,
+    })
+}
+
+fn validate_font_line_request(request: FontLineRequest) -> Result<(), String> {
+    for (name, value) in [
+        ("nominal height", request.nominal_height),
+        ("pixels per UI unit", request.pixels_per_ui),
+        ("face ascent", request.face_ascent),
+    ] {
+        if !value.is_finite() || value <= 0.0 {
+            return Err(format!(
+                "FontString {name} must be finite and positive, got {value}"
+            ));
+        }
+    }
+    if !request.spacing.is_finite() {
+        return Err(format!(
+            "FontString spacing must be finite, got {}",
+            request.spacing
+        ));
+    }
+    if !request.face_descent.is_finite() {
+        return Err(format!(
+            "FontString face descent must be finite, got {}",
+            request.face_descent
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
