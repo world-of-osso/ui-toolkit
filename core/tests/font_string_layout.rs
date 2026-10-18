@@ -50,6 +50,37 @@ fn font_string_layout_attributes_reach_render_input_and_update_on_rebuild() {
     }
 }
 
+fn spaced_caption(shared: &SharedContext) -> Element {
+    let spacing = *shared.get::<i32>().unwrap();
+    rsx! { fontstring { name: "SpacedCaption", text: "Ready check\nRaid Difficulty", line_spacing: spacing } }
+}
+
+#[test]
+fn ready_check_line_spacing_attribute_updates_and_preserves_unspecified_default() {
+    let mut shared = SharedContext::new();
+    let mut registry = FrameRegistry::new(400.0, 200.0);
+    let mut screen = Screen::new(spaced_caption);
+    for spacing in [0, 4, 0] {
+        shared.insert(spacing);
+        screen.sync(&shared, &mut registry);
+        let id = registry.get_by_name("SpacedCaption").unwrap();
+        assert_eq!(
+            read_attribute(&registry, id, "line_spacing"),
+            Some(spacing.to_string())
+        );
+    }
+    Screen::new(|_| rsx! { fontstring { name: "Unspecified", text: "Other text" } })
+        .sync(&shared, &mut registry);
+    assert_eq!(
+        read_attribute(
+            &registry,
+            registry.get_by_name("Unspecified").unwrap(),
+            "line_spacing"
+        ),
+        None
+    );
+}
+
 #[test]
 #[should_panic(expected = "max_lines must be positive or none")]
 fn font_string_rejects_zero_line_limit() {
