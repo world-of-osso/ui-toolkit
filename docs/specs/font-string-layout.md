@@ -6,6 +6,7 @@ RSX exposes existing FontString wrapping and line-limit render inputs. [Attribut
 
 - [x] `word_wrap` accepts `true` or `false` and reaches `FontStringData.word_wrap`.
 - [x] `max_lines` accepts a positive integer or `none` and reaches `FontStringData.max_lines`; zero is rejected explicitly.
+- [x] Optional `line_spacing` accepts an integer and reaches `FontStringData.line_spacing`; omitted values remain `None` so hosts retain their existing theme. Explicit zero survives rebuild/readback. Hosts apply it to both text measurement and drawing.
 - [x] Attribute readback reflects current values; explicit changes, including false/none, update the existing render inputs on Screen rebuilds.
 
 ## How it works

@@ -131,6 +131,8 @@ pub struct FontStringData {
     pub outline: Outline,
     pub word_wrap: bool,
     pub max_lines: Option<u32>,
+    /// Explicit native line spacing; None preserves the host theme.
+    pub line_spacing: Option<i32>,
     pub text_scale: f32,
 }
 
@@ -148,6 +150,7 @@ impl Default for FontStringData {
             outline: Outline::None,
             word_wrap: false,
             max_lines: None,
+            line_spacing: None,
             text_scale: 1.0,
         }
     }

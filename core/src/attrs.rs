@@ -149,6 +149,7 @@ fn read_font_string_text_attr(frame: &Frame, name: &str) -> Option<String> {
         "shadow_offset" => Some(format_vec2(fs.shadow_offset)),
         "outline" => Some(format_outline(fs.outline)),
         "word_wrap" => Some(fs.word_wrap.to_string()),
+        "line_spacing" => fs.line_spacing.map(|spacing| spacing.to_string()),
         "max_lines" => Some(
             fs.max_lines
                 .map_or_else(|| "none".to_owned(), |lines| lines.to_string()),
@@ -581,7 +582,7 @@ fn apply_widget_text_attrs(frame: &mut Frame, name: &str, value: &str) {
         "justify_h" | "shadow_color" | "shadow_offset" | "outline" => {
             apply_font_style_attr(frame, name, value)
         }
-        "word_wrap" | "max_lines" => apply_font_layout_attr(frame, name, value),
+        "word_wrap" | "max_lines" | "line_spacing" => apply_font_layout_attr(frame, name, value),
         "text_insets" => apply_text_insets_attr(frame, value),
         "password" => apply_password_attr(frame, value),
         _ => {}
@@ -646,6 +647,13 @@ fn apply_font_layout_attr(frame: &mut Frame, name: &str, value: &str) {
                 .unwrap_or_else(|_| panic!("word_wrap must be true or false: {value}"))
         }
         "max_lines" => fs.max_lines = parse_font_max_lines(value),
+        "line_spacing" => {
+            fs.line_spacing = Some(
+                value
+                    .parse()
+                    .unwrap_or_else(|_| panic!("line_spacing must be an integer: {value}")),
+            );
+        }
         _ => unreachable!("font layout attribute dispatch: {name}"),
     }
 }
