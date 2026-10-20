@@ -1,5 +1,5 @@
 use crate::frame::{Border, NineSlice};
-use crate::widgets::font_string::{JustifyH, Outline};
+use crate::widgets::font_string::{JustifyH, JustifyV, Outline};
 
 pub(super) fn parse_nine_slice(s: &str) -> Option<NineSlice> {
     let parts: Vec<f32> = s.split(',').filter_map(|p| p.trim().parse().ok()).collect();
@@ -19,6 +19,14 @@ pub(super) fn parse_justify_h(s: &str) -> JustifyH {
         "LEFT" => JustifyH::Left,
         "RIGHT" => JustifyH::Right,
         _ => JustifyH::Center,
+    }
+}
+
+pub(super) fn parse_justify_v(s: &str) -> JustifyV {
+    match s {
+        "TOP" => JustifyV::Top,
+        "BOTTOM" => JustifyV::Bottom,
+        _ => JustifyV::Middle,
     }
 }
 

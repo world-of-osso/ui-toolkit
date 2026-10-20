@@ -4,6 +4,7 @@ RSX exposes existing FontString wrapping and line-limit render inputs. [Attribut
 
 ## What it must do
 
+- [ ] `justify_v` applies `TOP`, `MIDDLE`, and `BOTTOM` to the existing `FontStringData.justify_v`, mirroring horizontal justification's attribute dispatch. Default remains Middle; hosts consume the typed alignment unchanged.
 - [x] `word_wrap` accepts `true` or `false` and reaches `FontStringData.word_wrap`.
 - [x] `max_lines` accepts a positive integer or `none` and reaches `FontStringData.max_lines`; zero is rejected explicitly.
 - [x] Optional `line_spacing` accepts an integer and reaches `FontStringData.line_spacing`; omitted values remain `None` so hosts retain their existing theme. Explicit zero survives rebuild/readback. Hosts apply it to both text measurement and drawing.
@@ -20,6 +21,7 @@ RSX exposes existing FontString wrapping and line-limit render inputs. [Attribut
 
 ## Tests asserting this spec
 
+- `core/src/attrs_layout_tests.rs::justify_v_attribute_updates_font_string_vertical_alignment` — applies TOP/BOTTOM/MIDDLE to the same FontString and asserts typed render state.
 - `core/tests/font_string_layout.rs` — dynamic apply/readback/explicit clearing and invalid zero.
 
 ## Known gaps (current cycle)

@@ -2,8 +2,8 @@ use crate::anchor::AnchorTarget;
 use crate::layout_values::{PositionType, UiRect, Val};
 
 use self::parse::{
-    format_color, format_outline, format_vec2, parse_border, parse_justify_h, parse_nine_slice,
-    parse_outline, parse_vec2,
+    format_color, format_outline, format_vec2, parse_border, parse_justify_h, parse_justify_v,
+    parse_nine_slice, parse_outline, parse_vec2,
 };
 use crate::atlas;
 use crate::frame::{
@@ -579,7 +579,7 @@ fn apply_widget_text_attrs(frame: &mut Frame, name: &str, value: &str) {
         "font" => apply_font_attr(frame, value),
         "font_size" => apply_font_size_attr(frame, value),
         "font_color" => apply_font_color_attr(frame, value),
-        "justify_h" | "shadow_color" | "shadow_offset" | "outline" => {
+        "justify_h" | "justify_v" | "shadow_color" | "shadow_offset" | "outline" => {
             apply_font_style_attr(frame, name, value)
         }
         "word_wrap" | "max_lines" | "line_spacing" => apply_font_layout_attr(frame, name, value),
@@ -621,6 +621,7 @@ fn apply_font_style_attr(frame: &mut Frame, name: &str, value: &str) {
     };
     match name {
         "justify_h" => fs.justify_h = parse_justify_h(value),
+        "justify_v" => fs.justify_v = parse_justify_v(value),
         "shadow_color" => {
             if let Some(color) = parse_color(value) {
                 fs.shadow_color = Some(color);
