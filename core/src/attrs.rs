@@ -14,7 +14,7 @@ use crate::strata::{DrawLayer, FrameStrata};
 use crate::widgets::button::{ButtonData, ButtonState};
 use crate::widgets::font_string::GameFont;
 use crate::widgets::slider::{FillStyle, Orientation};
-use crate::widgets::texture::TextureSource;
+use crate::widgets::texture::{BlendMode, TextureSource};
 
 mod parse;
 
@@ -725,6 +725,12 @@ fn apply_widget_texture_attrs(frame: &mut Frame, name: &str, value: &str) {
             }
         }
         "tex_coords" => apply_texture_coordinates(frame, value),
+        "blend_mode" => {
+            let mode = BlendMode::from_alpha_mode(value);
+            if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
+                texture.blend_mode = mode;
+            }
+        }
         "rotation" => {
             let rotation: f32 = value
                 .parse()

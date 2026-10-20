@@ -42,8 +42,26 @@ pub enum TextureSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlendMode {
-    AlphaKey,
+    Blend,
     Additive,
+}
+
+impl BlendMode {
+    /// Supported authored alphaMode values; other Retail modes are not implemented.
+    pub fn from_alpha_mode(value: &str) -> Self {
+        match value {
+            "BLEND" => Self::Blend,
+            "ADD" => Self::Additive,
+            _ => panic!("unsupported blend_mode '{value}': expected BLEND or ADD"),
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Blend => "BLEND",
+            Self::Additive => "ADD",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,7 +84,7 @@ impl Default for TextureData {
             tex_coords: [0.0, 1.0, 0.0, 1.0],
             horiz_tile: false,
             vert_tile: false,
-            blend_mode: BlendMode::AlphaKey,
+            blend_mode: BlendMode::Blend,
             vertex_color: [1.0, 1.0, 1.0, 1.0],
             desaturated: false,
             desaturation: 0.0,
@@ -84,7 +102,7 @@ mod tests {
         let td = TextureData::default();
         assert!(matches!(td.source, TextureSource::None));
         assert_eq!(td.tex_coords, [0.0, 1.0, 0.0, 1.0]);
-        assert_eq!(td.blend_mode, BlendMode::AlphaKey);
+        assert_eq!(td.blend_mode, BlendMode::Blend);
         assert!(!td.desaturated);
     }
 }

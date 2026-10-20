@@ -12,8 +12,8 @@ fn authored_blend_mode_preserves_distinct_modes_for_the_same_atlas() {
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let source = TextureSource::Atlas("transmog-itemcard-default".into());
     for (name, attribute, expected) in [
-        ("Border", None, BlendMode::AlphaKey),
-        ("BorderExplicit", Some("BLEND"), BlendMode::AlphaKey),
+        ("Border", None, BlendMode::Blend),
+        ("BorderExplicit", Some("BLEND"), BlendMode::Blend),
         ("BorderHighlight", Some("ADD"), BlendMode::Additive),
     ] {
         let id = registry.create_frame(name, None);
