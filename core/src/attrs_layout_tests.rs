@@ -50,6 +50,44 @@ fn authored_blend_mode_rejects_unsupported_modes_without_mutation() {
     }
 }
 
+// R SharedUIPanelTemplates.xml3 authors the button highlight with ADD.
+#[test]
+fn authored_button_blend_mode_survives_source_attribute_order() {
+    for attributes in [
+        [
+            ("button_fdid_highlight", "130826"),
+            ("button_highlight_blend_mode", "ADD"),
+        ],
+        [
+            ("button_highlight_blend_mode", "ADD"),
+            ("button_fdid_highlight", "130826"),
+        ],
+    ] {
+        let mut registry = FrameRegistry::new(800.0, 600.0);
+        let id = registry.create_frame("PanelButton", None);
+        registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(Default::default()));
+        for (name, value) in attributes {
+            apply(&mut registry, id, name, value);
+        }
+        assert_eq!(
+            read_attribute(&registry, id, "button_highlight_blend_mode").as_deref(),
+            Some("ADD")
+        );
+    }
+}
+
+#[test]
+fn authored_button_blend_mode_defaults_to_blend_including_highlights() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("UnadornedHighlight", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(Default::default()));
+    apply(&mut registry, id, "button_fdid_highlight", "130826");
+    assert_eq!(
+        read_attribute(&registry, id, "button_highlight_blend_mode").as_deref(),
+        Some("BLEND")
+    );
+}
+
 #[test]
 fn justify_v_attribute_updates_font_string_vertical_alignment() {
     use crate::widgets::font_string::{FontStringData, JustifyV};
