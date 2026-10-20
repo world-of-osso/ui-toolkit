@@ -5,6 +5,27 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
 }
 
 #[test]
+fn justify_v_attribute_updates_font_string_vertical_alignment() {
+    use crate::widgets::font_string::{FontStringData, JustifyV};
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("Description", None);
+    registry.get_mut(id).unwrap().widget_data =
+        Some(WidgetData::FontString(FontStringData::default()));
+    for (value, expected) in [
+        ("TOP", JustifyV::Top),
+        ("BOTTOM", JustifyV::Bottom),
+        ("MIDDLE", JustifyV::Middle),
+    ] {
+        apply(&mut registry, id, "justify_v", value);
+        let Some(WidgetData::FontString(font)) = registry.get(id).unwrap().widget_data.as_ref()
+        else {
+            panic!("description FontString");
+        };
+        assert_eq!(font.justify_v, expected, "justify_v={value}");
+    }
+}
+
+#[test]
 fn texture_rotation_round_trips_negative_and_positive_degrees() {
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let id = registry.create_frame("Spinner", None);
