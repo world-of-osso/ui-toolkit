@@ -4,6 +4,52 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
     apply_attribute(registry, id, name, value);
 }
 
+// R/Blizzard_Transmog/Blizzard_TransmogTemplates.xml858/872: identical
+// atlas regions authored as ordinary Border and additive BorderHighlight.
+#[test]
+fn authored_blend_mode_preserves_distinct_modes_for_the_same_atlas() {
+    use crate::widgets::texture::{BlendMode, TextureData, TextureSource};
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let source = TextureSource::Atlas("transmog-itemcard-default".into());
+    for (name, attribute, expected) in [
+        ("Border", None, BlendMode::AlphaKey),
+        ("BorderExplicit", Some("BLEND"), BlendMode::AlphaKey),
+        ("BorderHighlight", Some("ADD"), BlendMode::Additive),
+    ] {
+        let id = registry.create_frame(name, None);
+        registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Texture(TextureData {
+            source: source.clone(),
+            ..Default::default()
+        }));
+        if let Some(value) = attribute {
+            apply(&mut registry, id, "blend_mode", value);
+        }
+        let Some(WidgetData::Texture(texture)) = registry.get(id).unwrap().widget_data.as_ref()
+        else {
+            panic!("authored texture")
+        };
+        assert_eq!(texture.source, source);
+        assert_eq!(texture.blend_mode, expected, "{name}");
+        assert_eq!(texture.vertex_color, [1.0; 4]);
+        assert_eq!(texture.tex_coords, [0.0, 1.0, 0.0, 1.0]);
+    }
+}
+
+#[test]
+fn authored_blend_mode_rejects_unsupported_modes_without_mutation() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("UnsupportedRegion", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Texture(Default::default()));
+    let before = registry.get(id).unwrap().widget_data.clone();
+    for value in ["MOD", "DISABLE", "ALPHAKEY", "not-a-mode"] {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            apply(&mut registry, id, "blend_mode", value);
+        }));
+        assert!(result.is_err(), "accepted unsupported blend_mode {value}");
+        assert_eq!(registry.get(id).unwrap().widget_data, before);
+    }
+}
+
 #[test]
 fn justify_v_attribute_updates_font_string_vertical_alignment() {
     use crate::widgets::font_string::{FontStringData, JustifyV};
