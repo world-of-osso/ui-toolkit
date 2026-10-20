@@ -1,4 +1,29 @@
-use super::texture::TextureSource;
+use super::texture::{BlendMode, TextureSource};
+
+/// Authored artwork for one button state, independent of its source identity.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ButtonTexture {
+    pub source: TextureSource,
+    pub blend_mode: BlendMode,
+}
+
+impl ButtonTexture {
+    pub fn new(source: TextureSource) -> Self {
+        Self {
+            source,
+            ..Self::default()
+        }
+    }
+}
+
+impl Default for ButtonTexture {
+    fn default() -> Self {
+        Self {
+            source: TextureSource::None,
+            blend_mode: BlendMode::Blend,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ButtonState {
@@ -14,14 +39,14 @@ pub struct ButtonData {
     pub hovered: bool,
     /// Whether an untextured button receives the toolkit's default nine-slice skin.
     pub use_default_skin: bool,
-    pub normal_texture: Option<TextureSource>,
-    pub pushed_texture: Option<TextureSource>,
-    pub highlight_texture: Option<TextureSource>,
+    pub normal_texture: Option<ButtonTexture>,
+    pub pushed_texture: Option<ButtonTexture>,
+    pub highlight_texture: Option<ButtonTexture>,
     /// Opacity of a flat hover overlay before inherited frame alpha is applied.
     pub highlight_alpha: f32,
     /// Optional hover artwork dimensions; centered on the button without changing its hit area.
     pub highlight_size: Option<[f32; 2]>,
-    pub disabled_texture: Option<TextureSource>,
+    pub disabled_texture: Option<ButtonTexture>,
     pub text: String,
     pub font_size: f32,
     pub pushed_text_offset: [f32; 2],

@@ -73,6 +73,12 @@ fn authored_button_blend_mode_survives_source_attribute_order() {
             read_attribute(&registry, id, "button_highlight_blend_mode").as_deref(),
             Some("ADD")
         );
+        let Some(WidgetData::Button(button)) = &registry.get(id).unwrap().widget_data else {
+            panic!("expected authored panel button");
+        };
+        let highlight = button.highlight_texture.as_ref().unwrap();
+        assert_eq!(highlight.source, TextureSource::FileDataId(130826));
+        assert_eq!(highlight.blend_mode, BlendMode::Additive);
     }
 }
 

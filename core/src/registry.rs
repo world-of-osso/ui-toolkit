@@ -654,12 +654,18 @@ fn frame_uses_dynamic_texture(frame: &Frame, id: DynamicTextureId) -> bool {
     let optional = |source: &Option<TextureSource>| source.as_ref().is_some_and(uses);
     let widget_uses = match &frame.widget_data {
         Some(WidgetData::Texture(texture)) => uses(&texture.source),
-        Some(WidgetData::Button(button)) => {
-            optional(&button.normal_texture)
-                || optional(&button.pushed_texture)
-                || optional(&button.highlight_texture)
-                || optional(&button.disabled_texture)
-        }
+        Some(WidgetData::Button(button)) => [
+            &button.normal_texture,
+            &button.pushed_texture,
+            &button.highlight_texture,
+            &button.disabled_texture,
+        ]
+        .into_iter()
+        .any(|texture| {
+            texture
+                .as_ref()
+                .is_some_and(|texture| uses(&texture.source))
+        }),
         Some(WidgetData::Slider(slider)) => optional(&slider.thumb_texture),
         Some(WidgetData::StatusBar(bar)) => optional(&bar.texture),
         _ => false,

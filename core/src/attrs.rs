@@ -11,7 +11,7 @@ use crate::frame::{
 };
 use crate::registry::FrameRegistry;
 use crate::strata::{DrawLayer, FrameStrata};
-use crate::widgets::button::{ButtonData, ButtonState};
+use crate::widgets::button::{ButtonData, ButtonState, ButtonTexture};
 use crate::widgets::font_string::GameFont;
 use crate::widgets::slider::{FillStyle, Orientation};
 use crate::widgets::texture::{BlendMode, TextureSource};
@@ -63,6 +63,27 @@ pub fn read_attribute(registry: &FrameRegistry, frame_id: u64, name: &str) -> Op
         .or_else(|| read_frame_attr(frame, name))
         .or_else(|| read_widget_text_attr(frame, name))
         .or_else(|| read_widget_texture_attr(frame, name))
+        .or_else(|| read_button_blend_attr(frame, name))
+}
+
+fn read_button_blend_attr(frame: &Frame, name: &str) -> Option<String> {
+    let Some(WidgetData::Button(button)) = &frame.widget_data else {
+        return None;
+    };
+    let texture = match name {
+        "button_normal_blend_mode" => &button.normal_texture,
+        "button_pushed_blend_mode" => &button.pushed_texture,
+        "button_highlight_blend_mode" => &button.highlight_texture,
+        "button_disabled_blend_mode" => &button.disabled_texture,
+        _ => return None,
+    };
+    Some(
+        texture
+            .as_ref()
+            .map_or(BlendMode::Blend, |texture| texture.blend_mode)
+            .as_str()
+            .into(),
+    )
 }
 
 fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
@@ -747,29 +768,39 @@ fn apply_widget_texture_attrs(frame: &mut Frame, name: &str, value: &str) {
                 }
             }
         }
-        "button_fdid_up" => apply_button_fdid(frame, value, |button, source| {
-            button.normal_texture = Some(source)
-        }),
-        "button_fdid_pressed" => apply_button_fdid(frame, value, |button, source| {
-            button.pushed_texture = Some(source)
-        }),
-        "button_fdid_highlight" => apply_button_fdid(frame, value, |button, source| {
-            button.highlight_texture = Some(source)
-        }),
-        "button_fdid_disabled" => apply_button_fdid(frame, value, |button, source| {
-            button.disabled_texture = Some(source)
-        }),
+        "button_fdid_up" => apply_button_fdid(frame, value, |button| &mut button.normal_texture),
+        "button_fdid_pressed" => {
+            apply_button_fdid(frame, value, |button| &mut button.pushed_texture)
+        }
+        "button_fdid_highlight" => {
+            apply_button_fdid(frame, value, |button| &mut button.highlight_texture)
+        }
+        "button_fdid_disabled" => {
+            apply_button_fdid(frame, value, |button| &mut button.disabled_texture)
+        }
         "button_atlas_up" => {
-            apply_button_texture(frame, value, |bd, src| bd.normal_texture = Some(src))
+            apply_button_texture(frame, value, |button| &mut button.normal_texture)
         }
         "button_atlas_pressed" => {
-            apply_button_texture(frame, value, |bd, src| bd.pushed_texture = Some(src))
+            apply_button_texture(frame, value, |button| &mut button.pushed_texture)
         }
         "button_atlas_highlight" => {
-            apply_button_texture(frame, value, |bd, src| bd.highlight_texture = Some(src))
+            apply_button_texture(frame, value, |button| &mut button.highlight_texture)
         }
         "button_atlas_disabled" => {
-            apply_button_texture(frame, value, |bd, src| bd.disabled_texture = Some(src))
+            apply_button_texture(frame, value, |button| &mut button.disabled_texture)
+        }
+        "button_normal_blend_mode" => {
+            apply_button_blend(frame, value, |button| &mut button.normal_texture)
+        }
+        "button_pushed_blend_mode" => {
+            apply_button_blend(frame, value, |button| &mut button.pushed_texture)
+        }
+        "button_highlight_blend_mode" => {
+            apply_button_blend(frame, value, |button| &mut button.highlight_texture)
+        }
+        "button_disabled_blend_mode" => {
+            apply_button_blend(frame, value, |button| &mut button.disabled_texture)
         }
         _ => {}
     }
@@ -917,25 +948,41 @@ fn apply_text_attr(frame: &mut Frame, value: &str) {
 fn apply_button_fdid(
     frame: &mut Frame,
     value: &str,
-    apply: impl FnOnce(&mut ButtonData, TextureSource),
+    select: impl FnOnce(&mut ButtonData) -> &mut Option<ButtonTexture>,
 ) {
     let fdid = value
         .parse::<u32>()
         .expect("button texture FDID must be a u32");
     if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
-        apply(button, TextureSource::FileDataId(fdid));
+        select(button)
+            .get_or_insert_with(ButtonTexture::default)
+            .source = TextureSource::FileDataId(fdid);
     }
 }
 
 fn apply_button_texture(
     frame: &mut Frame,
     value: &str,
-    apply: impl FnOnce(&mut ButtonData, TextureSource),
+    select: impl FnOnce(&mut ButtonData) -> &mut Option<ButtonTexture>,
 ) {
     if let Some(WidgetData::Button(bd)) = &mut frame.widget_data {
         if atlas::get_region(value).is_none() {
             eprintln!("[UI] button atlas not found: {value}");
         }
-        apply(bd, TextureSource::Atlas(value.to_string()));
+        select(bd).get_or_insert_with(ButtonTexture::default).source =
+            TextureSource::Atlas(value.to_string());
+    }
+}
+
+fn apply_button_blend(
+    frame: &mut Frame,
+    value: &str,
+    select: impl FnOnce(&mut ButtonData) -> &mut Option<ButtonTexture>,
+) {
+    let blend_mode = BlendMode::from_alpha_mode(value);
+    if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
+        select(button)
+            .get_or_insert_with(ButtonTexture::default)
+            .blend_mode = blend_mode;
     }
 }

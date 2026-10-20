@@ -34,20 +34,32 @@ fn button_state_fdids_survive_screen_rebuilds_without_losing_actions() {
             panic!("expected button");
         };
         assert_eq!(
-            button.normal_texture,
-            Some(TextureSource::FileDataId(normal))
+            button
+                .normal_texture
+                .as_ref()
+                .map(|texture| &texture.source),
+            Some(&TextureSource::FileDataId(normal))
         );
         assert_eq!(
-            button.pushed_texture,
-            Some(TextureSource::FileDataId(130825))
+            button
+                .pushed_texture
+                .as_ref()
+                .map(|texture| &texture.source),
+            Some(&TextureSource::FileDataId(130825))
         );
         assert_eq!(
-            button.highlight_texture,
-            Some(TextureSource::FileDataId(130826))
+            button
+                .highlight_texture
+                .as_ref()
+                .map(|texture| &texture.source),
+            Some(&TextureSource::FileDataId(130826))
         );
         assert_eq!(
-            button.disabled_texture,
-            Some(TextureSource::FileDataId(130824))
+            button
+                .disabled_texture
+                .as_ref()
+                .map(|texture| &texture.source),
+            Some(&TextureSource::FileDataId(130824))
         );
         assert_eq!(registry.click_frame(id).as_deref(), Some("accept"));
     }
