@@ -1,6 +1,7 @@
 extern crate self as ui_toolkit;
 pub use ui_toolkit_macros::rsx;
 pub mod anchor;
+pub mod art_layout;
 pub mod atlas;
 pub mod attrs;
 pub mod button_art;
