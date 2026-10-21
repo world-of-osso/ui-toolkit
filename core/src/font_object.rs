@@ -240,7 +240,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn player_spells_font_objects_keep_authored_shadow_distinctions() {
+    fn ui_template_fonts_player_spells_keep_authored_shadow_distinctions() {
         for (name, size) in [
             ("SystemFont_Large", 16.0),
             ("SystemFont_Huge2", 24.0),
