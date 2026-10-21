@@ -61,15 +61,17 @@ impl BorderSpec {
     }
 }
 
-struct Region {
-    source: TextureSource,
-    rect: [f32; 4],
-    crop: [f32; 4],
-    tile: [bool; 2],
+pub(crate) struct Region {
+    pub(crate) source: TextureSource,
+    pub(crate) rect: [f32; 4],
+    pub(crate) crop: [f32; 4],
+    pub(crate) tile: [bool; 2],
+    pub(crate) rotation: f32,
+    pub(crate) layer: &'static str,
 }
 
 impl Region {
-    fn atlas(name: &str, rect: [f32; 4]) -> Self {
+    pub(crate) fn atlas(name: &str, rect: [f32; 4]) -> Self {
         let atlas = crate::atlas::get_region(name)
             .unwrap_or_else(|| panic!("missing named artwork atlas {name}"));
         Self {
@@ -77,6 +79,8 @@ impl Region {
             rect,
             crop: [0.0, 1.0, 0.0, 1.0],
             tile: [atlas.tiles_horizontally, atlas.tiles_vertically],
+            rotation: 0.0,
+            layer: "BORDER",
         }
     }
 }
@@ -96,6 +100,8 @@ pub fn border_art(prefix: &str, spec: BorderSpec) -> Element {
             rect: [x + 10.0, y + 10.0, width - 20.0, height - 20.0],
             crop: [0.0, 1.0, 0.0, 1.0],
             tile: [false; 2],
+            rotation: 0.0,
+            layer: "BACKGROUND",
         };
         elements.extend(region_element(
             format!("{prefix}Bg"),
@@ -192,6 +198,8 @@ fn translucent_regions([x, y, width, height]: [f32; 4]) -> [Region; 8] {
         rect,
         crop,
         tile: [false; 2],
+        rotation: 0.0,
+        layer: "BORDER",
     });
     let edges = [
         (
@@ -220,6 +228,8 @@ fn translucent_regions([x, y, width, height]: [f32; 4]) -> [Region; 8] {
         rect,
         crop: [0.0, 1.0, 0.0, 1.0],
         tile,
+        rotation: 0.0,
+        layer: "BORDER",
     });
     let [tl, tr, bl, br] = corners;
     let [top, bottom, left, right] = edges;
@@ -228,19 +238,16 @@ fn translucent_regions([x, y, width, height]: [f32; 4]) -> [Region; 8] {
 
 struct DynName(String);
 
-fn region_element(name: String, region: Region, scale: f32) -> Element {
+pub(crate) fn region_element(name: String, region: Region, scale: f32) -> Element {
     let [left, top, width, height] = region.rect.map(|value| value * scale);
     let [l, r, t, b] = region.crop;
     let crop = format!("{l},{r},{t},{b}");
     let [horizontal, vertical] = region.tile;
-    let layer = if matches!(region.source, TextureSource::SolidColor(_)) {
-        "BACKGROUND"
-    } else {
-        "BORDER"
-    };
+    let layer = region.layer;
+    let rotation = region.rotation;
     let mut element = rsx! { texture { name: {DynName(name)}, left, top, width, height,
         pos_type: "absolute", draw_layer: layer,
-        tex_coords: {crop.as_str()}, horiz_tile: horizontal, vert_tile: vertical,
+        tex_coords: {crop.as_str()}, horiz_tile: horizontal, vert_tile: vertical, rotation,
     } };
     let [WidgetChild::Widget(widget)] = element.as_mut_slice() else {
         unreachable!("one texture root")

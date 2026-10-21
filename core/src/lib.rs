@@ -14,6 +14,7 @@ pub mod panel_style;
 pub mod registry;
 pub mod screen;
 pub mod strata;
+pub mod tab_art;
 #[path = "../../src/text_measure.rs"]
 pub mod text_measure;
 pub mod widget_def;
