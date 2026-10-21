@@ -12,16 +12,22 @@ pub struct SlicePart<'a> {
 }
 
 pub fn slice_parts(slice: &ThreeSlice, width: f32, height: f32) -> [SlicePart<'_>; 3] {
-    let cap = slice.cap_widths[0];
-    let center = (width - cap * 2.0).max(0.0);
+    let [first, last] = slice.cap_widths;
+    let extent = if slice.vertical { height } else { width };
+    let center = (extent - first - last).max(0.0);
     let sources = [&slice.left, &slice.center, &slice.right];
-    let spans = [(0.0, cap), (cap, center), (cap + center, cap)];
+    let spans = [(0.0, first), (first, center), (first + center, last)];
     std::array::from_fn(|index| {
         let (at, length) = spans[index];
+        let rect = if slice.vertical {
+            [0.0, at, width, length]
+        } else {
+            [at, 0.0, length, height]
+        };
         SlicePart {
             source: sources[index],
-            rect: [at, 0.0, length, height],
-            crop: [0.0, 1.0, 0.0, 1.0],
+            rect,
+            crop: slice.tex_coords[index],
         }
     })
 }
