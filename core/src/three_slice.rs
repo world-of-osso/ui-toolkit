@@ -78,6 +78,86 @@ mod tests {
     }
 }
 
+pub const MINIMAL_SCROLLBAR_WIDTH: f32 = 8.0;
+pub const MINIMAL_SCROLLBAR_CAP: f32 = 8.0;
+
+pub enum MinimalScrollArt {
+    Track,
+    Thumb,
+}
+
+/// MinimalScrollBar.xml: ordinary8px caps with a separately cropped thumb middle.
+pub fn minimal_scrollbar_art(
+    prefix: &str,
+    height: f32,
+    part: MinimalScrollArt,
+    middle_v: f32,
+) -> Element {
+    let names = match part {
+        MinimalScrollArt::Track => [
+            "minimal-scrollbar-track-top",
+            "!minimal-scrollbar-track-middle",
+            "minimal-scrollbar-track-bottom",
+        ],
+        MinimalScrollArt::Thumb => [
+            "minimal-scrollbar-small-thumb-top",
+            "minimal-scrollbar-small-thumb-middle",
+            "minimal-scrollbar-small-thumb-bottom",
+        ],
+    };
+    let slice = ThreeSlice {
+        cap_widths: [MINIMAL_SCROLLBAR_CAP; 2],
+        vertical: true,
+        left: TextureSource::Atlas(names[0].into()),
+        center: TextureSource::Atlas(names[1].into()),
+        right: TextureSource::Atlas(names[2].into()),
+        tex_coords: [
+            [0.0, 1.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, middle_v],
+            [0.0, 1.0, 0.0, 1.0],
+        ],
+        ..Default::default()
+    };
+    slice_art(
+        prefix,
+        &slice,
+        [0.0, 0.0, MINIMAL_SCROLLBAR_WIDTH, height],
+        ["Top", "Middle", "Bottom"],
+        DrawLayer::Artwork,
+    )
+}
+
+/// ListTemplates.xml Options_ListExpand artwork, shared by currency and cooldown headers.
+pub fn option_header_art(prefix: &str, rect: [f32; 4], expanded: bool, highlight: bool) -> Element {
+    let right = if expanded {
+        "Options_ListExpand_Right_Expanded"
+    } else {
+        "Options_ListExpand_Right"
+    };
+    let left_atlas = crate::atlas::get_region("Options_ListExpand_Left")
+        .expect("Retail option header left atlas");
+    let right_atlas = crate::atlas::get_region(right).expect("Retail option header right atlas");
+    let slice = ThreeSlice {
+        cap_widths: [left_atlas.width, right_atlas.width],
+        left: TextureSource::Atlas("Options_ListExpand_Left".into()),
+        center: TextureSource::Atlas("_Options_ListExpand_Middle".into()),
+        right: TextureSource::Atlas(right.into()),
+        color: [1.0, 1.0, 1.0, if highlight { 0.4 } else { 1.0 }],
+        blend_mode: if highlight {
+            crate::widgets::texture::BlendMode::Additive
+        } else {
+            crate::widgets::texture::BlendMode::Blend
+        },
+        ..Default::default()
+    };
+    let layer = if highlight {
+        DrawLayer::Highlight
+    } else {
+        DrawLayer::Background
+    };
+    slice_art(prefix, &slice, rect, ["Left", "Middle", "Right"], layer)
+}
+
 /// Expand a shared ThreeSlice into ordinary texture children, using the same geometry as native.
 pub fn slice_art(
     prefix: &str,
