@@ -55,6 +55,71 @@ const OBJECTS: &[FontObject] = &[
         parent: None,
         properties: &[FRIZ, Size(16.0), BLACK_SHADOW],
     },
+    // PlayerSpells XML uses these distinct unshadowed and shadowed families.
+    FontObject {
+        name: "SystemFont_Large",
+        parent: None,
+        properties: &[FRIZ, Size(16.0)],
+    },
+    FontObject {
+        name: "SystemFont_Huge2",
+        parent: None,
+        properties: &[FRIZ, Size(24.0)],
+    },
+    FontObject {
+        name: "SystemFont_Med3",
+        parent: None,
+        properties: &[FRIZ, Size(14.0)],
+    },
+    FontObject {
+        name: "Game30Font",
+        parent: None,
+        properties: &[FRIZ, Size(30.0)],
+    },
+    FontObject {
+        name: "Game24Font",
+        parent: None,
+        properties: &[FRIZ, Size(24.0)],
+    },
+    FontObject {
+        name: "System15Font",
+        parent: None,
+        properties: &[FRIZ, Size(15.0)],
+    },
+    FontObject {
+        name: "SystemFont_Shadow_Large2",
+        parent: None,
+        properties: &[FRIZ, Size(18.0), BLACK_SHADOW],
+    },
+    FontObject {
+        name: "SystemFont_Shadow_Huge2",
+        parent: None,
+        properties: &[FRIZ, Size(24.0), BLACK_SHADOW],
+    },
+    FontObject {
+        name: "SystemFont_Shadow_Med3",
+        parent: None,
+        properties: &[FRIZ, Size(14.0), BLACK_SHADOW],
+    },
+    FontObject {
+        name: "Game32Font_Shadow2",
+        parent: None,
+        properties: &[
+            FRIZ,
+            Size(32.0),
+            FontProperty::Shadow([0.0, 0.0, 0.0, 1.0], [2.0, -2.0]),
+        ],
+    },
+    FontObject {
+        name: "GameFontNormalLarge2",
+        parent: Some("SystemFont_Shadow_Large2"),
+        properties: &[Color(GOLD)],
+    },
+    FontObject {
+        name: "GameFontHighlightMed2",
+        parent: Some("GameFontNormalMed2"),
+        properties: &[Color(WHITE)],
+    },
     FontObject {
         name: "SystemFont_Med1",
         parent: None,
