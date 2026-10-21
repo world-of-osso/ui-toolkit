@@ -5,6 +5,93 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
     apply_attribute(registry, id, name, value);
 }
 
+// R FontStyles.xml56–60 → Fonts.xml39–43: RomanFriz10, gold, black(+1,-1) shadow.
+#[test]
+fn authored_font_object_small_resolves_its_inherited_face_size_color_and_shadow() {
+    use crate::widgets::font_string::{GameFont, JustifyH};
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("AchievementFrameTitle", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::FontString(Default::default()));
+    apply(&mut registry, id, "font_object", "GameFontNormalSmall");
+    let Some(WidgetData::FontString(font)) = &registry.get(id).unwrap().widget_data else {
+        panic!("font")
+    };
+    assert_eq!(font.font, GameFont::FrizQuadrata);
+    assert_eq!(font.font_size, 10.0);
+    assert_eq!(font.color, [1.0, 0.82, 0.0, 1.0]);
+    assert_eq!(font.shadow_color, Some([0.0, 0.0, 0.0, 1.0]));
+    assert_eq!(font.shadow_offset, [1.0, -1.0]);
+    assert_eq!(font.justify_h, JustifyH::Center);
+    assert_eq!(
+        read_attribute(&registry, id, "font_object").as_deref(),
+        Some("GameFontNormalSmall")
+    );
+}
+
+#[test]
+fn authored_font_object_declarations_preserve_local_overrides_in_either_order_and_rebuild() {
+    use crate::widget_def::{Attr, WidgetChild, WidgetDef};
+    use crate::widget_def_diff::DiffContext;
+    for inherited_first in [false, true] {
+        let mut registry = FrameRegistry::new(800.0, 600.0);
+        let mut diff = DiffContext::new();
+        let mut definition = WidgetDef::new("fontstring");
+        definition.name = Some("LocalTitle".into());
+        definition.attrs = [
+            ("font_color", "0.2,0.4,0.8,1"),
+            ("shadow_color", "0.1,0.2,0.3,0.5"),
+            ("shadow_offset", "2,-2"),
+            ("font_size", "13.5"),
+        ]
+        .into_iter()
+        .map(|(name, value)| Attr::new_static(name, value.into()))
+        .collect();
+        let inherited = Attr::new_static("font_object", "GameFontNormalSmall".into());
+        if inherited_first {
+            definition.attrs.insert(0, inherited);
+        } else {
+            definition.attrs.push(inherited);
+        }
+        diff.diff_roots(&[WidgetChild::Widget(definition)], None, &mut registry);
+        let id = registry.get_by_name("LocalTitle").unwrap();
+        let Some(WidgetData::FontString(font)) = &registry.get(id).unwrap().widget_data else {
+            panic!("font")
+        };
+        assert_eq!(font.font_size, 13.5);
+        assert_eq!(font.color, [0.2, 0.4, 0.8, 1.0]);
+        assert_eq!(font.shadow_color, Some([0.1, 0.2, 0.3, 0.5]));
+        assert_eq!(font.shadow_offset, [2.0, -2.0]);
+        let mut changed = WidgetDef::new("fontstring");
+        changed.name = Some("LocalTitle".into());
+        changed
+            .attrs
+            .push(Attr::new_static("font_object", "GameFontHighlight".into()));
+        diff.diff_roots(&[WidgetChild::Widget(changed)], None, &mut registry);
+        assert_eq!(registry.get_by_name("LocalTitle"), Some(id));
+        let Some(WidgetData::FontString(font)) = &registry.get(id).unwrap().widget_data else {
+            panic!("font")
+        };
+        assert_eq!(font.font_size, 12.0);
+        assert_eq!(font.color, [1.0; 4]);
+        assert_eq!(font.shadow_color, Some([0.0, 0.0, 0.0, 1.0]));
+        assert_eq!(font.shadow_offset, [1.0, -1.0]);
+    }
+}
+
+#[test]
+fn authored_font_object_rejects_unknown_names_without_replacing_existing_style() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("StrictFont", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::FontString(Default::default()));
+    apply(&mut registry, id, "font_object", "GameFontNormalSmall");
+    let before = registry.get(id).unwrap().widget_data.clone();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        apply(&mut registry, id, "font_object", "NotARetailFontObject");
+    }));
+    assert!(result.is_err());
+    assert_eq!(registry.get(id).unwrap().widget_data, before);
+}
+
 // R PerksProgramElements.xml897: source-identical highlight authors alpha0.6;
 // GuildBankUI.xml156 authors CheckedTexture with independent ADD metadata.
 #[test]
