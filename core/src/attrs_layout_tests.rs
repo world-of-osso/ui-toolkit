@@ -4,6 +4,103 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
     apply_attribute(registry, id, name, value);
 }
 
+// R PerksProgramElements.xml897: source-identical highlight authors alpha0.6;
+// GuildBankUI.xml156 authors CheckedTexture with independent ADD metadata.
+#[test]
+fn authored_state_region_metadata_survives_source_updates_in_either_order() {
+    for (state, source_attr) in [
+        ("normal", "button_atlas_up"),
+        ("pushed", "button_atlas_pressed"),
+        ("disabled", "button_atlas_disabled"),
+        ("highlight", "button_atlas_highlight"),
+        ("checked", "button_atlas_checked"),
+        ("disabled_checked", "button_atlas_disabled_checked"),
+    ] {
+        for source_first in [false, true] {
+            let mut registry = FrameRegistry::new(800.0, 600.0);
+            let id = registry.create_frame("AuthoredStateRegion", None);
+            registry.get_mut(id).unwrap().widget_data =
+                Some(WidgetData::Button(Default::default()));
+            if source_first {
+                apply(&mut registry, id, source_attr, "perks-button-up");
+            }
+            for (field, value) in [
+                ("tex_coords", "0.125,0.875,0.25,0.75"),
+                ("vertex_color", "0.2,0.4,0.8,0.5"),
+                ("alpha", "0.6"),
+                ("blend_mode", "ADD"),
+            ] {
+                apply(&mut registry, id, &format!("button_{state}_{field}"), value);
+            }
+            apply(&mut registry, id, source_attr, "transmog-itemcard-default");
+            for (field, expected) in [
+                ("tex_coords", "0.125,0.875,0.25,0.75"),
+                ("vertex_color", "0.2,0.4,0.8,0.5"),
+                ("alpha", "0.6"),
+                ("blend_mode", "ADD"),
+            ] {
+                let attr = format!("button_{state}_{field}");
+                assert_eq!(
+                    read_attribute(&registry, id, &attr).as_deref(),
+                    Some(expected),
+                    "{attr}, source_first={source_first}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn authored_state_region_checked_state_survives_disabled_and_source_changes() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("GuildBankCheckedTab", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(Default::default()));
+    assert_eq!(
+        read_attribute(&registry, id, "button_checked").as_deref(),
+        Some("false")
+    );
+    apply(&mut registry, id, "button_checked", "true");
+    apply(&mut registry, id, "button_fdid_checked", "130724");
+    apply(&mut registry, id, "button_checked_blend_mode", "ADD");
+    apply(&mut registry, id, "disabled", "true");
+    apply(&mut registry, id, "button_fdid_checked", "130718");
+    assert_eq!(
+        read_attribute(&registry, id, "button_checked").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        read_attribute(&registry, id, "button_checked_blend_mode").as_deref(),
+        Some("ADD")
+    );
+    apply(&mut registry, id, "button_checked", "false");
+    assert_eq!(
+        read_attribute(&registry, id, "button_checked").as_deref(),
+        Some("false")
+    );
+}
+
+#[test]
+fn authored_state_region_invalid_metadata_rejects_without_partial_mutation() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("StrictStateRegion", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(Default::default()));
+    apply(&mut registry, id, "button_fdid_up", "130824");
+    let before = registry.get(id).unwrap().widget_data.clone();
+    for (name, value) in [
+        ("button_normal_alpha", "NaN"),
+        ("button_normal_alpha", "1.5"),
+        ("button_normal_tex_coords", "0,NaN,0,1"),
+        ("button_checked_vertex_color", "0,0,0,infinity"),
+        ("button_checked_blend_mode", "MOD"),
+    ] {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            apply(&mut registry, id, name, value);
+        }));
+        assert!(result.is_err(), "accepted invalid {name}={value}");
+        assert_eq!(registry.get(id).unwrap().widget_data, before);
+    }
+}
+
 // R/Blizzard_Transmog/Blizzard_TransmogTemplates.xml858/872: identical
 // atlas regions authored as ordinary Border and additive BorderHighlight.
 #[test]
