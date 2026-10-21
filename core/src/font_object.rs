@@ -240,6 +240,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn player_spells_font_objects_keep_authored_shadow_distinctions() {
+        for (name, size) in [
+            ("SystemFont_Large", 16.0),
+            ("SystemFont_Huge2", 24.0),
+            ("Game30Font", 30.0),
+            ("Game24Font", 24.0),
+            ("System15Font", 15.0),
+        ] {
+            let font = resolve_font_object(name);
+            assert_eq!(font.font_size, size, "{name}");
+            assert_eq!(font.shadow_color, None, "{name}");
+        }
+        for (name, size) in [
+            ("SystemFont_Shadow_Large2", 18.0),
+            ("SystemFont_Shadow_Huge2", 24.0),
+            ("SystemFont_Shadow_Med3", 14.0),
+            ("GameFontNormalLarge2", 18.0),
+            ("GameFontHighlightMed2", 14.0),
+        ] {
+            let font = resolve_font_object(name);
+            assert_eq!(font.font_size, size, "{name}");
+            assert_eq!(font.shadow_color, Some([0.0, 0.0, 0.0, 1.0]), "{name}");
+            assert_eq!(font.shadow_offset, [1.0, -1.0], "{name}");
+        }
+        assert_eq!(
+            resolve_font_object("Game32Font_Shadow2").shadow_offset,
+            [2.0, -2.0]
+        );
+    }
+
+    #[test]
     fn authored_font_objects_preserve_map_outline_and_unshadowed_tooltip_headers() {
         let map = resolve_font_object("WorldMapTextFont");
         assert_eq!(map.font, GameFont::FrizQuadrata);
