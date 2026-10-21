@@ -1,7 +1,7 @@
 //! Named Roman font objects from Retail Blizzard_Fonts_Shared/Shared/{Fonts,FontStyles}.xml.
 //! Resolve inherited properties before a declaration applies its explicit local overrides.
 use crate::frame::{Frame, WidgetData};
-use crate::widgets::font_string::{FontStringData, GameFont, JustifyH, JustifyV};
+use crate::widgets::font_string::{FontStringData, GameFont, JustifyH, JustifyV, Outline};
 
 const GOLD: [f32; 4] = [1.0, 0.82, 0.0, 1.0];
 const WHITE: [f32; 4] = [1.0; 4];
@@ -17,6 +17,7 @@ enum FontProperty {
     Shadow([f32; 4], [f32; 2]),
     Horizontal(JustifyH),
     Vertical(JustifyV),
+    Outline(Outline),
 }
 
 struct FontObject {
@@ -68,6 +69,21 @@ const OBJECTS: &[FontObject] = &[
         name: "Tooltip_Med",
         parent: None,
         properties: &[FRIZ, Size(12.0)],
+    },
+    // GameFonts.xml173–175 and GameFontStyles.xml138–140.
+    FontObject {
+        name: "SystemFont_OutlineThick_WTF",
+        parent: None,
+        properties: &[
+            FRIZ,
+            Size(32.0),
+            FontProperty::Outline(Outline::ThickOutline),
+        ],
+    },
+    FontObject {
+        name: "WorldMapTextFont",
+        parent: Some("SystemFont_OutlineThick_WTF"),
+        properties: &[Color([1.0, 0.9294, 0.7607, 1.0])],
     },
     FontObject {
         name: "GameTooltipHeader",
@@ -192,6 +208,7 @@ pub fn resolve_font_object(name: &str) -> FontStringData {
             }
             Horizontal(value) => font.justify_h = value,
             Vertical(value) => font.justify_v = value,
+            FontProperty::Outline(value) => font.outline = value,
         }
     }
     font
@@ -216,4 +233,27 @@ pub(crate) fn apply_font_object(frame: &mut Frame, name: Option<&str>) {
     font.outline = style.outline;
     font.line_spacing = style.line_spacing;
     frame.font_object = name.map(str::to_owned);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authored_font_objects_preserve_map_outline_and_unshadowed_tooltip_headers() {
+        let map = resolve_font_object("WorldMapTextFont");
+        assert_eq!(map.font, GameFont::FrizQuadrata);
+        assert_eq!(map.font_size, 32.0);
+        assert_eq!(map.color, [1.0, 0.9294, 0.7607, 1.0]);
+        assert_eq!(map.outline, Outline::ThickOutline);
+        assert_eq!(map.shadow_color, None);
+        let header = resolve_font_object("GameTooltipHeaderText");
+        assert_eq!(header.font_size, 14.0);
+        assert_eq!(header.color, WHITE);
+        assert_eq!(header.justify_h, JustifyH::Left);
+        assert_eq!(header.shadow_color, None);
+        // Similarly named source families are13 and14, not interchangeable guesses.
+        assert_eq!(resolve_font_object("GameFontNormalMed1").font_size, 13.0);
+        assert_eq!(resolve_font_object("GameFontNormalMed2").font_size, 14.0);
+    }
 }
