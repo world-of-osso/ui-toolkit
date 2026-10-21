@@ -125,11 +125,16 @@ impl DiffContext {
             .find(|attr| attr.effective_name() == "font_object");
         if let Some(frame) = registry.get_mut(frame_id) {
             crate::font_object::apply_font_object(frame, font_object.map(Attr::value_str));
+            let template = def
+                .attrs
+                .iter()
+                .find(|attr| attr.effective_name() == "button_template");
+            crate::button_art::apply_button_template(frame, template.map(Attr::value_str));
         }
         for attr in def
             .attrs
             .iter()
-            .filter(|attr| attr.effective_name() != "font_object")
+            .filter(|attr| !matches!(attr.effective_name(), "font_object" | "button_template"))
         {
             let attr_name = attr.effective_name();
             let value = attr.value_str();

@@ -3,6 +3,7 @@ pub use ui_toolkit_macros::rsx;
 pub mod anchor;
 pub mod atlas;
 pub mod attrs;
+pub mod button_art;
 pub mod font_line_metrics;
 pub mod font_object;
 pub mod frame;

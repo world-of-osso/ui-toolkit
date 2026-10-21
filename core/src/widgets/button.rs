@@ -47,6 +47,7 @@ pub enum ButtonState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ButtonData {
+    pub template: Option<crate::button_art::ButtonTemplate>,
     pub state: ButtonState,
     pub enabled: bool,
     pub hovered: bool,
@@ -68,6 +69,7 @@ pub struct ButtonData {
 impl Default for ButtonData {
     fn default() -> Self {
         Self {
+            template: None,
             state: ButtonState::Normal,
             enabled: true,
             hovered: false,
