@@ -459,6 +459,7 @@ fn apply_frame_attr(frame: &mut Frame, name: &str, value: &str) {
         "height" => frame.height = parse_dimension(value),
         "mouse_enabled" => set_bool(&mut frame.mouse_enabled, value),
         "button_template" => crate::button_art::apply_button_template(frame, Some(value)),
+        "button_art_kit" => crate::button_art::apply_button_art_kit(frame, value),
         "button_default_skin" => {
             if let Some(WidgetData::Button(button)) = &mut frame.widget_data {
                 set_bool(&mut button.use_default_skin, value);

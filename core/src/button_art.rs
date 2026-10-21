@@ -3,11 +3,12 @@ use crate::frame::{Frame, WidgetData};
 use crate::widgets::button::{ButtonData, ButtonState, ButtonTexture};
 use crate::widgets::texture::{BlendMode, TextureSource};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ButtonTemplate {
     SharedRed,
     Panel,
     Close,
+    ArtKit(String),
 }
 
 impl ButtonTemplate {
@@ -34,7 +35,18 @@ pub struct ButtonArtPart {
 
 /// Declaration inheritance precedes local state-region overrides, as with font objects.
 pub(crate) fn apply_button_template(frame: &mut Frame, name: Option<&str>) {
-    let template = name.map(ButtonTemplate::from_name);
+    apply_button_inheritance(frame, name.map(ButtonTemplate::from_name));
+}
+
+pub(crate) fn apply_button_art_kit(frame: &mut Frame, kit: &str) {
+    assert!(
+        !kit.is_empty(),
+        "button_art_kit must name an authored art family"
+    );
+    apply_button_inheritance(frame, Some(ButtonTemplate::ArtKit(kit.into())));
+}
+
+fn apply_button_inheritance(frame: &mut Frame, template: Option<ButtonTemplate>) {
     let Some(WidgetData::Button(button)) = &mut frame.widget_data else {
         assert!(template.is_none(), "button_template requires a Button");
         return;
@@ -42,16 +54,16 @@ pub(crate) fn apply_button_template(frame: &mut Frame, name: Option<&str>) {
     if template.is_none() && button.template.is_none() {
         return;
     }
-    button.template = template;
-    let inherited = template.map(template_states).unwrap_or_default();
+    let inherited = template.as_ref().map(template_states).unwrap_or_default();
     button.normal_texture = inherited[0].clone();
     button.pushed_texture = inherited[1].clone();
     button.disabled_texture = inherited[2].clone();
     button.highlight_texture = inherited[3].clone();
     button.use_default_skin = template.is_none();
+    button.template = template;
 }
 
-fn template_states(template: ButtonTemplate) -> [Option<ButtonTexture>; 4] {
+fn template_states(template: &ButtonTemplate) -> [Option<ButtonTexture>; 4] {
     let sources = match template {
         ButtonTemplate::SharedRed => [
             atlas("128-redbutton-left"),
@@ -71,10 +83,16 @@ fn template_states(template: ButtonTemplate) -> [Option<ButtonTexture>; 4] {
             atlas("RedButton-Exit-Disabled"),
             atlas("RedButton-Highlight"),
         ],
+        ButtonTemplate::ArtKit(kit) => [
+            atlas(kit),
+            atlas(&format!("{kit}-Pressed")),
+            atlas(&format!("{kit}-Disabled")),
+            atlas(&format!("{kit}-Highlight")),
+        ],
     };
     let mut states = sources.map(|source| Some(ButtonTexture::new(source)));
     // SharedButton InitButton omits a blend argument; legacy Panel/Close explicitly ADD.
-    if template != ButtonTemplate::SharedRed {
+    if matches!(template, ButtonTemplate::Panel | ButtonTemplate::Close) {
         states[3].as_mut().unwrap().blend_mode = BlendMode::Additive;
     }
     states
@@ -90,21 +108,21 @@ pub fn button_art_parts(
     width: f32,
     height: f32,
 ) -> Option<Vec<ButtonArtPart>> {
-    let template = button.template?;
+    let template = button.template.as_ref()?;
     let mut parts = match (template, button.base_texture()) {
         (_, None) => Vec::new(),
         (ButtonTemplate::SharedRed, Some(texture)) => {
             shared_red_parts(texture, button.state, width, height)
         }
         (ButtonTemplate::Panel, Some(texture)) => panel_parts(texture, width, height),
-        (ButtonTemplate::Close, Some(texture)) => vec![part(
+        (ButtonTemplate::Close | ButtonTemplate::ArtKit(_), Some(texture)) => vec![part(
             texture.clone(),
             [0.0, 0.0, width, height],
             [0.0, 1.0, 0.0, 1.0],
         )],
     };
     if let Some(texture) = button.highlight_region() {
-        let crop = if template == ButtonTemplate::Panel {
+        let crop = if matches!(template, ButtonTemplate::Panel) {
             [0.0, 0.625, 0.0, 0.6875]
         } else {
             [0.0, 1.0, 0.0, 1.0]

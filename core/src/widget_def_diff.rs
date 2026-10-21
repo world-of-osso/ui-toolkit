@@ -129,13 +129,26 @@ impl DiffContext {
                 .attrs
                 .iter()
                 .find(|attr| attr.effective_name() == "button_template");
-            crate::button_art::apply_button_template(frame, template.map(Attr::value_str));
+            let art_kit = def
+                .attrs
+                .iter()
+                .find(|attr| attr.effective_name() == "button_art_kit");
+            assert!(
+                template.is_none() || art_kit.is_none(),
+                "declare either button_template or button_art_kit, not both"
+            );
+            if let Some(kit) = art_kit {
+                crate::button_art::apply_button_art_kit(frame, kit.value_str());
+            } else {
+                crate::button_art::apply_button_template(frame, template.map(Attr::value_str));
+            }
         }
-        for attr in def
-            .attrs
-            .iter()
-            .filter(|attr| !matches!(attr.effective_name(), "font_object" | "button_template"))
-        {
+        for attr in def.attrs.iter().filter(|attr| {
+            !matches!(
+                attr.effective_name(),
+                "font_object" | "button_template" | "button_art_kit"
+            )
+        }) {
             let attr_name = attr.effective_name();
             let value = attr.value_str();
             self.log_attr_change(frame_id, attr_name, value, registry);
