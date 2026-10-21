@@ -9,12 +9,12 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
 #[test]
 fn authored_state_region_metadata_survives_source_updates_in_either_order() {
     for (state, source_attr) in [
-        ("normal", "button_atlas_up"),
-        ("pushed", "button_atlas_pressed"),
-        ("disabled", "button_atlas_disabled"),
-        ("highlight", "button_atlas_highlight"),
-        ("checked", "button_atlas_checked"),
-        ("disabled_checked", "button_atlas_disabled_checked"),
+        ("normal", "button_fdid_up"),
+        ("pushed", "button_fdid_pressed"),
+        ("disabled", "button_fdid_disabled"),
+        ("highlight", "button_fdid_highlight"),
+        ("checked", "button_fdid_checked"),
+        ("disabled_checked", "button_fdid_disabled_checked"),
     ] {
         for source_first in [false, true] {
             let mut registry = FrameRegistry::new(800.0, 600.0);
@@ -22,7 +22,7 @@ fn authored_state_region_metadata_survives_source_updates_in_either_order() {
             registry.get_mut(id).unwrap().widget_data =
                 Some(WidgetData::Button(Default::default()));
             if source_first {
-                apply(&mut registry, id, source_attr, "perks-button-up");
+                apply(&mut registry, id, source_attr, "130724");
             }
             for (field, value) in [
                 ("tex_coords", "0.125,0.875,0.25,0.75"),
@@ -32,7 +32,7 @@ fn authored_state_region_metadata_survives_source_updates_in_either_order() {
             ] {
                 apply(&mut registry, id, &format!("button_{state}_{field}"), value);
             }
-            apply(&mut registry, id, source_attr, "transmog-itemcard-default");
+            apply(&mut registry, id, source_attr, "130718");
             for (field, expected) in [
                 ("tex_coords", "0.125,0.875,0.25,0.75"),
                 ("vertex_color", "0.2,0.4,0.8,0.5"),
