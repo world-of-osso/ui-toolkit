@@ -25,7 +25,8 @@ Preserve Retail XML `alphaMode` through the canonical `blend_mode` attribute int
 
 ## Known gaps (current cycle)
 
-- [ ] Complete button-state source/blend propagation and consumer migration.
+- [x] Complete button-state source/blend propagation and native Godot consumer migration.
+- [ ] Coordinated engine/toolkit lead acceptance; offline native proof does not establish retired Bevy renderer parity.
 
 ## Out of scope
 
