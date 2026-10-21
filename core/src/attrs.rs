@@ -94,6 +94,7 @@ fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
         "alpha" => Some(format!("{}", frame.alpha)),
         "style" => frame.panel_style.clone(),
         "three_slice_style" => frame.three_slice_style.clone(),
+        "font_object" => frame.font_object.clone(),
         _ => None,
     }
 }
@@ -236,6 +237,10 @@ pub fn apply_attribute(registry: &mut FrameRegistry, frame_id: u64, name: &str, 
     let Some(frame) = registry.get_mut(frame_id) else {
         return;
     };
+    if name == "font_object" {
+        crate::font_object::apply_font_object(frame, Some(value));
+        return;
+    }
     apply_layout_attr(frame, name, value);
     apply_flex_attr(frame, name, value);
     button_regions::apply(frame, name, value);

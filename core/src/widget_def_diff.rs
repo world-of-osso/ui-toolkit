@@ -119,7 +119,18 @@ impl DiffContext {
     }
 
     fn apply_def_attrs(&mut self, def: &WidgetDef, frame_id: u64, registry: &mut FrameRegistry) {
-        for attr in &def.attrs {
+        let font_object = def
+            .attrs
+            .iter()
+            .find(|attr| attr.effective_name() == "font_object");
+        if let Some(frame) = registry.get_mut(frame_id) {
+            crate::font_object::apply_font_object(frame, font_object.map(Attr::value_str));
+        }
+        for attr in def
+            .attrs
+            .iter()
+            .filter(|attr| attr.effective_name() != "font_object")
+        {
             let attr_name = attr.effective_name();
             let value = attr.value_str();
             self.log_attr_change(frame_id, attr_name, value, registry);

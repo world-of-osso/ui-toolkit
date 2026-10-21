@@ -261,6 +261,8 @@ pub struct Frame {
     pub panel_style: Option<String>,
     /// Three-slice style name. Resolved via FrameRegistry::three_slice_styles.
     pub three_slice_style: Option<String>,
+    /// Authored named font object; local FontString attributes override its resolved style.
+    pub font_object: Option<String>,
 
     // Behavior
     pub clamped_to_screen: bool,
@@ -314,6 +316,7 @@ impl Default for Frame {
             border: None,
             panel_style: None,
             three_slice_style: None,
+            font_object: None,
             clamped_to_screen: false,
             movable: false,
             resizable: false,
