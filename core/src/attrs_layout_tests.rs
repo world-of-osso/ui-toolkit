@@ -54,6 +54,57 @@ fn ui_template_art_named_buttons_supply_authored_state_sources() {
     }
 }
 
+#[test]
+fn ui_template_art_button_templates_resolve_before_local_regions_and_reset_on_rebuild() {
+    use crate::widget_def::{Attr, WidgetChild, WidgetDef};
+    use crate::widget_def_diff::DiffContext;
+    for template_first in [false, true] {
+        let mut registry = FrameRegistry::new(800.0, 600.0);
+        let mut diff = DiffContext::new();
+        let mut definition = WidgetDef::new("button");
+        definition.name = Some("TemplateOverrides".into());
+        definition.attrs = vec![
+            Attr::new_static("button_highlight_alpha", "0.4".into()),
+            Attr::new_static("button_normal_vertex_color", "0.2,0.3,0.4,0.5".into()),
+        ];
+        let template = Attr::new_static("button_template", "UIPanelButtonTemplate".into());
+        if template_first {
+            definition.attrs.insert(0, template);
+        } else {
+            definition.attrs.push(template);
+        }
+        diff.diff_roots(&[WidgetChild::Widget(definition)], None, &mut registry);
+        let id = registry.get_by_name("TemplateOverrides").unwrap();
+        let Some(WidgetData::Button(button)) = &registry.get(id).unwrap().widget_data else {
+            panic!("button")
+        };
+        assert_eq!(button.highlight_texture.as_ref().unwrap().alpha, 0.4);
+        assert_eq!(
+            button.normal_texture.as_ref().unwrap().vertex_color,
+            [0.2, 0.3, 0.4, 0.5]
+        );
+        let mut definition = WidgetDef::new("button");
+        definition.name = Some("TemplateOverrides".into());
+        definition.attrs = vec![Attr::new_static(
+            "button_template",
+            "UIPanelCloseButton".into(),
+        )];
+        diff.diff_roots(&[WidgetChild::Widget(definition)], None, &mut registry);
+        let Some(WidgetData::Button(button)) = &registry.get(id).unwrap().widget_data else {
+            panic!("button")
+        };
+        assert_eq!(button.highlight_texture.as_ref().unwrap().alpha, 1.0);
+        assert_eq!(
+            button.normal_texture.as_ref().unwrap().vertex_color,
+            [1.0; 4]
+        );
+        assert_eq!(
+            button.normal_texture.as_ref().unwrap().source,
+            TextureSource::Atlas("RedButton-Exit".into())
+        );
+    }
+}
+
 // R FontStyles.xml56–60 → Fonts.xml39–43: RomanFriz10, gold, black(+1,-1) shadow.
 #[test]
 fn authored_font_object_small_resolves_its_inherited_face_size_color_and_shadow() {
