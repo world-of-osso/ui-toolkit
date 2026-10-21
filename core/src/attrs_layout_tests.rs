@@ -5,6 +5,55 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
     apply_attribute(registry, id, name, value);
 }
 
+// R SharedUIPanelTemplates.xml and SecureUIPanelTemplates.xml author these state presets.
+#[test]
+fn ui_template_art_named_buttons_supply_authored_state_sources() {
+    for (template, normal, pressed, disabled) in [
+        (
+            "SharedButtonTemplate",
+            TextureSource::Atlas("128-redbutton-left".into()),
+            TextureSource::Atlas("128-redbutton-left-pressed".into()),
+            TextureSource::Atlas("128-redbutton-left-disabled".into()),
+        ),
+        (
+            "UIPanelButtonTemplate",
+            TextureSource::FileDataId(130828),
+            TextureSource::FileDataId(130825),
+            TextureSource::FileDataId(130824),
+        ),
+        (
+            "UIPanelCloseButton",
+            TextureSource::Atlas("RedButton-Exit".into()),
+            TextureSource::Atlas("RedButton-exit-pressed".into()),
+            TextureSource::Atlas("RedButton-Exit-Disabled".into()),
+        ),
+    ] {
+        let mut registry = FrameRegistry::new(800.0, 600.0);
+        let id = registry.create_frame(template, None);
+        registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(Default::default()));
+        apply(&mut registry, id, "button_template", template);
+        let Some(WidgetData::Button(button)) = &registry.get(id).unwrap().widget_data else {
+            panic!("button")
+        };
+        assert_eq!(
+            button.normal_texture.as_ref().map(|art| &art.source),
+            Some(&normal),
+            "{template}"
+        );
+        assert_eq!(
+            button.pushed_texture.as_ref().map(|art| &art.source),
+            Some(&pressed),
+            "{template}"
+        );
+        assert_eq!(
+            button.disabled_texture.as_ref().map(|art| &art.source),
+            Some(&disabled),
+            "{template}"
+        );
+        assert!(!button.use_default_skin, "{template}");
+    }
+}
+
 // R FontStyles.xml56–60 → Fonts.xml39–43: RomanFriz10, gold, black(+1,-1) shadow.
 #[test]
 fn authored_font_object_small_resolves_its_inherited_face_size_color_and_shadow() {
