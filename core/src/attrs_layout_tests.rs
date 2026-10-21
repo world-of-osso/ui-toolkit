@@ -38,6 +38,7 @@ fn authored_font_object_declarations_preserve_local_overrides_in_either_order_an
         let mut definition = WidgetDef::new("fontstring");
         definition.name = Some("LocalTitle".into());
         definition.attrs = [
+            ("font", "ArialNarrow"),
             ("font_color", "0.2,0.4,0.8,1"),
             ("shadow_color", "0.1,0.2,0.3,0.5"),
             ("shadow_offset", "2,-2"),
@@ -57,6 +58,10 @@ fn authored_font_object_declarations_preserve_local_overrides_in_either_order_an
         let Some(WidgetData::FontString(font)) = &registry.get(id).unwrap().widget_data else {
             panic!("font")
         };
+        assert_eq!(
+            font.font,
+            crate::widgets::font_string::GameFont::ArialNarrow
+        );
         assert_eq!(font.font_size, 13.5);
         assert_eq!(font.color, [0.2, 0.4, 0.8, 1.0]);
         assert_eq!(font.shadow_color, Some([0.1, 0.2, 0.3, 0.5]));
@@ -71,6 +76,10 @@ fn authored_font_object_declarations_preserve_local_overrides_in_either_order_an
         let Some(WidgetData::FontString(font)) = &registry.get(id).unwrap().widget_data else {
             panic!("font")
         };
+        assert_eq!(
+            font.font,
+            crate::widgets::font_string::GameFont::FrizQuadrata
+        );
         assert_eq!(font.font_size, 12.0);
         assert_eq!(font.color, [1.0; 4]);
         assert_eq!(font.shadow_color, Some([0.0, 0.0, 0.0, 1.0]));

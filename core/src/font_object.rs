@@ -75,6 +75,11 @@ const OBJECTS: &[FontObject] = &[
         properties: &[FRIZ, Size(14.0)],
     },
     FontObject {
+        name: "GameTooltipHeaderText",
+        parent: Some("GameTooltipHeader"),
+        properties: &[Color(WHITE), Horizontal(JustifyH::Left)],
+    },
+    FontObject {
         name: "GameTooltipText",
         parent: Some("Tooltip_Med"),
         properties: &[Color(WHITE), Horizontal(JustifyH::Left)],
