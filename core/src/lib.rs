@@ -17,6 +17,7 @@ pub mod strata;
 pub mod tab_art;
 #[path = "../../src/text_measure.rs"]
 pub mod text_measure;
+pub mod three_slice;
 pub mod widget_def;
 pub mod widget_def_diff;
 pub mod widgets;

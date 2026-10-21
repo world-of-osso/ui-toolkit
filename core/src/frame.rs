@@ -7,7 +7,7 @@ use crate::widgets::button::ButtonData;
 use crate::widgets::edit_box::EditBoxData;
 use crate::widgets::font_string::FontStringData;
 use crate::widgets::slider::{SliderData, StatusBarData};
-use crate::widgets::texture::{TextureData, TextureSource};
+use crate::widgets::texture::{BlendMode, TextureData, TextureSource};
 
 /// Per-widget-type data attached to a frame.
 #[derive(Debug, Clone, PartialEq)]
@@ -71,10 +71,13 @@ pub struct NineSlice {
     pub center_inset: Option<f32>,
 }
 
-/// Horizontal three-slice frame rendering (left cap, center stretch, right cap).
+/// Authored three-slice rendering: independent caps, per-region UVs and either axis.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ThreeSlice {
-    pub cap_width: f32,
+    pub cap_widths: [f32; 2],
+    pub vertical: bool,
+    pub tex_coords: [[f32; 4]; 3],
+    pub blend_mode: BlendMode,
     pub left: TextureSource,
     pub center: TextureSource,
     pub right: TextureSource,
@@ -84,7 +87,10 @@ pub struct ThreeSlice {
 impl Default for ThreeSlice {
     fn default() -> Self {
         Self {
-            cap_width: 8.0,
+            cap_widths: [8.0; 2],
+            vertical: false,
+            tex_coords: [[0.0, 1.0, 0.0, 1.0]; 3],
+            blend_mode: BlendMode::Blend,
             left: TextureSource::None,
             center: TextureSource::None,
             right: TextureSource::None,

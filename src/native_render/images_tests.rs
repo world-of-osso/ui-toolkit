@@ -149,11 +149,12 @@ fn per_part_nine_slice_textures_and_three_slice_do_not_add_atlas_cropping() {
     assert!(parts.iter().all(|part| part.image.rect.is_none()));
     frame.nine_slice = None;
     frame.three_slice = Some(ThreeSlice {
-        cap_width: 25.0,
+        cap_widths: [25.0; 2],
         left: TextureSource::File("left.png".into()),
         center: TextureSource::File("center.png".into()),
         right: TextureSource::File("right.png".into()),
         color: [0.2, 0.5, 0.8, 0.6],
+        ..Default::default()
     });
     let parts = project_with_loader(&frame, &mut load);
     assert_eq!(parts.len(), 3);
@@ -501,11 +502,12 @@ fn opted_out_buttons_keep_authored_slices_and_state_textures() {
         Some(authored_nine_slice)
     );
     let authored_three_slice = ThreeSlice {
-        cap_width: 12.0,
+        cap_widths: [12.0; 2],
         left: TextureSource::File("left.png".into()),
         center: TextureSource::File("center.png".into()),
         right: TextureSource::File("right.png".into()),
         color: [1.0; 4],
+        ..Default::default()
     };
     {
         let mut ui = app.world_mut().resource_mut::<crate::plugin::UiState>();

@@ -195,20 +195,19 @@ pub(crate) fn part_geometry(
     let fy = rect.map_or(0.0, |r| r.y);
     let fw = frame.resolved_width();
     let fh = frame.resolved_height();
-    let cap = ts.cap_width;
-    let center_w = (fw - cap * 2.0).max(0.0);
-
-    let (cx, w) = match part {
-        0 => (fx + cap * 0.5, cap),
-        1 => (fx + cap + center_w * 0.5, center_w),
-        _ => (fx + cap + center_w + cap * 0.5, cap),
-    };
-    let cy = fy + fh * 0.5;
+    let index = usize::from(part.min(2));
+    let [x, y, width, height] = ui_toolkit_core::three_slice::slice_parts(ts, fw, fh)[index].rect;
+    let cx = fx + x + width * 0.5;
+    let cy = fy + y + height * 0.5;
     let [r, g, b, a] = ts.color;
     let color = Color::srgba(r, g, b, a * frame.effective_alpha);
     let bx = cx - screen_w * 0.5;
     let by = screen_h * 0.5 - cy;
-    (Transform::from_xyz(bx, by, z), Vec2::new(w, fh), color)
+    (
+        Transform::from_xyz(bx, by, z),
+        Vec2::new(width, height),
+        color,
+    )
 }
 
 #[cfg(test)]
@@ -237,11 +236,12 @@ mod tests {
             frame.width = Dimension::Fixed(200.0);
             frame.height = Dimension::Fixed(32.0);
             frame.three_slice = Some(ThreeSlice {
-                cap_width: 25.0,
+                cap_widths: [25.0; 2],
                 left: TextureSource::File("left.png".to_string()),
                 center: TextureSource::File("center.png".to_string()),
                 right: TextureSource::File("right.png".to_string()),
                 color: [1.0, 1.0, 1.0, 1.0],
+                ..Default::default()
             });
         }
         app.update();

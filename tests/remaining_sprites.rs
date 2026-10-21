@@ -42,11 +42,12 @@ fn fixture(renderer: Renderer) -> (App, u64) {
     match renderer {
         Renderer::ThreeSlice => {
             frame.three_slice = Some(ThreeSlice {
-                cap_width: 8.0,
+                cap_widths: [8.0; 2],
                 left: TextureSource::Dynamic(image.clone()),
                 center: TextureSource::Dynamic(image.clone()),
                 right: TextureSource::Dynamic(image.clone()),
                 color: [1.0; 4],
+                ..Default::default()
             })
         }
         Renderer::CssBorder => {
@@ -151,7 +152,7 @@ fn assert_updates(renderer: Renderer) {
         match renderer {
             Renderer::ThreeSlice => {
                 let slice = frame.three_slice.as_mut().unwrap();
-                slice.cap_width = 10.0;
+                slice.cap_widths = [10.0; 2];
                 slice.color = [0.2, 0.4, 0.6, 0.8];
                 slice.left = TextureSource::Dynamic(replacement.clone());
                 slice.center = TextureSource::Dynamic(replacement.clone());

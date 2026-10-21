@@ -255,6 +255,7 @@ pub(crate) fn region_element(name: String, region: Region, scale: f32) -> Elemen
     let (attribute, value) = match region.source {
         TextureSource::Atlas(name) => ("texture_atlas", name),
         TextureSource::FileDataId(fdid) => ("texture_fdid", fdid.to_string()),
+        TextureSource::File(path) => ("texture_file", path),
         TextureSource::SolidColor([r, g, b, a]) => ("background_color", format!("{r},{g},{b},{a}")),
         other => panic!("unsupported named artwork source: {other:?}"),
     };
