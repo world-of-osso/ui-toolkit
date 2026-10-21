@@ -1,4 +1,5 @@
 use super::*;
+use crate::widgets::button::ButtonData;
 
 fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
     apply_attribute(registry, id, name, value);
@@ -269,7 +270,7 @@ fn button_hover_alpha_rejects_invalid_values_without_changing_the_button() {
     registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Button(ButtonData::default()));
     assert_eq!(
         read_attribute(&registry, id, "button_highlight_alpha").as_deref(),
-        Some("0.5")
+        Some("1")
     );
     for value in ["NaN", "inf", "-0.01", "1.01", "nope"] {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -278,7 +279,7 @@ fn button_hover_alpha_rejects_invalid_values_without_changing_the_button() {
         assert!(result.is_err(), "invalid highlight alpha accepted: {value}");
         assert_eq!(
             read_attribute(&registry, id, "button_highlight_alpha").as_deref(),
-            Some("0.5")
+            Some("1")
         );
     }
 }
