@@ -1,5 +1,17 @@
 //! Authored tooltip bindings. Hosts resolve live content and convert owner anchors to pixels.
+use crate::widget_def::{Attr, Element, WidgetChild};
 use crate::{frame::Frame, registry::FrameRegistry};
+
+/// Bind a component constructor's single owning widget without altering its children or art.
+pub fn bind_provider(mut element: Element, provider: &str) -> Element {
+    let [WidgetChild::Widget(owner)] = element.as_mut_slice() else {
+        panic!("a tooltip provider requires exactly one owning widget")
+    };
+    owner
+        .attrs
+        .push(Attr::new_dynamic("tooltip_provider", provider.to_owned()));
+    element
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TooltipAnchor {
