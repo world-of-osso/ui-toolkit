@@ -10,6 +10,8 @@ pub mod font_object;
 pub mod frame;
 pub mod layout;
 pub mod layout_values;
+#[cfg(test)]
+mod lifecycle_tests;
 pub mod panel_style;
 pub mod registry;
 pub mod screen;
