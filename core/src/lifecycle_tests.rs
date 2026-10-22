@@ -221,4 +221,22 @@ fn ui_template_lifecycle_escape_equal_priority_preserves_registration_order_and_
     assert_eq!(result, Err("trade close request failed"));
     assert_eq!(windows.open, [20, 30]);
     assert!(windows.target);
+    let failing_bindings = [
+        EscapeBinding {
+            priority: EscapePriority::Dialog,
+            hook: Hook::Dialog,
+        },
+        EscapeBinding {
+            priority: EscapePriority::World,
+            hook: Hook::World,
+        },
+    ];
+    let result = dispatch_escape(&failing_bindings, &mut windows, |context, hook| {
+        if matches!(hook, Hook::Dialog) {
+            return Err("invitation dismissal failed");
+        }
+        close(context, hook)
+    });
+    assert_eq!(result, Err("invitation dismissal failed"));
+    assert!(windows.target); // a failed domain action must not fall through into World.
 }
