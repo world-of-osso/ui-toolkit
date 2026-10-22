@@ -58,17 +58,14 @@ fn ui_template_behavior_dynamic_tooltip_binding_disappears_when_the_owner_rebuil
         "tooltip_provider",
         "trading_post_product".into(),
     )];
-    diff.diff_roots(
-        &[WidgetChild::Widget(definition.clone())],
-        None,
-        &mut registry,
-    );
+    diff.diff_roots(&[WidgetChild::Widget(definition)], None, &mut registry);
     let id = registry.get_by_name("LiveProduct").unwrap();
     assert_eq!(
         read_attribute(&registry, id, "tooltip_provider").as_deref(),
         Some("trading_post_product")
     );
-    definition.attrs.clear();
+    let mut definition = WidgetDef::new("button");
+    definition.name = Some("LiveProduct".into());
     diff.diff_roots(&[WidgetChild::Widget(definition)], None, &mut registry);
     assert_eq!(read_attribute(&registry, id, "tooltip_provider"), None);
 }
