@@ -26,7 +26,7 @@ RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in l
 
 ## Lifecycle edges and Escape
 
-`core::lifecycle` carries explicit `LifecycleSounds`, tracks visibility edges and stable logical hover owners, and dispatches source-priority Escape hooks. Hosts supply the source observation (session open, mounted canvas or shown listener); repeated sync does not replay OnShow. Silent reset is explicit. No universal click/hide sound is inferred.
+`core/src/lifecycle.rs` carries explicit `LifecycleSounds`, tracks visibility edges and stable logical hover owners, and dispatches source-priority Escape hooks. Hosts supply the source observation (session open, mounted canvas or shown listener); repeated sync does not replay OnShow. Silent reset is explicit. No universal click/hide sound is inferred.
 
 `dispatch_escape` preserves registration order within a priority and stops at the first handled hook. `close_group` instead invokes every registered callback until an error. Callbacks retain domain eligibility, network effects and their errors; neither helper hides windows or owns audio playback. Consumer descriptor/projection migration remains separate.
 
