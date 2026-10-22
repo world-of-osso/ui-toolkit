@@ -83,6 +83,93 @@ fn ui_template_lifecycle_hover_tracks_logical_owner_across_rebuilds_and_reentry(
     );
 }
 
+#[test]
+fn ui_template_lifecycle_binding_roundtrip_preserves_authored_hooks_without_inference() {
+    use crate::attrs::{apply_attribute, read_attribute};
+    use crate::registry::FrameRegistry;
+    let mut registry = FrameRegistry::new(1920.0, 1080.0);
+    let frame = registry.create_frame("PerksProgram", None);
+    for (name, value) in [
+        ("lifecycle_on_show", "218932"),
+        ("lifecycle_on_hide", "218933"),
+        ("lifecycle_on_enter", "218934"),
+        ("lifecycle_on_click", "856"),
+        ("lifecycle_hover_owner", "PerksProgramProduct12"),
+        ("lifecycle_close_hook", "trading_post"),
+        ("lifecycle_close_group", "PANELS"),
+        ("lifecycle_escape_priority", "AddOnPost"),
+    ] {
+        apply_attribute(&mut registry, frame, name, value);
+        assert_eq!(
+            read_attribute(&registry, frame, name).as_deref(),
+            Some(value),
+            "{name}"
+        );
+    }
+    let ordinary = registry.create_frame("OrdinaryButton", None);
+    assert_eq!(
+        read_attribute(&registry, ordinary, "lifecycle_on_click"),
+        None
+    );
+    assert_eq!(
+        read_attribute(&registry, ordinary, "lifecycle_close_hook"),
+        None
+    );
+}
+
+#[test]
+fn ui_template_lifecycle_rebuild_clears_removed_sound_and_close_descriptors() {
+    use crate::attrs::read_attribute;
+    use crate::registry::FrameRegistry;
+    use crate::widget_def::{Attr, WidgetChild, WidgetDef};
+    use crate::widget_def_diff::DiffContext;
+    let mut registry = FrameRegistry::new(1920.0, 1080.0);
+    let mut diff = DiffContext::new();
+    let mut owner = WidgetDef::new("frame");
+    owner.name = Some("MerchantFrame".into());
+    owner.attrs = vec![
+        Attr::new_static("lifecycle_on_show", "839".into()),
+        Attr::new_static("lifecycle_close_hook", "merchant".into()),
+    ];
+    diff.diff_roots(&[WidgetChild::Widget(owner)], None, &mut registry);
+    let frame = registry.get_by_name("MerchantFrame").unwrap();
+    assert_eq!(
+        read_attribute(&registry, frame, "lifecycle_on_show").as_deref(),
+        Some("839")
+    );
+    assert_eq!(
+        read_attribute(&registry, frame, "lifecycle_close_hook").as_deref(),
+        Some("merchant")
+    );
+    let mut owner = WidgetDef::new("frame");
+    owner.name = Some("MerchantFrame".into());
+    diff.diff_roots(&[WidgetChild::Widget(owner)], None, &mut registry);
+    assert_eq!(read_attribute(&registry, frame, "lifecycle_on_show"), None);
+    assert_eq!(
+        read_attribute(&registry, frame, "lifecycle_close_hook"),
+        None
+    );
+}
+
+#[test]
+fn ui_template_lifecycle_rejects_unknown_priority_group_and_invalid_sound() {
+    use crate::attrs::apply_attribute;
+    use crate::registry::FrameRegistry;
+    for (name, value) in [
+        ("lifecycle_escape_priority", "FirstAvailable"),
+        ("lifecycle_close_group", "TopmostOnly"),
+        ("lifecycle_on_show", "not-a-sound-kit"),
+        ("lifecycle_close_hook", ""),
+    ] {
+        let mut registry = FrameRegistry::new(1920.0, 1080.0);
+        let frame = registry.create_frame("InvalidBinding", None);
+        let rejected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            apply_attribute(&mut registry, frame, name, value);
+        }));
+        assert!(rejected.is_err(), "{name}={value} silently accepted");
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Hook {
     Dialog,
