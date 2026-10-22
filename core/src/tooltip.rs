@@ -3,13 +3,26 @@ use crate::widget_def::{Attr, Element, WidgetChild};
 use crate::{frame::Frame, registry::FrameRegistry};
 
 /// Bind a component constructor's single owning widget without altering its children or art.
-pub fn bind_provider(mut element: Element, provider: &str) -> Element {
+pub fn bind_provider(element: Element, provider: &str) -> Element {
+    bind_provider_at(element, provider, TooltipAnchor::Right, [0.0; 2])
+}
+
+/// Declare live ownership and raw Retail placement on a component's root widget.
+pub fn bind_provider_at(
+    mut element: Element,
+    provider: &str,
+    anchor: TooltipAnchor,
+    [x, y]: [f32; 2],
+) -> Element {
     let [WidgetChild::Widget(owner)] = element.as_mut_slice() else {
         panic!("a tooltip provider requires exactly one owning widget")
     };
-    owner
-        .attrs
-        .push(Attr::new_dynamic("tooltip_provider", provider.to_owned()));
+    owner.attrs.extend([
+        Attr::new_dynamic("tooltip_provider", provider.to_owned()),
+        Attr::new_static("tooltip_anchor", anchor.as_str().to_owned()),
+        Attr::new_static("tooltip_offset_x", x.to_string()),
+        Attr::new_static("tooltip_offset_y", y.to_string()),
+    ]);
     element
 }
 
