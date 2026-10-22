@@ -22,6 +22,7 @@ fn ui_template_behavior_static_tooltip_retains_enabled_and_disabled_authored_pol
         ("disabled_tooltip_anchor", "ANCHOR_RIGHT"),
         ("disabled_tooltip_offset_x", "4"),
         ("disabled_tooltip_offset_y", "-6"),
+        ("disabled_tooltip_color", "1,1,1,1"),
     ] {
         apply(&mut registry, id, name, value);
     }
@@ -37,6 +38,7 @@ fn ui_template_behavior_static_tooltip_retains_enabled_and_disabled_authored_pol
         ("disabled_tooltip_anchor", "ANCHOR_RIGHT"),
         ("disabled_tooltip_offset_x", "4"),
         ("disabled_tooltip_offset_y", "-6"),
+        ("disabled_tooltip_color", "1,1,1,1"),
     ] {
         assert_eq!(
             read_attribute(&registry, id, name).as_deref(),

@@ -85,6 +85,8 @@ pub struct TooltipBinding {
     pub offset: [f32; 2],
     pub wrap: bool,
     pub disabled_text: Option<String>,
+    /// A source mixin may use Highlight instead of UIButtonMixin's red disabled title.
+    pub disabled_title_color: Option<[f32; 4]>,
     pub disabled_anchor: TooltipAnchor,
     pub disabled_offset: [f32; 2],
 }
@@ -101,6 +103,7 @@ impl Default for TooltipBinding {
             offset: [0.0; 2],
             wrap: true,
             disabled_text: None,
+            disabled_title_color: None,
             disabled_anchor: TooltipAnchor::Right,
             disabled_offset: [0.0; 2],
         }
