@@ -122,7 +122,7 @@ fn close(context: &mut Windows, hook: Hook) -> Result<bool, &'static str> {
         Hook::Windows => close_group(&[10, 20, 30], context, |context, id| {
             let was_open = context.open.contains(&id);
             context.open.retain(|open| *open != id);
-            Ok(was_open)
+            Ok::<bool, &'static str>(was_open)
         })?,
         Hook::World => std::mem::take(&mut context.target),
     })
