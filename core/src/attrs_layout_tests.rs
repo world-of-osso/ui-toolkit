@@ -5,6 +5,87 @@ fn apply(registry: &mut FrameRegistry, id: u64, name: &str, value: &str) {
     apply_attribute(registry, id, name, value);
 }
 
+// R UIButtonTemplate.lua27–55: authored enabled/disabled content and placement are independent.
+#[test]
+fn ui_template_behavior_static_tooltip_retains_enabled_and_disabled_authored_policy() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("Refresh", None);
+    for (name, value) in [
+        ("tooltip_title", "Refresh"),
+        ("tooltip_text", "Refresh available products."),
+        ("tooltip_anchor", "ANCHOR_LEFT"),
+        ("tooltip_offset_x", "-8"),
+        ("tooltip_offset_y", "20"),
+        ("tooltip_text_color", "0.2,0.3,0.4,1"),
+        ("tooltip_wrap", "false"),
+        ("disabled_tooltip", "Wait for the current purchase."),
+        ("disabled_tooltip_anchor", "ANCHOR_RIGHT"),
+        ("disabled_tooltip_offset_x", "4"),
+        ("disabled_tooltip_offset_y", "-6"),
+    ] {
+        apply(&mut registry, id, name, value);
+    }
+    for (name, expected) in [
+        ("tooltip_title", "Refresh"),
+        ("tooltip_text", "Refresh available products."),
+        ("tooltip_anchor", "ANCHOR_LEFT"),
+        ("tooltip_offset_x", "-8"),
+        ("tooltip_offset_y", "20"),
+        ("tooltip_text_color", "0.2,0.3,0.4,1"),
+        ("tooltip_wrap", "false"),
+        ("disabled_tooltip", "Wait for the current purchase."),
+        ("disabled_tooltip_anchor", "ANCHOR_RIGHT"),
+        ("disabled_tooltip_offset_x", "4"),
+        ("disabled_tooltip_offset_y", "-6"),
+    ] {
+        assert_eq!(
+            read_attribute(&registry, id, name).as_deref(),
+            Some(expected),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn ui_template_behavior_dynamic_tooltip_binding_disappears_when_the_owner_rebuilds_without_it() {
+    use crate::widget_def::{Attr, WidgetChild, WidgetDef};
+    use crate::widget_def_diff::DiffContext;
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let mut diff = DiffContext::new();
+    let mut definition = WidgetDef::new("button");
+    definition.name = Some("LiveProduct".into());
+    definition.attrs = vec![Attr::new_static(
+        "tooltip_provider",
+        "trading_post_product".into(),
+    )];
+    diff.diff_roots(
+        &[WidgetChild::Widget(definition.clone())],
+        None,
+        &mut registry,
+    );
+    let id = registry.get_by_name("LiveProduct").unwrap();
+    assert_eq!(
+        read_attribute(&registry, id, "tooltip_provider").as_deref(),
+        Some("trading_post_product")
+    );
+    definition.attrs.clear();
+    diff.diff_roots(&[WidgetChild::Widget(definition)], None, &mut registry);
+    assert_eq!(read_attribute(&registry, id, "tooltip_provider"), None);
+}
+
+#[test]
+fn ui_template_behavior_unknown_tooltip_anchor_is_rejected() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("UnknownAnchor", None);
+    let rejected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        apply(&mut registry, id, "tooltip_anchor", "ANCHOR_NOT_AUTHORED");
+    }));
+    assert!(
+        rejected.is_err(),
+        "unsupported authored anchor was silently ignored"
+    );
+}
+
 // R SharedUIPanelTemplates.xml and SecureUIPanelTemplates.xml author these state presets.
 #[test]
 fn ui_template_art_named_buttons_supply_authored_state_sources() {
