@@ -277,6 +277,8 @@ pub struct Frame {
 
     // Events
     pub onclick: Option<String>,
+    /// Authored static tooltip policy or a live domain-content provider key.
+    pub tooltip: Option<crate::tooltip::TooltipBinding>,
 
     // Layout mode
     pub flex_layout: Option<FlexLayout>,
@@ -327,6 +329,7 @@ impl Default for Frame {
             movable: false,
             resizable: false,
             onclick: None,
+            tooltip: None,
             flex_layout: None,
             widget_data: None,
         }

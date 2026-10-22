@@ -65,6 +65,7 @@ pub fn read_attribute(registry: &FrameRegistry, frame_id: u64, name: &str) -> Op
         .or_else(|| read_widget_text_attr(frame, name))
         .or_else(|| read_widget_texture_attr(frame, name))
         .or_else(|| button_regions::read(frame, name))
+        .or_else(|| crate::tooltip_attrs::read(frame, name))
 }
 
 fn read_frame_attr(frame: &Frame, name: &str) -> Option<String> {
@@ -239,6 +240,9 @@ pub fn apply_attribute(registry: &mut FrameRegistry, frame_id: u64, name: &str, 
     };
     if name == "font_object" {
         crate::font_object::apply_font_object(frame, Some(value));
+        return;
+    }
+    if crate::tooltip_attrs::apply(frame, name, value) {
         return;
     }
     apply_layout_attr(frame, name, value);

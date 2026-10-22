@@ -124,6 +124,7 @@ impl DiffContext {
             .iter()
             .find(|attr| attr.effective_name() == "font_object");
         if let Some(frame) = registry.get_mut(frame_id) {
+            frame.tooltip = None;
             crate::font_object::apply_font_object(frame, font_object.map(Attr::value_str));
             let template = def
                 .attrs
