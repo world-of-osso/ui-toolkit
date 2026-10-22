@@ -24,6 +24,12 @@ Canonical engine manifests `game-engine/godot/{rust,ui-model}/Cargo.toml` use `p
 
 RSX `hit_rect_insets: "left,right,top,bottom"` adjusts registry hit testing in logical pixels without changing native layout bounds. Positive values shrink the hit area; negative values expand it. Values must be four finite numbers.
 
+## Lifecycle edges and Escape
+
+`core::lifecycle` carries explicit `LifecycleSounds`, tracks visibility edges and stable logical hover owners, and dispatches source-priority Escape hooks. Hosts supply the source observation (session open, mounted canvas or shown listener); repeated sync does not replay OnShow. Silent reset is explicit. No universal click/hide sound is inferred.
+
+`dispatch_escape` preserves registration order within a priority and stops at the first handled hook. `close_group` instead invokes every registered callback until an error. Callbacks retain domain eligibility, network effects and their errors; neither helper hides windows or owns audio playback. Consumer descriptor/projection migration remains separate.
+
 ## Texture tiling
 
 Texture RSX `horiz_tile` and `vert_tile` independently set the existing `TextureData` repeat flags. Values are booleans. New textures default to false; rebuilding with explicit false clears a previously true flag. Hosts repeat the cropped texture member on the selected axes.
