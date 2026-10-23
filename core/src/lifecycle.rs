@@ -74,6 +74,60 @@ pub struct EscapeBinding<H> {
     pub hook: H,
 }
 
+/// Authored membership distinguishes the bag sweep, panel sweep and UISpecialFrames.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseGroup {
+    Bags,
+    Panels,
+    Special,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LifecycleBinding {
+    pub sounds: LifecycleSounds,
+    pub hover_owner: Option<String>,
+    pub close_hook: Option<String>,
+    pub close_group: Option<CloseGroup>,
+    pub escape_priority: Option<EscapePriority>,
+}
+
+impl EscapePriority {
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "Dialog" => Self::Dialog,
+            "Menu" => Self::Menu,
+            "Casting" => Self::Casting,
+            "FrameworkPre" => Self::FrameworkPre,
+            "Framework" => Self::Framework,
+            "FrameworkPost" => Self::FrameworkPost,
+            "AddOn" => Self::AddOn,
+            "AddOnPost" => Self::AddOnPost,
+            "AddOnPost2" => Self::AddOnPost2,
+            "World" => Self::World,
+            _ => panic!("unsupported authored Escape priority: {name}"),
+        }
+    }
+}
+
+impl CloseGroup {
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "BAGS" => Self::Bags,
+            "PANELS" => Self::Panels,
+            "SPECIAL" => Self::Special,
+            _ => panic!("unsupported authored close group: {name}"),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Bags => "BAGS",
+            Self::Panels => "PANELS",
+            Self::Special => "SPECIAL",
+        }
+    }
+}
+
 /// First handled registration consumes Escape; failed domain actions cannot fall through.
 pub fn dispatch_escape<H: Copy, C, E>(
     bindings: &[EscapeBinding<H>],

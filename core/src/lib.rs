@@ -11,6 +11,7 @@ pub mod frame;
 pub mod layout;
 pub mod layout_values;
 pub mod lifecycle;
+mod lifecycle_attrs;
 #[cfg(test)]
 mod lifecycle_tests;
 pub mod panel_style;
