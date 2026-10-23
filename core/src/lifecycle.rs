@@ -92,24 +92,48 @@ pub struct CloseRegistration<H> {
 
 /// Feed the owning root from the same registration used by close dispatch.
 pub fn bind_close_registration(
-    mut element: crate::widget_def::Element,
+    element: crate::widget_def::Element,
     registration: &CloseRegistration<&str>,
+) -> crate::widget_def::Element {
+    bind_registration(
+        element,
+        registration.hook,
+        registration.priority,
+        Some(registration.group),
+    )
+}
+
+/// Framework and other exclusive handlers need not belong to a close-group sweep.
+pub fn bind_escape_registration(
+    element: crate::widget_def::Element,
+    registration: &EscapeBinding<&str>,
+) -> crate::widget_def::Element {
+    bind_registration(element, registration.hook, registration.priority, None)
+}
+
+fn bind_registration(
+    mut element: crate::widget_def::Element,
+    hook: &str,
+    priority: EscapePriority,
+    group: Option<CloseGroup>,
 ) -> crate::widget_def::Element {
     use crate::widget_def::{Attr, WidgetChild};
     let [WidgetChild::Widget(owner)] = element.as_mut_slice() else {
-        panic!("a close registration requires exactly one owning widget")
+        panic!("a lifecycle registration requires exactly one owning widget")
     };
-    owner.attrs.extend([
-        Attr::new_static("lifecycle_close_hook", registration.hook.to_owned()),
-        Attr::new_static(
+    owner
+        .attrs
+        .push(Attr::new_static("lifecycle_close_hook", hook.to_owned()));
+    if let Some(group) = group {
+        owner.attrs.push(Attr::new_static(
             "lifecycle_close_group",
-            registration.group.as_str().to_owned(),
-        ),
-        Attr::new_static(
-            "lifecycle_escape_priority",
-            format!("{:?}", registration.priority),
-        ),
-    ]);
+            group.as_str().to_owned(),
+        ));
+    }
+    owner.attrs.push(Attr::new_static(
+        "lifecycle_escape_priority",
+        format!("{priority:?}"),
+    ));
     element
 }
 
@@ -157,6 +181,21 @@ impl CloseGroup {
             Self::Special => "SPECIAL",
         }
     }
+}
+
+/// Read the explicit kit of this exact OnClick owner; routing owns hit-testing and timing.
+/// No default kit or ancestor OnClick is inferred from unrelated bindings or button artwork.
+pub fn click_sound(frame: &crate::frame::Frame) -> Option<u32> {
+    use crate::{frame::WidgetData, widgets::button::ButtonState};
+    if !frame.visible {
+        return None;
+    }
+    let disabled = matches!(frame.widget_data.as_ref(), Some(WidgetData::Button(button))
+        if !button.enabled || button.state == ButtonState::Disabled);
+    if disabled {
+        return None;
+    }
+    frame.lifecycle.as_ref()?.sounds.on_click
 }
 
 /// Child art and independently clickable children inherit the nearest authored OnEnter.
