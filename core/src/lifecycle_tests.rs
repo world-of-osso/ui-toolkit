@@ -205,6 +205,122 @@ fn ui_template_lifecycle_hover_children_share_the_nearest_authored_logical_owner
     assert!(hover_owner(&registry, product).is_none());
 }
 
+#[test]
+fn ui_template_lifecycle_registered_group_closes_pending_domains_without_a_mounted_frame() {
+    use crate::lifecycle::{CloseGroup, CloseRegistration, close_registered_group};
+    let registrations = [
+        CloseRegistration {
+            hook: "bags",
+            group: CloseGroup::Bags,
+            priority: EscapePriority::AddOnPost,
+        },
+        CloseRegistration {
+            hook: "merchant",
+            group: CloseGroup::Panels,
+            priority: EscapePriority::AddOnPost,
+        },
+        CloseRegistration {
+            hook: "trading_post",
+            group: CloseGroup::Panels,
+            priority: EscapePriority::AddOnPost,
+        },
+        CloseRegistration {
+            hook: "item_ref",
+            group: CloseGroup::Special,
+            priority: EscapePriority::AddOnPost,
+        },
+    ];
+    struct Domains {
+        bags: Vec<u8>,
+        merchant_npc: Option<u64>,
+        trading_request: bool,
+        trading_ui_mounted: bool,
+        item_ref: bool,
+        sent_closes: Vec<u64>,
+    }
+    let mut state = Domains {
+        bags: vec![0, 1],
+        merchant_npc: Some(185468),
+        trading_request: true,
+        trading_ui_mounted: false,
+        item_ref: true,
+        sent_closes: Vec::new(),
+    };
+    let mut close = |state: &mut Domains, hook| -> Result<bool, &'static str> {
+        match hook {
+            "bags" => Ok(!std::mem::take(&mut state.bags).is_empty()),
+            "merchant" => {
+                if let Some(npc) = state.merchant_npc.take() {
+                    state.sent_closes.push(npc);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            "trading_post" => Ok(std::mem::take(&mut state.trading_request)),
+            "item_ref" => Ok(std::mem::take(&mut state.item_ref)),
+            _ => Err("unknown domain close hook"),
+        }
+    };
+    assert!(
+        !state.trading_ui_mounted,
+        "Trading Post request deliberately has no mounted UI"
+    );
+    assert_eq!(
+        close_registered_group(&registrations, CloseGroup::Panels, &mut state, &mut close),
+        Ok(true)
+    );
+    assert_eq!(state.merchant_npc, None);
+    assert!(!state.trading_request);
+    assert_eq!(state.sent_closes, [185468]);
+    assert_eq!(state.bags, [0, 1]);
+    assert!(state.item_ref);
+    assert_eq!(
+        close_registered_group(&registrations, CloseGroup::Panels, &mut state, &mut close),
+        Ok(false)
+    );
+    assert_eq!(
+        state.sent_closes,
+        [185468],
+        "repeat sweep cannot resend a domain close"
+    );
+    assert_eq!(
+        close_registered_group(&registrations, CloseGroup::Bags, &mut state, &mut close),
+        Ok(true)
+    );
+    assert!(state.bags.is_empty());
+    assert_eq!(
+        close_registered_group(&registrations, CloseGroup::Special, &mut state, &mut close),
+        Ok(true)
+    );
+    assert!(!state.item_ref);
+}
+
+#[test]
+fn ui_template_lifecycle_registration_feeds_root_attrs_without_a_second_policy_copy() {
+    use crate::lifecycle::{CloseGroup, CloseRegistration, bind_close_registration};
+    use crate::registry::FrameRegistry;
+    use crate::widget_def::{WidgetChild, WidgetDef};
+    use crate::widget_def_diff::DiffContext;
+    let registration = CloseRegistration {
+        hook: "merchant",
+        group: CloseGroup::Panels,
+        priority: EscapePriority::AddOnPost,
+    };
+    let mut owner = WidgetDef::new("frame");
+    owner.name = Some("MerchantFrame".into());
+    let element = bind_close_registration(vec![WidgetChild::Widget(owner)], &registration);
+    let mut registry = FrameRegistry::new(1920.0, 1080.0);
+    DiffContext::new().diff_roots(&element, None, &mut registry);
+    let frame = registry
+        .get(registry.get_by_name("MerchantFrame").unwrap())
+        .unwrap();
+    let binding = frame.lifecycle.as_ref().unwrap();
+    assert_eq!(binding.close_hook.as_deref(), Some("merchant"));
+    assert_eq!(binding.close_group, Some(CloseGroup::Panels));
+    assert_eq!(binding.escape_priority, Some(EscapePriority::AddOnPost));
+}
+
 #[derive(Clone, Copy)]
 enum Hook {
     Dialog,
