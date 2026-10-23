@@ -11,6 +11,7 @@ pub(crate) fn read(frame: &Frame, name: &str) -> Option<String> {
         "lifecycle_on_click" => binding.sounds.on_click.map(|kit| kit.to_string()),
         "lifecycle_hover_owner" => binding.hover_owner.clone(),
         "lifecycle_close_hook" => binding.close_hook.clone(),
+        "lifecycle_escape_hook" => binding.escape_hook.clone(),
         "lifecycle_close_group" => binding.close_group.map(|group| group.as_str().into()),
         "lifecycle_escape_priority" => binding
             .escape_priority
@@ -31,6 +32,7 @@ pub(crate) fn apply(frame: &mut Frame, name: &str, value: &str) -> bool {
         "lifecycle_on_click" => binding.sounds.on_click = Some(parse_sound(value)),
         "lifecycle_hover_owner" => binding.hover_owner = Some(parse_hook(value)),
         "lifecycle_close_hook" => binding.close_hook = Some(parse_hook(value)),
+        "lifecycle_escape_hook" => binding.escape_hook = Some(parse_hook(value)),
         "lifecycle_close_group" => binding.close_group = Some(CloseGroup::from_name(value)),
         "lifecycle_escape_priority" => {
             binding.escape_priority = Some(EscapePriority::from_name(value))

@@ -82,58 +82,44 @@ pub enum CloseGroup {
     Special,
 }
 
-/// Template registration survives an absent native instance, including pending requests.
+/// Group membership and exclusive Escape handling are independently authored.
+/// Registrations survive an absent native instance, including pending requests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CloseRegistration<H> {
+pub struct LifecycleRegistration<H> {
     pub hook: H,
-    pub group: CloseGroup,
-    pub priority: EscapePriority,
+    pub group: Option<CloseGroup>,
+    pub escape: Option<EscapeBinding<H>>,
 }
 
-/// Feed the owning root from the same registration used by close dispatch.
-pub fn bind_close_registration(
-    element: crate::widget_def::Element,
-    registration: &CloseRegistration<&str>,
-) -> crate::widget_def::Element {
-    bind_registration(
-        element,
-        registration.hook,
-        registration.priority,
-        Some(registration.group),
-    )
-}
-
-/// Framework and other exclusive handlers need not belong to a close-group sweep.
-pub fn bind_escape_registration(
-    element: crate::widget_def::Element,
-    registration: &EscapeBinding<&str>,
-) -> crate::widget_def::Element {
-    bind_registration(element, registration.hook, registration.priority, None)
-}
-
-fn bind_registration(
+/// Feed both independent root policies from the same dispatch registration.
+pub fn bind_registration(
     mut element: crate::widget_def::Element,
-    hook: &str,
-    priority: EscapePriority,
-    group: Option<CloseGroup>,
+    registration: &LifecycleRegistration<&str>,
 ) -> crate::widget_def::Element {
     use crate::widget_def::{Attr, WidgetChild};
     let [WidgetChild::Widget(owner)] = element.as_mut_slice() else {
         panic!("a lifecycle registration requires exactly one owning widget")
     };
-    owner
-        .attrs
-        .push(Attr::new_static("lifecycle_close_hook", hook.to_owned()));
-    if let Some(group) = group {
+    if let Some(group) = registration.group {
+        owner.attrs.push(Attr::new_static(
+            "lifecycle_close_hook",
+            registration.hook.to_owned(),
+        ));
         owner.attrs.push(Attr::new_static(
             "lifecycle_close_group",
             group.as_str().to_owned(),
         ));
     }
-    owner.attrs.push(Attr::new_static(
-        "lifecycle_escape_priority",
-        format!("{priority:?}"),
-    ));
+    if let Some(escape) = &registration.escape {
+        owner.attrs.push(Attr::new_static(
+            "lifecycle_escape_hook",
+            escape.hook.to_owned(),
+        ));
+        owner.attrs.push(Attr::new_static(
+            "lifecycle_escape_priority",
+            format!("{:?}", escape.priority),
+        ));
+    }
     element
 }
 
@@ -143,6 +129,7 @@ pub struct LifecycleBinding {
     pub hover_owner: Option<String>,
     pub close_hook: Option<String>,
     pub close_group: Option<CloseGroup>,
+    pub escape_hook: Option<String>,
     pub escape_priority: Option<EscapePriority>,
 }
 
@@ -220,11 +207,14 @@ pub fn hover_owner(
 
 /// First handled registration consumes Escape; failed domain actions cannot fall through.
 pub fn dispatch_escape<H: Copy, C, E>(
-    bindings: &[EscapeBinding<H>],
+    bindings: &[LifecycleRegistration<H>],
     context: &mut C,
     mut handle: impl FnMut(&mut C, H) -> Result<bool, E>,
 ) -> Result<bool, E> {
-    let mut ordered: Vec<_> = bindings.iter().collect();
+    let mut ordered: Vec<_> = bindings
+        .iter()
+        .filter_map(|entry| entry.escape.as_ref())
+        .collect();
     ordered.sort_by_key(|binding| binding.priority);
     for binding in ordered {
         if handle(context, binding.hook)? {
@@ -246,14 +236,14 @@ pub fn close_group<H: Copy, C, E>(
 
 /// Dispatch the selected authored group even when its template has no mounted instance.
 pub fn close_registered_group<H: Copy, C, E>(
-    registrations: &[CloseRegistration<H>],
+    registrations: &[LifecycleRegistration<H>],
     group: CloseGroup,
     context: &mut C,
     close: impl FnMut(&mut C, H) -> Result<bool, E>,
 ) -> Result<bool, E> {
     let hooks = registrations
         .iter()
-        .filter(|entry| entry.group == group)
+        .filter(|entry| entry.group == Some(group))
         .map(|entry| entry.hook);
     close_hooks(hooks, context, close)
 }

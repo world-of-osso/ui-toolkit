@@ -1,8 +1,8 @@
 //! Source behavior controls: GameMenuEsc.lua, UIParentPanelManager.lua,
 //! MerchantFrame_OnShow/OnHide, PerksProgram OnShow/OnHide/OnEnter and ReadyCheck.xml.
 use crate::lifecycle::{
-    EscapeBinding, EscapePriority, HoverEdge, LifecycleSounds, VisibilityEdge, close_group,
-    dispatch_escape,
+    EscapeBinding, EscapePriority, HoverEdge, LifecycleRegistration, LifecycleSounds,
+    VisibilityEdge, close_group, dispatch_escape,
 };
 
 #[test]
@@ -96,6 +96,7 @@ fn ui_template_lifecycle_binding_roundtrip_preserves_authored_hooks_without_infe
         ("lifecycle_on_click", "856"),
         ("lifecycle_hover_owner", "PerksProgramProduct12"),
         ("lifecycle_close_hook", "trading_post"),
+        ("lifecycle_escape_hook", "trading_post_escape"),
         ("lifecycle_close_group", "PANELS"),
         ("lifecycle_escape_priority", "AddOnPost"),
     ] {
@@ -207,27 +208,27 @@ fn ui_template_lifecycle_hover_children_share_the_nearest_authored_logical_owner
 
 #[test]
 fn ui_template_lifecycle_registered_group_closes_pending_domains_without_a_mounted_frame() {
-    use crate::lifecycle::{CloseGroup, CloseRegistration, close_registered_group};
+    use crate::lifecycle::{CloseGroup, close_registered_group};
     let registrations = [
-        CloseRegistration {
+        LifecycleRegistration {
             hook: "bags",
-            group: CloseGroup::Bags,
-            priority: EscapePriority::AddOnPost,
+            group: Some(CloseGroup::Bags),
+            escape: None,
         },
-        CloseRegistration {
+        LifecycleRegistration {
             hook: "merchant",
-            group: CloseGroup::Panels,
-            priority: EscapePriority::AddOnPost,
+            group: Some(CloseGroup::Panels),
+            escape: None,
         },
-        CloseRegistration {
+        LifecycleRegistration {
             hook: "trading_post",
-            group: CloseGroup::Panels,
-            priority: EscapePriority::AddOnPost,
+            group: Some(CloseGroup::Panels),
+            escape: None,
         },
-        CloseRegistration {
+        LifecycleRegistration {
             hook: "item_ref",
-            group: CloseGroup::Special,
-            priority: EscapePriority::AddOnPost,
+            group: Some(CloseGroup::Special),
+            escape: None,
         },
     ];
     struct Domains {
@@ -298,18 +299,18 @@ fn ui_template_lifecycle_registered_group_closes_pending_domains_without_a_mount
 
 #[test]
 fn ui_template_lifecycle_registration_feeds_root_attrs_without_a_second_policy_copy() {
-    use crate::lifecycle::{CloseGroup, CloseRegistration, bind_close_registration};
+    use crate::lifecycle::{CloseGroup, bind_registration};
     use crate::registry::FrameRegistry;
     use crate::widget_def::{WidgetChild, WidgetDef};
     use crate::widget_def_diff::DiffContext;
-    let registration = CloseRegistration {
+    let registration = LifecycleRegistration {
         hook: "merchant",
-        group: CloseGroup::Panels,
-        priority: EscapePriority::AddOnPost,
+        group: Some(CloseGroup::Panels),
+        escape: None,
     };
     let mut owner = WidgetDef::new("frame");
     owner.name = Some("MerchantFrame".into());
-    let element = bind_close_registration(vec![WidgetChild::Widget(owner)], &registration);
+    let element = bind_registration(vec![WidgetChild::Widget(owner)], &registration);
     let mut registry = FrameRegistry::new(1920.0, 1080.0);
     DiffContext::new().diff_roots(&element, None, &mut registry);
     let frame = registry
@@ -318,29 +319,35 @@ fn ui_template_lifecycle_registration_feeds_root_attrs_without_a_second_policy_c
     let binding = frame.lifecycle.as_ref().unwrap();
     assert_eq!(binding.close_hook.as_deref(), Some("merchant"));
     assert_eq!(binding.close_group, Some(CloseGroup::Panels));
-    assert_eq!(binding.escape_priority, Some(EscapePriority::AddOnPost));
+    assert_eq!(binding.escape_priority, None);
+    assert_eq!(binding.escape_hook, None);
 }
 
 #[test]
 fn ui_template_lifecycle_escape_registration_feeds_root_without_inventing_a_close_group() {
-    use crate::lifecycle::bind_escape_registration;
+    use crate::lifecycle::bind_registration;
     use crate::registry::FrameRegistry;
     use crate::widget_def::{WidgetChild, WidgetDef};
     use crate::widget_def_diff::DiffContext;
-    let registration = EscapeBinding {
+    let registration = LifecycleRegistration {
         hook: "game_menu",
-        priority: EscapePriority::Framework,
+        group: None,
+        escape: Some(EscapeBinding {
+            hook: "game_menu",
+            priority: EscapePriority::Framework,
+        }),
     };
     let mut owner = WidgetDef::new("frame");
     owner.name = Some("GameMenuRoot".into());
-    let element = bind_escape_registration(vec![WidgetChild::Widget(owner)], &registration);
+    let element = bind_registration(vec![WidgetChild::Widget(owner)], &registration);
     let mut registry = FrameRegistry::new(1920.0, 1080.0);
     DiffContext::new().diff_roots(&element, None, &mut registry);
     let frame = registry
         .get(registry.get_by_name("GameMenuRoot").unwrap())
         .unwrap();
     let binding = frame.lifecycle.as_ref().unwrap();
-    assert_eq!(binding.close_hook.as_deref(), Some("game_menu"));
+    assert_eq!(binding.close_hook, None);
+    assert_eq!(binding.escape_hook.as_deref(), Some("game_menu"));
     assert_eq!(binding.escape_priority, Some(EscapePriority::Framework));
     assert_eq!(
         binding.close_group, None,
@@ -356,6 +363,14 @@ enum Hook {
     SecondAddon,
     Windows,
     World,
+}
+
+fn exclusive_registration(binding: EscapeBinding<Hook>) -> LifecycleRegistration<Hook> {
+    LifecycleRegistration {
+        hook: binding.hook,
+        group: None,
+        escape: Some(binding),
+    }
 }
 
 #[derive(Default)]
@@ -420,7 +435,8 @@ fn ui_template_lifecycle_escape_priorities_are_stable_and_first_handled_is_exclu
             priority: EscapePriority::AddOn,
             hook: Hook::SecondAddon,
         },
-    ];
+    ]
+    .map(exclusive_registration);
     let mut windows = Windows {
         dialog: true,
         menu: true,
@@ -457,7 +473,8 @@ fn ui_template_lifecycle_escape_equal_priority_preserves_registration_order_and_
             priority: EscapePriority::AddOn,
             hook: Hook::SecondAddon,
         },
-    ];
+    ]
+    .map(exclusive_registration);
     let mut remaining = vec![1, 2];
     let handled: Result<bool, &str> =
         dispatch_escape(&bindings, &mut remaining, |remaining, hook| {
@@ -495,7 +512,8 @@ fn ui_template_lifecycle_escape_equal_priority_preserves_registration_order_and_
             priority: EscapePriority::World,
             hook: Hook::World,
         },
-    ];
+    ]
+    .map(exclusive_registration);
     let result = dispatch_escape(&failing_bindings, &mut windows, |context, hook| {
         if matches!(hook, Hook::Dialog) {
             return Err("invitation dismissal failed");
