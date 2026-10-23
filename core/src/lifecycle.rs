@@ -128,6 +128,26 @@ impl CloseGroup {
     }
 }
 
+/// Child art and independently clickable children inherit the nearest authored OnEnter.
+/// A show/click/close-only binding does not create a separate hover owner.
+pub fn hover_owner(
+    registry: &crate::registry::FrameRegistry,
+    mut id: u64,
+) -> Option<(&crate::frame::Frame, &LifecycleBinding)> {
+    loop {
+        let frame = registry.get(id)?;
+        if !frame.visible {
+            return None;
+        }
+        if let Some(binding) = &frame.lifecycle {
+            if binding.sounds.on_enter.is_some() {
+                return Some((frame, binding));
+            }
+        }
+        id = frame.parent_id?;
+    }
+}
+
 /// First handled registration consumes Escape; failed domain actions cannot fall through.
 pub fn dispatch_escape<H: Copy, C, E>(
     bindings: &[EscapeBinding<H>],
