@@ -600,17 +600,29 @@ fn ui_template_lifecycle_catalog_keeps_group_and_exclusive_dispatch_independent(
         };
         Ok::<_, &str>(shown.remove(window))
     };
-    assert_eq!(dispatch_escape(&registrations, &mut shown, &mut escape), Ok(true));
+    assert_eq!(
+        dispatch_escape(&registrations, &mut shown, &mut escape),
+        Ok(true)
+    );
     assert_eq!(shown, BTreeSet::from(["inactive", "panel", "professions"]));
-    assert_eq!(dispatch_escape(&registrations, &mut shown, &mut escape), Ok(true));
+    assert_eq!(
+        dispatch_escape(&registrations, &mut shown, &mut escape),
+        Ok(true)
+    );
     assert_eq!(shown, BTreeSet::from(["inactive", "panel"]));
-    assert_eq!(dispatch_escape(&registrations, &mut shown, &mut escape), Ok(false));
+    assert_eq!(
+        dispatch_escape(&registrations, &mut shown, &mut escape),
+        Ok(false)
+    );
 
     let mut shown = BTreeSet::from(["inactive", "panel", "professions", "menu"]);
     assert_eq!(
-        close_registered_group(&registrations, CloseGroup::Panels, &mut shown, |shown, hook| {
-            Ok::<_, &str>(shown.remove(hook))
-        }),
+        close_registered_group(
+            &registrations,
+            CloseGroup::Panels,
+            &mut shown,
+            |shown, hook| { Ok::<_, &str>(shown.remove(hook)) }
+        ),
         Ok(true)
     );
     assert_eq!(shown, BTreeSet::from(["inactive", "menu"]));
@@ -632,7 +644,12 @@ fn ui_template_lifecycle_catalog_root_rebuild_preserves_separate_hooks_and_absen
                     priority: EscapePriority::AddOn,
                 }),
             },
-            Some((Some("professions"), Some(CloseGroup::Panels), Some("professions_escape"), Some(EscapePriority::AddOn))),
+            Some((
+                Some("professions"),
+                Some(CloseGroup::Panels),
+                Some("professions_escape"),
+                Some(EscapePriority::AddOn),
+            )),
         ),
         (
             LifecycleRegistration {
@@ -651,7 +668,12 @@ fn ui_template_lifecycle_catalog_root_rebuild_preserves_separate_hooks_and_absen
                     priority: EscapePriority::Framework,
                 }),
             },
-            Some((None, None, Some("menu_escape"), Some(EscapePriority::Framework))),
+            Some((
+                None,
+                None,
+                Some("menu_escape"),
+                Some(EscapePriority::Framework),
+            )),
         ),
         (
             LifecycleRegistration {
@@ -669,13 +691,21 @@ fn ui_template_lifecycle_catalog_root_rebuild_preserves_separate_hooks_and_absen
         owner.name = Some("LifecycleRoot".into());
         let element = bind_registration(vec![WidgetChild::Widget(owner)], &registration);
         diff.diff_roots(&element, None, &mut registry);
-        let frame = registry.get(registry.get_by_name("LifecycleRoot").unwrap()).unwrap();
-        let actual = frame.lifecycle.as_ref().map(|binding| (
-            binding.close_hook.as_deref(),
-            binding.close_group,
-            binding.escape_hook.as_deref(),
-            binding.escape_priority,
-        ));
-        assert_eq!(actual, expected, "root policy after rebuild: {}", registration.hook);
+        let frame = registry
+            .get(registry.get_by_name("LifecycleRoot").unwrap())
+            .unwrap();
+        let actual = frame.lifecycle.as_ref().map(|binding| {
+            (
+                binding.close_hook.as_deref(),
+                binding.close_group,
+                binding.escape_hook.as_deref(),
+                binding.escape_priority,
+            )
+        });
+        assert_eq!(
+            actual, expected,
+            "root policy after rebuild: {}",
+            registration.hook
+        );
     }
 }
