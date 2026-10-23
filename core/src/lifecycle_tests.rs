@@ -321,6 +321,33 @@ fn ui_template_lifecycle_registration_feeds_root_attrs_without_a_second_policy_c
     assert_eq!(binding.escape_priority, Some(EscapePriority::AddOnPost));
 }
 
+#[test]
+fn ui_template_lifecycle_escape_registration_feeds_root_without_inventing_a_close_group() {
+    use crate::lifecycle::bind_escape_registration;
+    use crate::registry::FrameRegistry;
+    use crate::widget_def::{WidgetChild, WidgetDef};
+    use crate::widget_def_diff::DiffContext;
+    let registration = EscapeBinding {
+        hook: "game_menu",
+        priority: EscapePriority::Framework,
+    };
+    let mut owner = WidgetDef::new("frame");
+    owner.name = Some("GameMenuRoot".into());
+    let element = bind_escape_registration(vec![WidgetChild::Widget(owner)], &registration);
+    let mut registry = FrameRegistry::new(1920.0, 1080.0);
+    DiffContext::new().diff_roots(&element, None, &mut registry);
+    let frame = registry
+        .get(registry.get_by_name("GameMenuRoot").unwrap())
+        .unwrap();
+    let binding = frame.lifecycle.as_ref().unwrap();
+    assert_eq!(binding.close_hook.as_deref(), Some("game_menu"));
+    assert_eq!(binding.escape_priority, Some(EscapePriority::Framework));
+    assert_eq!(
+        binding.close_group, None,
+        "Framework handler is not a UISpecialFrames member"
+    );
+}
+
 #[derive(Clone, Copy)]
 enum Hook {
     Dialog,
