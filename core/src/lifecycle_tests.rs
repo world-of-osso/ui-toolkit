@@ -478,3 +478,56 @@ fn ui_template_lifecycle_escape_equal_priority_preserves_registration_order_and_
     assert_eq!(result, Err("invitation dismissal failed"));
     assert!(windows.target); // a failed domain action must not fall through into World.
 }
+
+#[test]
+fn ui_template_lifecycle_click_requires_an_explicit_enabled_visible_owner() {
+    use crate::frame::WidgetData;
+    use crate::lifecycle::{LifecycleBinding, click_sound};
+    use crate::registry::FrameRegistry;
+    use crate::widgets::button::{ButtonData, ButtonState};
+    let mut registry = FrameRegistry::new(1920.0, 1080.0);
+    let id = registry.create_frame("AuthoredButton", None);
+    let frame = registry.get_mut(id).unwrap();
+    frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
+    assert_eq!(
+        click_sound(frame),
+        None,
+        "ordinary buttons do not imply UIButtonMixin"
+    );
+    frame.lifecycle = Some(LifecycleBinding {
+        sounds: LifecycleSounds {
+            on_show: Some(839),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    assert_eq!(
+        click_sound(frame),
+        None,
+        "show hooks do not create click hooks"
+    );
+    frame.lifecycle.as_mut().unwrap().sounds.on_click = Some(856);
+    assert_eq!(click_sound(frame), Some(856));
+    frame.lifecycle.as_mut().unwrap().sounds.on_click = Some(286137);
+    assert_eq!(
+        click_sound(frame),
+        Some(286137),
+        "explicit kit replaces the default declaration"
+    );
+    frame.widget_data = Some(WidgetData::Button(ButtonData {
+        enabled: false,
+        ..Default::default()
+    }));
+    assert_eq!(click_sound(frame), None);
+    frame.widget_data = Some(WidgetData::Button(ButtonData {
+        enabled: true,
+        state: ButtonState::Disabled,
+        ..Default::default()
+    }));
+    assert_eq!(click_sound(frame), None);
+    frame.widget_data = Some(WidgetData::Button(ButtonData::default()));
+    frame.visible = false;
+    assert_eq!(click_sound(frame), None);
+    frame.visible = true;
+    assert_eq!(click_sound(frame), Some(286137));
+}
