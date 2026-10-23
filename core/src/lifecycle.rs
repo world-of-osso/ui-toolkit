@@ -74,6 +74,111 @@ pub struct EscapeBinding<H> {
     pub hook: H,
 }
 
+/// Authored membership distinguishes the bag sweep, panel sweep and UISpecialFrames.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseGroup {
+    Bags,
+    Panels,
+    Special,
+}
+
+/// Template registration survives an absent native instance, including pending requests.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CloseRegistration<H> {
+    pub hook: H,
+    pub group: CloseGroup,
+    pub priority: EscapePriority,
+}
+
+/// Feed the owning root from the same registration used by close dispatch.
+pub fn bind_close_registration(
+    mut element: crate::widget_def::Element,
+    registration: &CloseRegistration<&str>,
+) -> crate::widget_def::Element {
+    use crate::widget_def::{Attr, WidgetChild};
+    let [WidgetChild::Widget(owner)] = element.as_mut_slice() else {
+        panic!("a close registration requires exactly one owning widget")
+    };
+    owner.attrs.extend([
+        Attr::new_static("lifecycle_close_hook", registration.hook.to_owned()),
+        Attr::new_static(
+            "lifecycle_close_group",
+            registration.group.as_str().to_owned(),
+        ),
+        Attr::new_static(
+            "lifecycle_escape_priority",
+            format!("{:?}", registration.priority),
+        ),
+    ]);
+    element
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LifecycleBinding {
+    pub sounds: LifecycleSounds,
+    pub hover_owner: Option<String>,
+    pub close_hook: Option<String>,
+    pub close_group: Option<CloseGroup>,
+    pub escape_priority: Option<EscapePriority>,
+}
+
+impl EscapePriority {
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "Dialog" => Self::Dialog,
+            "Menu" => Self::Menu,
+            "Casting" => Self::Casting,
+            "FrameworkPre" => Self::FrameworkPre,
+            "Framework" => Self::Framework,
+            "FrameworkPost" => Self::FrameworkPost,
+            "AddOn" => Self::AddOn,
+            "AddOnPost" => Self::AddOnPost,
+            "AddOnPost2" => Self::AddOnPost2,
+            "World" => Self::World,
+            _ => panic!("unsupported authored Escape priority: {name}"),
+        }
+    }
+}
+
+impl CloseGroup {
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "BAGS" => Self::Bags,
+            "PANELS" => Self::Panels,
+            "SPECIAL" => Self::Special,
+            _ => panic!("unsupported authored close group: {name}"),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Bags => "BAGS",
+            Self::Panels => "PANELS",
+            Self::Special => "SPECIAL",
+        }
+    }
+}
+
+/// Child art and independently clickable children inherit the nearest authored OnEnter.
+/// A show/click/close-only binding does not create a separate hover owner.
+pub fn hover_owner(
+    registry: &crate::registry::FrameRegistry,
+    mut id: u64,
+) -> Option<(&crate::frame::Frame, &LifecycleBinding)> {
+    loop {
+        let frame = registry.get(id)?;
+        if !frame.visible {
+            return None;
+        }
+        if let Some(binding) = &frame.lifecycle {
+            if binding.sounds.on_enter.is_some() {
+                return Some((frame, binding));
+            }
+        }
+        id = frame.parent_id?;
+    }
+}
+
 /// First handled registration consumes Escape; failed domain actions cannot fall through.
 pub fn dispatch_escape<H: Copy, C, E>(
     bindings: &[EscapeBinding<H>],
@@ -95,10 +200,32 @@ pub fn dispatch_escape<H: Copy, C, E>(
 pub fn close_group<H: Copy, C, E>(
     hooks: &[H],
     context: &mut C,
+    close: impl FnMut(&mut C, H) -> Result<bool, E>,
+) -> Result<bool, E> {
+    close_hooks(hooks.iter().copied(), context, close)
+}
+
+/// Dispatch the selected authored group even when its template has no mounted instance.
+pub fn close_registered_group<H: Copy, C, E>(
+    registrations: &[CloseRegistration<H>],
+    group: CloseGroup,
+    context: &mut C,
+    close: impl FnMut(&mut C, H) -> Result<bool, E>,
+) -> Result<bool, E> {
+    let hooks = registrations
+        .iter()
+        .filter(|entry| entry.group == group)
+        .map(|entry| entry.hook);
+    close_hooks(hooks, context, close)
+}
+
+fn close_hooks<H, C, E>(
+    hooks: impl Iterator<Item = H>,
+    context: &mut C,
     mut close: impl FnMut(&mut C, H) -> Result<bool, E>,
 ) -> Result<bool, E> {
     let mut closed = false;
-    for hook in hooks.iter().copied() {
+    for hook in hooks {
         closed |= close(context, hook)?;
     }
     Ok(closed)

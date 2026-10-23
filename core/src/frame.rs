@@ -279,6 +279,8 @@ pub struct Frame {
     pub onclick: Option<String>,
     /// Authored static tooltip policy or a live domain-content provider key.
     pub tooltip: Option<crate::tooltip::TooltipBinding>,
+    /// Source sound events and domain-owned close/Escape registration.
+    pub lifecycle: Option<crate::lifecycle::LifecycleBinding>,
 
     // Layout mode
     pub flex_layout: Option<FlexLayout>,
@@ -330,6 +332,7 @@ impl Default for Frame {
             resizable: false,
             onclick: None,
             tooltip: None,
+            lifecycle: None,
             flex_layout: None,
             widget_data: None,
         }
