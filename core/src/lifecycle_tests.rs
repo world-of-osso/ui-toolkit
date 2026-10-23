@@ -170,6 +170,41 @@ fn ui_template_lifecycle_rejects_unknown_priority_group_and_invalid_sound() {
     }
 }
 
+#[test]
+fn ui_template_lifecycle_hover_children_share_the_nearest_authored_logical_owner() {
+    use crate::attrs::apply_attribute;
+    use crate::lifecycle::hover_owner;
+    use crate::registry::FrameRegistry;
+    let mut registry = FrameRegistry::new(1920.0, 1080.0);
+    let panel = registry.create_frame("PerksProgramFrame", None);
+    let product = registry.create_frame("PerksProgramProduct12", Some(panel));
+    let toggle = registry.create_frame("PerksProgramCartToggle12", Some(product));
+    let refund = registry.create_frame("PerksProgramRefundIcon12", Some(product));
+    apply_attribute(&mut registry, panel, "lifecycle_on_show", "218932");
+    apply_attribute(&mut registry, product, "lifecycle_on_enter", "218934");
+    apply_attribute(
+        &mut registry,
+        product,
+        "lifecycle_hover_owner",
+        "PerksProgramProduct12",
+    );
+    apply_attribute(&mut registry, toggle, "lifecycle_on_click", "856");
+    let mut hover = HoverEdge::default();
+    for (hit, expected) in [(product, Some(218934)), (toggle, None), (refund, None)] {
+        let (owner, binding) = hover_owner(&registry, hit).unwrap();
+        assert_eq!(owner.id, product);
+        assert_eq!(
+            hover.observe(binding.hover_owner.clone(), &binding.sounds),
+            expected
+        );
+    }
+    assert!(hover_owner(&registry, panel).is_none());
+    registry.set_hidden(product, true);
+    assert!(hover_owner(&registry, refund).is_none());
+    registry.remove_frame(product);
+    assert!(hover_owner(&registry, product).is_none());
+}
+
 #[derive(Clone, Copy)]
 enum Hook {
     Dialog,
