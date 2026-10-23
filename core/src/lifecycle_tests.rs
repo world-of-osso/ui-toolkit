@@ -558,3 +558,124 @@ fn ui_template_lifecycle_click_requires_an_explicit_enabled_visible_owner() {
     frame.visible = true;
     assert_eq!(click_sound(frame), Some(286137));
 }
+
+#[test]
+fn ui_template_lifecycle_catalog_keeps_group_and_exclusive_dispatch_independent() {
+    use crate::lifecycle::{CloseGroup, LifecycleRegistration, close_registered_group};
+    use std::collections::BTreeSet;
+    let registrations = [
+        LifecycleRegistration {
+            hook: "inactive",
+            group: None,
+            escape: None,
+        },
+        LifecycleRegistration {
+            hook: "panel",
+            group: Some(CloseGroup::Panels),
+            escape: None,
+        },
+        LifecycleRegistration {
+            hook: "professions",
+            group: Some(CloseGroup::Panels),
+            escape: Some(EscapeBinding {
+                hook: "professions_escape",
+                priority: EscapePriority::AddOn,
+            }),
+        },
+        LifecycleRegistration {
+            hook: "menu",
+            group: None,
+            escape: Some(EscapeBinding {
+                hook: "menu_escape",
+                priority: EscapePriority::Framework,
+            }),
+        },
+    ];
+    let mut shown = BTreeSet::from(["inactive", "panel", "professions", "menu"]);
+    let mut escape = |shown: &mut BTreeSet<&str>, hook| {
+        let window = match hook {
+            "menu_escape" => "menu",
+            "professions_escape" => "professions",
+            _ => panic!("group membership must not fabricate an exclusive handler: {hook}"),
+        };
+        Ok::<_, &str>(shown.remove(window))
+    };
+    assert_eq!(dispatch_escape(&registrations, &mut shown, &mut escape), Ok(true));
+    assert_eq!(shown, BTreeSet::from(["inactive", "panel", "professions"]));
+    assert_eq!(dispatch_escape(&registrations, &mut shown, &mut escape), Ok(true));
+    assert_eq!(shown, BTreeSet::from(["inactive", "panel"]));
+    assert_eq!(dispatch_escape(&registrations, &mut shown, &mut escape), Ok(false));
+
+    let mut shown = BTreeSet::from(["inactive", "panel", "professions", "menu"]);
+    assert_eq!(
+        close_registered_group(&registrations, CloseGroup::Panels, &mut shown, |shown, hook| {
+            Ok::<_, &str>(shown.remove(hook))
+        }),
+        Ok(true)
+    );
+    assert_eq!(shown, BTreeSet::from(["inactive", "menu"]));
+}
+
+#[test]
+fn ui_template_lifecycle_catalog_root_rebuild_preserves_separate_hooks_and_absence() {
+    use crate::lifecycle::{CloseGroup, LifecycleRegistration, bind_registration};
+    use crate::registry::FrameRegistry;
+    use crate::widget_def::{WidgetChild, WidgetDef};
+    use crate::widget_def_diff::DiffContext;
+    let cases = [
+        (
+            LifecycleRegistration {
+                hook: "professions",
+                group: Some(CloseGroup::Panels),
+                escape: Some(EscapeBinding {
+                    hook: "professions_escape",
+                    priority: EscapePriority::AddOn,
+                }),
+            },
+            Some((Some("professions"), Some(CloseGroup::Panels), Some("professions_escape"), Some(EscapePriority::AddOn))),
+        ),
+        (
+            LifecycleRegistration {
+                hook: "panel",
+                group: Some(CloseGroup::Panels),
+                escape: None,
+            },
+            Some((Some("panel"), Some(CloseGroup::Panels), None, None)),
+        ),
+        (
+            LifecycleRegistration {
+                hook: "menu",
+                group: None,
+                escape: Some(EscapeBinding {
+                    hook: "menu_escape",
+                    priority: EscapePriority::Framework,
+                }),
+            },
+            Some((None, None, Some("menu_escape"), Some(EscapePriority::Framework))),
+        ),
+        (
+            LifecycleRegistration {
+                hook: "inactive",
+                group: None,
+                escape: None,
+            },
+            None,
+        ),
+    ];
+    let mut registry = FrameRegistry::new(1920.0, 1080.0);
+    let mut diff = DiffContext::new();
+    for (registration, expected) in cases {
+        let mut owner = WidgetDef::new("frame");
+        owner.name = Some("LifecycleRoot".into());
+        let element = bind_registration(vec![WidgetChild::Widget(owner)], &registration);
+        diff.diff_roots(&element, None, &mut registry);
+        let frame = registry.get(registry.get_by_name("LifecycleRoot").unwrap()).unwrap();
+        let actual = frame.lifecycle.as_ref().map(|binding| (
+            binding.close_hook.as_deref(),
+            binding.close_group,
+            binding.escape_hook.as_deref(),
+            binding.escape_priority,
+        ));
+        assert_eq!(actual, expected, "root policy after rebuild: {}", registration.hook);
+    }
+}
