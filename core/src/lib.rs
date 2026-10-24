@@ -14,6 +14,7 @@ pub mod lifecycle;
 mod lifecycle_attrs;
 #[cfg(test)]
 mod lifecycle_tests;
+pub mod menu_grid;
 pub mod panel_style;
 pub mod registry;
 pub mod screen;
