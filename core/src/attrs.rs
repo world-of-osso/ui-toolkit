@@ -185,6 +185,10 @@ fn read_widget_texture_attr(frame: &Frame, name: &str) -> Option<String> {
             Some(WidgetData::Texture(texture)) => Some(texture.rotation.to_string()),
             _ => None,
         },
+        "desaturated" => match &frame.widget_data {
+            Some(WidgetData::Texture(texture)) => Some(texture.desaturated.to_string()),
+            _ => None,
+        },
         "tex_coords" => match &frame.widget_data {
             Some(WidgetData::Texture(texture)) => Some(format_color(texture.tex_coords)),
             _ => None,
@@ -728,6 +732,12 @@ fn apply_widget_texture_attrs(frame: &mut Frame, name: &str, value: &str) {
             assert!(rotation.is_finite(), "Invalid texture rotation: {value}");
             if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
                 texture.rotation = rotation;
+            }
+        }
+        "desaturated" => {
+            let desaturated = value.parse().expect("desaturated must be true or false");
+            if let Some(WidgetData::Texture(texture)) = &mut frame.widget_data {
+                texture.desaturated = desaturated;
             }
         }
         "vertex_color" => {

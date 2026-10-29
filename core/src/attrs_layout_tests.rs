@@ -543,6 +543,22 @@ fn texture_rotation_round_trips_negative_and_positive_degrees() {
 }
 
 #[test]
+fn texture_desaturated_attribute_sets_and_clears_the_texture_flag() {
+    let mut registry = FrameRegistry::new(800.0, 600.0);
+    let id = registry.create_frame("RewardIcon", None);
+    registry.get_mut(id).unwrap().widget_data = Some(WidgetData::Texture(Default::default()));
+    for value in ["true", "false"] {
+        apply(&mut registry, id, "desaturated", value);
+        let Some(WidgetData::Texture(texture)) = registry.get(id).unwrap().widget_data.as_ref()
+        else {
+            panic!("missing reward icon texture");
+        };
+        assert_eq!(texture.desaturated.to_string(), value);
+        assert_eq!(read_attribute(&registry, id, "desaturated").as_deref(), Some(value));
+    }
+}
+
+#[test]
 fn texture_rotation_rejects_malformed_values_without_mutating_the_texture() {
     let mut registry = FrameRegistry::new(800.0, 600.0);
     let id = registry.create_frame("Spinner", None);
