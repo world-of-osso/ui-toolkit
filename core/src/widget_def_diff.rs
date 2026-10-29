@@ -349,7 +349,8 @@ enum Reuse {
     OtherFrame,
 }
 
-/// Matching prefers name-based lookup, then an unnamed frame of the same widget type.
+/// Matching prefers a same-named frame of the same widget type, then an unnamed frame of
+/// that type.
 fn consume_match(
     def: &WidgetDef,
     remaining: &mut [Option<u64>],
@@ -377,6 +378,13 @@ fn consume_name_match(
 ) -> Option<u64> {
     let name = def.name.as_deref()?;
     let fid = registry.get_by_name(name)?;
+    // A def whose widget type changed (a read-only FontString becoming an EditBox) gets a
+    // new frame: hosts project one native node per frame and never change its class.
+    let wanted_type =
+        crate::attrs::tag_to_widget_type(def.effective_tag()).unwrap_or(WidgetType::Frame);
+    if registry.get(fid)?.widget_type != wanted_type {
+        return None;
+    }
     consume_frame_id(remaining, fid)
 }
 
@@ -527,6 +535,56 @@ mod tests {
         // Same frame ID, updated width
         assert_eq!(reg.get(fid).unwrap().width, Dimension::Fixed(200.0));
         assert_eq!(ctx.created_frames.len(), 1); // no new frames
+    }
+
+    #[test]
+    fn diff_replaces_named_frame_whose_widget_type_changed() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        let field = |tag: &'static str, text: &str| {
+            vec![WidgetChild::Widget(WidgetDef {
+                tag: "Frame",
+                tag_owned: None,
+                name: Some("Pane".to_string()),
+                attrs: vec![],
+                nine_slice: None,
+                children: vec![WidgetChild::Widget(WidgetDef {
+                    tag,
+                    tag_owned: None,
+                    name: Some("StacksPerDay".to_string()),
+                    attrs: vec![Attr::new_static("text", text.to_string())],
+                    nine_slice: None,
+                    children: vec![],
+                })],
+            })]
+        };
+        ctx.diff_roots(&field("FontString", "0"), None, &mut reg);
+        let pane = reg.get_by_name("Pane").expect("pane");
+        let read_only = reg.get_by_name("StacksPerDay").expect("read-only field");
+        assert_eq!(
+            reg.get(read_only).unwrap().widget_type,
+            WidgetType::FontString
+        );
+
+        ctx.diff_roots(&field("EditBox", "1"), None, &mut reg);
+        let editable = reg.get_by_name("StacksPerDay").expect("editable field");
+        assert_ne!(
+            editable, read_only,
+            "a changed widget type needs a new frame"
+        );
+        assert!(
+            reg.get(read_only).is_none(),
+            "the FontString frame is removed"
+        );
+        assert_eq!(reg.get(editable).unwrap().widget_type, WidgetType::EditBox);
+        assert_eq!(reg.children_of(pane), vec![editable]);
+
+        ctx.diff_roots(&field("EditBox", "2"), None, &mut reg);
+        assert_eq!(
+            reg.get_by_name("StacksPerDay"),
+            Some(editable),
+            "an unchanged widget type keeps its frame"
+        );
     }
 
     #[test]
