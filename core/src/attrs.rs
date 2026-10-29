@@ -281,9 +281,26 @@ fn apply_registry_attr(
         "disabled" => apply_disabled_attr(registry, frame_id, value),
         "scroll_list" => registry.configure_scroll_list(frame_id, value),
         "loading_text" => registry.set_loading_text(frame_id, value),
+        "frame_level_offset" => apply_frame_level_offset(registry, frame_id, value),
         _ => return false,
     }
     true
+}
+
+/// WoW template levels such as `UIPanelCloseButton`'s 510 stay relative to their panel:
+/// raising the panel raises them with it. The parent's level is applied first.
+fn apply_frame_level_offset(registry: &mut FrameRegistry, frame_id: u64, value: &str) {
+    let Ok(offset) = value.parse::<f32>() else {
+        return;
+    };
+    let base = registry
+        .get(frame_id)
+        .and_then(|frame| frame.parent_id)
+        .and_then(|parent| registry.get(parent))
+        .map_or(0, |parent| parent.frame_level);
+    if let Some(frame) = registry.get_mut(frame_id) {
+        frame.frame_level = base + offset as i32;
+    }
 }
 
 fn apply_disabled_attr(registry: &mut FrameRegistry, frame_id: u64, value: &str) {

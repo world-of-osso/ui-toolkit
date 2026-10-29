@@ -588,6 +588,36 @@ mod tests {
     }
 
     #[test]
+    fn frame_level_offset_follows_the_panel_level() {
+        let mut reg = make_registry();
+        let mut ctx = DiffContext::new();
+        let panel = |level: &str| {
+            vec![WidgetChild::Widget(WidgetDef {
+                tag: "Frame",
+                tag_owned: None,
+                name: Some("Panel".to_string()),
+                attrs: vec![Attr::new_static("frame_level", level.to_string())],
+                nine_slice: None,
+                children: vec![WidgetChild::Widget(WidgetDef {
+                    tag: "Button",
+                    tag_owned: None,
+                    name: Some("PanelCloseButton".to_string()),
+                    attrs: vec![Attr::new_static("frame_level_offset", "510".to_string())],
+                    nine_slice: None,
+                    children: vec![],
+                })],
+            })]
+        };
+        let level = |reg: &FrameRegistry, name: &str| {
+            reg.get(reg.get_by_name(name).unwrap()).unwrap().frame_level
+        };
+        ctx.diff_roots(&panel("1000"), None, &mut reg);
+        assert_eq!(level(&reg, "PanelCloseButton"), 1510);
+        ctx.diff_roots(&panel("0"), None, &mut reg);
+        assert_eq!(level(&reg, "PanelCloseButton"), 510);
+    }
+
+    #[test]
     fn patch_by_name_can_clear_slider_thumb_texture() {
         let mut reg = make_registry();
         let mut ctx = DiffContext::new();
