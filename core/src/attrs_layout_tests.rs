@@ -554,7 +554,10 @@ fn texture_desaturated_attribute_sets_and_clears_the_texture_flag() {
             panic!("missing reward icon texture");
         };
         assert_eq!(texture.desaturated.to_string(), value);
-        assert_eq!(read_attribute(&registry, id, "desaturated").as_deref(), Some(value));
+        assert_eq!(
+            read_attribute(&registry, id, "desaturated").as_deref(),
+            Some(value)
+        );
     }
 }
 
